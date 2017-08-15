@@ -30,3 +30,14 @@
 *.exe
 *.out
 *.app
+
+# Visual Studio
+*.suo
+*.ncb
+*.user
+
+# Build Folders
+release
+debug
+bayonetta_pc/Release
+bayonetta_pc/Debug
