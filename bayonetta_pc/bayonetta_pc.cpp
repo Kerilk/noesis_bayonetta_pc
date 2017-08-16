@@ -85,34 +85,34 @@ typedef struct wtbTexHdr_s
 } wtbTexHdr_t;
 typedef struct bayoWMBHdr_s
 {
-	BYTE				id[4];
-	int					unknownA;
-	WORD				unknownB;
-	WORD				unknownC;
-	int					numVerts;
-	WORD				unknownD;
-	WORD				unknownE;
-	int					unknownF;
-	int					ofsVerts;
-	int					ofsVertExData;
-	int					unknownG[4];
-	int					numBones;
-	int					ofsBoneHie;
-	int					ofsBoneDataA;
-	int					ofsBoneDataB;
-	int					ofsBoneHieB;
-	int					numMaterials;
-	int					ofsMaterialsOfs;
-	int					ofsMaterials;
-	int					numMeshes;
-	int					ofsMeshOfs;
-	int					ofsMeshes;
-	int					unknownK;
-	int					unknownL;
-	int					ofsUnknownJ;
-	int					ofsUnknownK;
-	int					ofsUnknownL;
-	int					exMatInfo[4];
+	BYTE				id[4];				// 0
+	int					unknownA;			// 4
+	WORD				unknownB;			// 8
+	WORD				unknownC;			// A
+	int					numVerts;			// C
+	WORD				unknownD;			//10
+	WORD				unknownE;			//12
+	int					unknownF;			//14
+	int					ofsVerts;			//18
+	int					ofsVertExData;		//1C
+	int					unknownG[4];		//20
+	int					numBones;			//30
+	int					ofsBoneHie;			//34
+	int					ofsBoneDataA;		//38
+	int					ofsBoneDataB;		//3C
+	int					ofsBoneHieB;		//40
+	int					numMaterials;		//44
+	int					ofsMaterialsOfs;	//48
+	int					ofsMaterials;		//4C
+	int					numMeshes;			//50
+	int					ofsMeshOfs;			//54
+	int					ofsMeshes;			//58
+	int					unknownK;			//5C
+	int					unknownL;			//60
+	int					ofsUnknownJ;		//64
+	int					ofsUnknownK;		//68
+	int					ofsUnknownL;		//6C
+	int					exMatInfo[4];		//70
 } bayoWMBHdr_t;
 typedef struct wmbMesh_s
 {
