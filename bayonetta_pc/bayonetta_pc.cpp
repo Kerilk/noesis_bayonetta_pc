@@ -6,6 +6,17 @@
 const char *g_pPluginName = "bayonetta_pc";
 const char *g_pPluginDesc = "Bayonetta PC model handler, by Dick, Kerilk.";
 
+FILE *bayo_log;
+#ifdef _DEBUG
+#define DBGLOG(fmt, ...) fprintf(bayo_log, fmt, __VA_ARGS__)
+#define OPENLOG() (bayo_log = fopen("bayo.log", "w"))
+#define CLOSELOG() fclose(bayo_log)
+#else
+#define DBGLOG(fmt, ...) do { if (0) fprintf(bayo_log, fmt, __VA_ARGS__); } while (0)
+#define OPENLOG() do { if (0) bayo_log = fopen("bayo.log", "w+"); } while (0)
+#define CLOSELOG() do { if (0) fclose(bayo_log); } while (0)
+#endif
+
 typedef struct bayoDat_s
 {
 	BYTE			id[4];
@@ -160,6 +171,7 @@ typedef struct wmbMat_s
 //see if something is a valid bayonetta .dat
 bool Model_Bayo_Check(BYTE *fileBuffer, int bufferLen, noeRAPI_t *rapi)
 {
+	DBGLOG("----------------------\n");
 	if (bufferLen < sizeof(bayoDat_t))
 	{
 		return false;
@@ -187,6 +199,7 @@ bool Model_Bayo_Check(BYTE *fileBuffer, int bufferLen, noeRAPI_t *rapi)
 	}
 	int numWMB = 0;
 	int numMOT = 0;
+	DBGLOG("Found %d resources\n", dat.numRes);
 	for (int i = 0; i < dat.numRes; i++)
 	{
 		char *name = (char *)namesp;
@@ -194,6 +207,7 @@ bool Model_Bayo_Check(BYTE *fileBuffer, int bufferLen, noeRAPI_t *rapi)
 		{ //incorrectly terminated string
 			return false;
 		}
+		DBGLOG("\t%s\n", name);
 		if (rapi->Noesis_CheckFileExt(name, ".wmb"))
 		{
 			numWMB++;
@@ -211,7 +225,7 @@ bool Model_Bayo_Check(BYTE *fileBuffer, int bufferLen, noeRAPI_t *rapi)
 	{ //nothing of interest in here
 		return false;
 	}
-
+	DBGLOG("Found %d wmb files\n", numWMB);
 	return true;
 }
 
@@ -249,7 +263,7 @@ static void Model_Bayo_LoadTextures(CArrayList<noesisTex_t *> &textures, BYTE *d
 	{
 		return;
 	}
-
+	DBGLOG("Found %d textures\n", hdr.numTex);
 	int *tofs = (int *)(data+hdr.ofsTexOfs);
 	int *tsizes = (int *)(data+hdr.ofsTexSizes);
 	int *tflags = (int *)(data+hdr.ofsTexFlags);
@@ -308,7 +322,9 @@ static void Model_Bayo_LoadTextures(CArrayList<noesisTex_t *> &textures, BYTE *d
 			texFlags |= NTEXFLAG_SEGMENTED;
 		}
 		*/
+		DBGLOG("\t%03d (idx %d, flags %x): ", i, globalIdx, tflags[i]);
 		if (tex.pixelFormat.flags & 0x4) { //DDPF_FOURCC
+			DBGLOG("%4s\n", (char *)&(tex.pixelFormat.id));
 			switch (tex.pixelFormat.id)
 			{
 			case 0x31545844: //"DXT1"
@@ -332,6 +348,7 @@ static void Model_Bayo_LoadTextures(CArrayList<noesisTex_t *> &textures, BYTE *d
 				break;
 			}
 		} else if (tex.pixelFormat.flags & 0x41) {
+			DBGLOG("RGBA\n");
 			dxtFmt = NOESISTEX_RGBA32;
 			uncompressed = true;
 			channelSwiz = true;
@@ -488,6 +505,7 @@ modelBone_t *Model_Bayo_CreateBones(bayoWMBHdr_t &hdr, BYTE *data, noeRAPI_t *ra
 //load a single model from a dat set
 static noesisModel_t *Model_Bayo_LoadModel(CArrayList<bayoDatFile_t> &dfiles, bayoDatFile_t &df, noeRAPI_t *rapi)
 {
+	DBGLOG("Loading %s\n", df.name);
 	BYTE *data = df.data;
 	int dataSize = df.dataSize;
 	if (dataSize < sizeof(bayoWMBHdr_t))
@@ -500,12 +518,14 @@ static noesisModel_t *Model_Bayo_LoadModel(CArrayList<bayoDatFile_t> &dfiles, ba
 		return NULL;
 	}
 	bool isVanqModel = (hdr.unknownA < 0);
+	DBGLOG("Vanquish: %s\n", isVanqModel ? "true" : "false");
 
 	CArrayList<noesisTex_t *> textures;
 	CArrayList<noesisMaterial_t *> matList;
 	bayoDatFile_t *texBundle = Model_Bayo_GetTextureBundle(dfiles, df, rapi);
 	if (texBundle)
 	{
+		DBGLOG("Found texture bundle %s\n", texBundle->name);
 		Model_Bayo_LoadTextures(textures, texBundle->data, texBundle->dataSize, rapi);
 	}
 	int *matOfsList = (int *)(data + hdr.ofsMaterialsOfs);
@@ -517,9 +537,10 @@ static noesisModel_t *Model_Bayo_LoadModel(CArrayList<bayoDatFile_t> &dfiles, ba
 		numMatIDs = *matIDs;
 		matIDs++;
 	}
-
+	DBGLOG("Found %d materials\n", hdr.numMaterials);
 	for (int i = 0; i < hdr.numMaterials; i++)
 	{
+		DBGLOG("\t%03d:", i);
 		int matOfs = matOfsList[i];
 		BYTE *matData = data + hdr.ofsMaterials + matOfs;
 		//create a noesis material entry
@@ -530,6 +551,7 @@ static noesisModel_t *Model_Bayo_LoadModel(CArrayList<bayoDatFile_t> &dfiles, ba
 		nmat->noDefaultBlend = true;
 		if (hasExMatInfo && numMatIDs > 0)
 		{ //search by global index values
+			DBGLOG("vanquish style\n");
 			nmat->normalTexIdx = (textures.Num() > 0) ? textures.Num()-1 : -1; //default to flat normal
 
 			char *shaderName = (char *)(data + hdr.exMatInfo[0] + 16*i);
@@ -565,6 +587,7 @@ static noesisModel_t *Model_Bayo_LoadModel(CArrayList<bayoDatFile_t> &dfiles, ba
 		{ //bayonetta-style
 			wmbMat_t mat = *((wmbMat_t *)matData);
 			nmat->texIdx = mat.texIdxA;
+			DBGLOG("texIdx: %d", nmat->texIdx);
 			int blendValB = ((mat.matFlags>>4) & 15); //no idea if this is correct. it probably isn't. but it generally happens to work out.
 			int blendVal = (mat.matFlags & 15);
 			if (blendVal <= 7)
@@ -586,6 +609,7 @@ static noesisModel_t *Model_Bayo_LoadModel(CArrayList<bayoDatFile_t> &dfiles, ba
 			if (!mat.texFlagsB && blendVal >= 7 && blendValB >= 2)
 			{
 				int nrmIdx = mat.texIdxB;
+				DBGLOG(" nrmIdx: %d", nrmIdx);
 				if (nrmIdx < textures.Num())
 				{
 					noesisTex_t *tex = textures[nrmIdx];
@@ -595,6 +619,7 @@ static noesisModel_t *Model_Bayo_LoadModel(CArrayList<bayoDatFile_t> &dfiles, ba
 					}
 				}
 			}
+			DBGLOG("\n");
 		}
 
 		matList.Append(nmat);
@@ -708,11 +733,13 @@ static void Model_Bayo_GetDATEntries(CArrayList<bayoDatFile_t> &dfiles, BYTE *fi
 	namesp += sizeof(int);
 	int *ofsp = (int *)(fileBuffer+dat.ofsRes);
 	int *sizep = (int *)(fileBuffer+dat.ofsSizes);
+	DBGLOG("Found %d entries\n", dat.numRes);
 	for (int i = 0; i < dat.numRes; i++)
 	{
 		bayoDatFile_t df;
 		memset(&df, 0, sizeof(df));
 		df.name = (char *)namesp;
+		DBGLOG("\t%s\n", df.name);
 		namesp += strSize;
 
 		df.dataSize = *sizep;
@@ -731,6 +758,7 @@ noesisModel_t *Model_Bayo_Load(BYTE *fileBuffer, int bufferLen, int &numMdl, noe
 {
 	CArrayList<bayoDatFile_t> dfiles;
 
+	DBGLOG("Loading model\n");
 	//create a list of resources
 	Model_Bayo_GetDATEntries(dfiles, fileBuffer, bufferLen);
 	//for vanquish, append any matching dtt files (they're just paired dat files)
@@ -750,6 +778,7 @@ noesisModel_t *Model_Bayo_Load(BYTE *fileBuffer, int bufferLen, int &numMdl, noe
 	}
 
 	CArrayList<noesisModel_t *> models;
+	DBGLOG("Have %d files\n", dfiles.Num());
 	for (int i = 0; i < dfiles.Num(); i++)
 	{
 		bayoDatFile_t &df = dfiles[i];
@@ -784,7 +813,7 @@ bool NPAPI_InitLocal(void)
 	{
 		return false;
 	}
-
+	OPENLOG();
 	//set the data handlers for this format
 	g_nfn->NPAPI_SetTypeHandler_TypeCheck(fh, Model_Bayo_Check);
 	g_nfn->NPAPI_SetTypeHandler_LoadModel(fh, Model_Bayo_Load);
@@ -795,7 +824,7 @@ bool NPAPI_InitLocal(void)
 //called by Noesis before the plugin is freed
 void NPAPI_ShutdownLocal(void)
 {
-	//nothing to do here
+	CLOSELOG();
 }
 
 BOOL APIENTRY DllMain( HMODULE hModule,
@@ -803,5 +832,5 @@ BOOL APIENTRY DllMain( HMODULE hModule,
                        LPVOID lpReserved
 					 )
 {
-    return TRUE;
+	return TRUE;
 }
