@@ -32,6 +32,37 @@ typedef struct bayoWTBHdr_s
 	int					resva;
 	int					resvb;
 } bayoWTBHdr_t;
+
+// Texture is now DDS
+typedef struct ddsPixelFormat_s
+{
+	int					size;
+	int					flags;
+	int					id;
+	int					rgbBitCount;
+	int					rBitMask;
+	int					gBitMask;
+	int					bBitMask;
+	int					aBitMask;
+} ddsPixelFormat_t;
+typedef struct ddsTexHdr_s
+{
+	BYTE				id[4];
+	int					hSize;
+	int					flags;
+	int					height;
+	int					width;
+	int					pitchOrLinearSize;
+	int					depth;
+	int					mipMapCount;
+	int					reserved1[11];
+	ddsPixelFormat_t	pixelFormat;
+	int					caps;
+	int					caps2;
+	int					caps3;
+	int					caps4;
+	int					reserved2;
+} ddsTexHdr_t;
 typedef struct wtbTexHdr_s
 {
 	int					unknownA;
@@ -239,7 +270,7 @@ static void Model_Bayo_LoadTextures(CArrayList<noesisTex_t *> &textures, BYTE *d
 		BYTE *texData = data+ofs;
 		BYTE *pix;
 		int globalIdx = -1;
-		wtbTexHdr_t tex;
+		ddsTexHdr_t tex;
 		if (hdr.resva)
 		{ //global id's (probably generated as checksums)
 			int *ip = (int  *)(data+hdr.resva+sizeof(int)*i);
@@ -247,55 +278,67 @@ static void Model_Bayo_LoadTextures(CArrayList<noesisTex_t *> &textures, BYTE *d
 		}
 		if (hdr.resvb)
 		{ //texture info is contiguous in its own section
-			wtbTexHdr_t *thdr = (wtbTexHdr_t  *)(data+hdr.resvb+sizeof(wtbTexHdr_t)*i);
+			ddsTexHdr_t *thdr = (ddsTexHdr_t  *)(data+hdr.resvb+sizeof(ddsTexHdr_t)*i);
 			tex = *thdr;
 			pix = texData;
 		}
 		else
 		{
-			tex = *((wtbTexHdr_t *)texData);
-			pix = texData + sizeof(wtbTexHdr_t);
+			tex = *((ddsTexHdr_t *)texData);
+			pix = texData + sizeof(ddsTexHdr_t);
 		}
-		if (tex.texFmt == 0)
+		if (memcmp(tex.id, "DDS ", 4))
 		{
 			noesisTex_t *nt = rapi->Noesis_AllocPlaceholderTex(fname, 32, 32, false);
 			textures.Append(nt);
 			continue;
 		}
-		int width = (((tex.widthBits>>5) & 127)+1)<<5;
-		int height = ((tex.heightBits & 1023)+1) << 3;
+		int width = tex.width;
+		int height = tex.height;
 
 		bool endianSwap = false;
-		bool untile = !!(tex.unknownJ & 32768);
+		bool untile = false;//!!(tex.unknownJ & 32768);
 		bool uncompressed = false;
 		bool channelSwiz = false;
 		int dxtFmt = NOESISTEX_RGBA32;
 		int texFlags = 0;
+/*
 		if (tex.unknownJ > 0)
 		{ //just a guess
 			texFlags |= NTEXFLAG_SEGMENTED;
 		}
-		switch (tex.texFmt)
-		{
-		case 82:
-			dxtFmt = NOESISTEX_DXT1;
-			break;
-		case 83:
-			dxtFmt = NOESISTEX_DXT3;
-			break;
-		case 84:
-			dxtFmt = NOESISTEX_DXT5;
-			break;
-		case 134:
+		*/
+		if (tex.pixelFormat.flags & 0x4) { //DDPF_FOURCC
+			switch (tex.pixelFormat.id)
+			{
+			case 0x31545844: //"DXT1"
+				dxtFmt = NOESISTEX_DXT1;
+				break;
+			case 0x33545844: //"DXT3"
+				dxtFmt = NOESISTEX_DXT3;
+				break;
+			case 0x35545844: //"DXT5"
+				dxtFmt = NOESISTEX_DXT5;
+				break;
+/*		case 134:
 			dxtFmt = NOESISTEX_RGBA32;
 			uncompressed = true;
 			channelSwiz = true;
-			break;
-		default:
+			break;*/
+			default:
+				assert(0);
+				rapi->LogOutput("WARNING: Unknown texture format %x.\n", tex.pixelFormat.id);
+				dxtFmt = NOESISTEX_DXT1;
+				break;
+			}
+		} else if (tex.pixelFormat.flags & 0x41) {
+			dxtFmt = NOESISTEX_RGBA32;
+			uncompressed = true;
+			channelSwiz = true;
+		} else {
 			assert(0);
-			rapi->LogOutput("WARNING: Unknown texture format %i.\n", tex.texFmt);
+			rapi->LogOutput("WARNING: Unknown texture format %x.\n", tex.pixelFormat.id);
 			dxtFmt = NOESISTEX_DXT1;
-			break;
 		}
 		int mipSize;
 		BYTE *untiledMip;
