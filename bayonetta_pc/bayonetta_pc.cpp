@@ -114,16 +114,16 @@ typedef struct wmbMat_s
 {
 	WORD				matFlags;
 	WORD				unknownB;
-	WORD				texFlagsA;
 	WORD				texIdxA;
-	WORD				texFlagsB;
+	WORD				texFlagsA;
 	WORD				texIdxB;
-	WORD				texFlagsC;
+	WORD				texFlagsB;
 	WORD				texIdxC;
-	WORD				texFlagsD;
+	WORD				texFlagsC;
 	WORD				texIdxD;
-	WORD				texFlagsE;
+	WORD				texFlagsD;
 	WORD				texIdxE;
+	WORD				texFlagsE;
 } wmbMat_t;
 
 //see if something is a valid bayonetta .dat
@@ -138,11 +138,6 @@ bool Model_Bayo_Check(BYTE *fileBuffer, int bufferLen, noeRAPI_t *rapi)
 	{
 		return false;
 	}
-	LITTLE_BIG_SWAP(dat.numRes);
-	LITTLE_BIG_SWAP(dat.ofsRes);
-	LITTLE_BIG_SWAP(dat.ofsType);
-	LITTLE_BIG_SWAP(dat.ofsNames);
-	LITTLE_BIG_SWAP(dat.ofsSizes);
 	if (dat.numRes <= 0 ||
 		dat.ofsRes <= 0 || dat.ofsRes >= bufferLen ||
 		dat.ofsType <= 0 || dat.ofsType >= bufferLen ||
@@ -154,7 +149,6 @@ bool Model_Bayo_Check(BYTE *fileBuffer, int bufferLen, noeRAPI_t *rapi)
 
 	BYTE *namesp = fileBuffer+dat.ofsNames;
 	int strSize = *((int *)namesp);
-	LITTLE_BIG_SWAP(strSize);
 	namesp += sizeof(int);
 	if (strSize <= 0 || strSize >= bufferLen || dat.ofsNames+(int)sizeof(int)+(strSize*dat.numRes) > bufferLen)
 	{
@@ -215,16 +209,10 @@ static void Model_Bayo_LoadTextures(CArrayList<noesisTex_t *> &textures, BYTE *d
 		return;
 	}
 	bayoWTBHdr_t hdr = *((bayoWTBHdr_t *)data);
-	if (memcmp(hdr.id, "\0BTW", 4))
+	if (memcmp(hdr.id, "WTB\0", 4))
 	{ //not a valid texture bundle
 		return;
 	}
-	LITTLE_BIG_SWAP(hdr.numTex);
-	LITTLE_BIG_SWAP(hdr.ofsTexOfs);
-	LITTLE_BIG_SWAP(hdr.ofsTexSizes);
-	LITTLE_BIG_SWAP(hdr.ofsUnknowns);
-	LITTLE_BIG_SWAP(hdr.resva);
-	LITTLE_BIG_SWAP(hdr.resvb);
 	if (hdr.numTex <= 0 || hdr.ofsTexOfs <= 0 || hdr.ofsTexOfs >= dataSize ||
 		hdr.ofsTexSizes <= 0 || hdr.ofsTexSizes >= dataSize)
 	{
@@ -243,8 +231,6 @@ static void Model_Bayo_LoadTextures(CArrayList<noesisTex_t *> &textures, BYTE *d
 
 		int ofs = tofs[i];
 		int size = tsizes[i];
-		LITTLE_BIG_SWAP(ofs);
-		LITTLE_BIG_SWAP(size);
 		if (ofs < 0 || ofs > dataSize)
 		{
 			continue;
@@ -269,13 +255,6 @@ static void Model_Bayo_LoadTextures(CArrayList<noesisTex_t *> &textures, BYTE *d
 			tex = *((wtbTexHdr_t *)texData);
 			pix = texData + sizeof(wtbTexHdr_t);
 		}
-		LITTLE_BIG_SWAP(tex.unknownJ);
-		LITTLE_BIG_SWAP(tex.unknownO);
-		LITTLE_BIG_SWAP(tex.unknownP);
-		LITTLE_BIG_SWAP(tex.unknownQ);
-		LITTLE_BIG_SWAP(tex.texFmt);
-		LITTLE_BIG_SWAP(tex.heightBits);
-		LITTLE_BIG_SWAP(tex.widthBits);
 		if (tex.texFmt == 0)
 		{
 			noesisTex_t *nt = rapi->Noesis_AllocPlaceholderTex(fname, 32, 32, false);
@@ -285,7 +264,7 @@ static void Model_Bayo_LoadTextures(CArrayList<noesisTex_t *> &textures, BYTE *d
 		int width = (((tex.widthBits>>5) & 127)+1)<<5;
 		int height = ((tex.heightBits & 1023)+1) << 3;
 
-		bool endianSwap = true;
+		bool endianSwap = false;
 		bool untile = !!(tex.unknownJ & 32768);
 		bool uncompressed = false;
 		bool channelSwiz = false;
@@ -402,7 +381,6 @@ static void Model_Bayo_CreateNormals(BYTE *data, float *dsts, int numVerts, int 
 		float *dst = dsts+i*3;
 		DWORD r;
 		memcpy(&r, src, sizeof(r));
-		LITTLE_BIG_SWAP(r);
 		int xBits = (eet) ? 11 : 10;
 		int yBits = (eet) ? 11 : 10;
 		int zBits = 10;
@@ -413,9 +391,6 @@ static void Model_Bayo_CreateNormals(BYTE *data, float *dsts, int numVerts, int 
 		dst[1] = (float)SignedBits(y, yBits) / (float)((1<<(yBits-1))-1);
 		dst[2] = (float)SignedBits(z, zBits) / (float)((1<<(zBits-1))-1);
 		g_mfn->Math_VecNorm(dst);
-		LITTLE_BIG_SWAP(dst[0]);
-		LITTLE_BIG_SWAP(dst[1]);
-		LITTLE_BIG_SWAP(dst[2]);
 	}
 }
 
@@ -437,7 +412,6 @@ modelBone_t *Model_Bayo_CreateBones(bayoWMBHdr_t &hdr, BYTE *data, noeRAPI_t *ra
 		modelBone_t *bone = bones + i;
 		float *ppos = posList + i*3;
 		short parent = parentList[i];
-		LITTLE_BIG_SWAP(parent);
 		assert(parent < numBones);
 		bone->index = i;
 		bone->eData.parent = (parent >= 0) ? bones+parent : NULL;
@@ -445,9 +419,6 @@ modelBone_t *Model_Bayo_CreateBones(bayoWMBHdr_t &hdr, BYTE *data, noeRAPI_t *ra
 		bone->mat = g_identityMatrix;
 		float pos[3];
 		memcpy(pos, ppos, sizeof(pos));
-		LITTLE_BIG_SWAP(pos[0]);
-		LITTLE_BIG_SWAP(pos[1]);
-		LITTLE_BIG_SWAP(pos[2]);
 		/*
 		modelMatrix_t mat1, mat2, mat3;
 		g_mfn->Math_RotationMatrix(rot[0], 0, &mat1);
@@ -473,39 +444,10 @@ static noesisModel_t *Model_Bayo_LoadModel(CArrayList<bayoDatFile_t> &dfiles, ba
 		return NULL;
 	}
 	bayoWMBHdr_t hdr = *((bayoWMBHdr_t *)data);
-	if (memcmp(hdr.id, "\0BMW", 4))
+	if (memcmp(hdr.id, "WMB\0", 4))
 	{ //invalid header
 		return NULL;
 	}
-	LITTLE_BIG_SWAP(hdr.unknownA);
-	LITTLE_BIG_SWAP(hdr.unknownB);
-	LITTLE_BIG_SWAP(hdr.unknownC);
-	LITTLE_BIG_SWAP(hdr.numVerts);
-	LITTLE_BIG_SWAP(hdr.unknownD);
-	LITTLE_BIG_SWAP(hdr.unknownE);
-	LITTLE_BIG_SWAP(hdr.unknownF);
-	LITTLE_BIG_SWAP(hdr.ofsVerts);
-	LITTLE_BIG_SWAP(hdr.ofsVertExData);
-	LITTLE_BIG_SWAP(hdr.numBones);
-	LITTLE_BIG_SWAP(hdr.ofsBoneHie);
-	LITTLE_BIG_SWAP(hdr.ofsBoneDataA);
-	LITTLE_BIG_SWAP(hdr.ofsBoneDataB);
-	LITTLE_BIG_SWAP(hdr.ofsBoneHieB);
-	LITTLE_BIG_SWAP(hdr.numMaterials);
-	LITTLE_BIG_SWAP(hdr.ofsMaterialsOfs);
-	LITTLE_BIG_SWAP(hdr.ofsMaterials);
-	LITTLE_BIG_SWAP(hdr.numMeshes);
-	LITTLE_BIG_SWAP(hdr.ofsMeshOfs);
-	LITTLE_BIG_SWAP(hdr.ofsMeshes);
-	LITTLE_BIG_SWAP(hdr.unknownK);
-	LITTLE_BIG_SWAP(hdr.unknownL);
-	LITTLE_BIG_SWAP(hdr.ofsUnknownJ);
-	LITTLE_BIG_SWAP(hdr.ofsUnknownK);
-	LITTLE_BIG_SWAP(hdr.ofsUnknownL);
-	LITTLE_BIG_SWAP(hdr.exMatInfo[0]);
-	LITTLE_BIG_SWAP(hdr.exMatInfo[1]);
-	LITTLE_BIG_SWAP(hdr.exMatInfo[2]);
-	LITTLE_BIG_SWAP(hdr.exMatInfo[3]);
 	bool isVanqModel = (hdr.unknownA < 0);
 
 	CArrayList<noesisTex_t *> textures;
@@ -522,14 +464,12 @@ static noesisModel_t *Model_Bayo_LoadModel(CArrayList<bayoDatFile_t> &dfiles, ba
 	if (matIDs)
 	{ //got a global reference list (this seems redundant since it's also provided in the texture bundle)
 		numMatIDs = *matIDs;
-		LITTLE_BIG_SWAP(numMatIDs);
 		matIDs++;
 	}
 
 	for (int i = 0; i < hdr.numMaterials; i++)
 	{
 		int matOfs = matOfsList[i];
-		LITTLE_BIG_SWAP(matOfs);
 		BYTE *matData = data + hdr.ofsMaterials + matOfs;
 		//create a noesis material entry
 		char matName[128];
@@ -573,21 +513,9 @@ static noesisModel_t *Model_Bayo_LoadModel(CArrayList<bayoDatFile_t> &dfiles, ba
 		else
 		{ //bayonetta-style
 			wmbMat_t mat = *((wmbMat_t *)matData);
-			LITTLE_BIG_SWAP(mat.matFlags);
-			LITTLE_BIG_SWAP(mat.unknownB);
-			LITTLE_BIG_SWAP(mat.texFlagsA);
-			LITTLE_BIG_SWAP(mat.texIdxA);
-			LITTLE_BIG_SWAP(mat.texFlagsB);
-			LITTLE_BIG_SWAP(mat.texIdxB);
-			LITTLE_BIG_SWAP(mat.texFlagsC);
-			LITTLE_BIG_SWAP(mat.texIdxC);
-			LITTLE_BIG_SWAP(mat.texFlagsD);
-			LITTLE_BIG_SWAP(mat.texIdxD);
-			LITTLE_BIG_SWAP(mat.texFlagsE);
-			LITTLE_BIG_SWAP(mat.texIdxE);
 			nmat->texIdx = mat.texIdxA;
-			int blendVal = ((mat.matFlags>>4) & 15); //no idea if this is correct. it probably isn't. but it generally happens to work out.
-			int blendValB = (mat.matFlags & 15);
+			int blendValB = ((mat.matFlags>>4) & 15); //no idea if this is correct. it probably isn't. but it generally happens to work out.
+			int blendVal = (mat.matFlags & 15);
 			if (blendVal <= 7)
 			{ //blended
 				if (blendVal == 7)
@@ -622,7 +550,7 @@ static noesisModel_t *Model_Bayo_LoadModel(CArrayList<bayoDatFile_t> &dfiles, ba
 	}
 
 	void *pgctx = rapi->rpgCreateContext();
-	rapi->rpgSetEndian(true);
+	rapi->rpgSetEndian(false);
 	BYTE *vertData = data + hdr.ofsVerts;
 	const int bayoVertSize = 32;//(hdr.ofsVerts > 128) ? 48 : 32;
 
@@ -638,37 +566,15 @@ static noesisModel_t *Model_Bayo_LoadModel(CArrayList<bayoDatFile_t> &dfiles, ba
 	for (int i = 0; i < hdr.numMeshes; i++)
 	{
 		int meshOfs = meshOfsList[i];
-		LITTLE_BIG_SWAP(meshOfs);
 		wmbMesh_t mesh = *((wmbMesh_t *)(meshStart+meshOfs));
-		LITTLE_BIG_SWAP(mesh.id);
-		LITTLE_BIG_SWAP(mesh.numBatch);
-		LITTLE_BIG_SWAP(mesh.unknownB);
-		LITTLE_BIG_SWAP(mesh.batchOfs);
-		LITTLE_BIG_SWAP(mesh.unknownD);
-		for (int j = 0; j < 12; j++)
-		{
-			LITTLE_BIG_SWAP(mesh.mat[j]);
-		}
 
 		int *batchOfsList = (int *)(meshStart+meshOfs+mesh.batchOfs);
 		for (int j = 0; j < mesh.numBatch; j++)
 		{
 			int batchOfs = batchOfsList[j];
-			LITTLE_BIG_SWAP(batchOfs);
 			BYTE *batchData = (BYTE *)batchOfsList + batchOfs;
 			wmbBatch_t batch = *((wmbBatch_t *)batchData);
-			LITTLE_BIG_SWAP(batch.id);
-			LITTLE_BIG_SWAP(batch.unknownB);
-			LITTLE_BIG_SWAP(batch.unknownC);
-			LITTLE_BIG_SWAP(batch.unknownE);
-			LITTLE_BIG_SWAP(batch.vertStart);
-			LITTLE_BIG_SWAP(batch.vertEnd);
-			LITTLE_BIG_SWAP(batch.primType);
-			LITTLE_BIG_SWAP(batch.ofsIndices);
-			LITTLE_BIG_SWAP(batch.numIndices);
-			LITTLE_BIG_SWAP(batch.vertOfs);
 			int numBoneRefs = *((int *)(batchData+sizeof(wmbBatch_t)));
-			LITTLE_BIG_SWAP(numBoneRefs);
 			int *boneRefDst = NULL;
 			if (numBoneRefs > 0 && bones)
 			{ //set up reference map
@@ -745,15 +651,9 @@ static noesisModel_t *Model_Bayo_LoadModel(CArrayList<bayoDatFile_t> &dfiles, ba
 static void Model_Bayo_GetDATEntries(CArrayList<bayoDatFile_t> &dfiles, BYTE *fileBuffer, int bufferLen)
 {
 	bayoDat_t dat = *((bayoDat_t *)fileBuffer);
-	LITTLE_BIG_SWAP(dat.numRes);
-	LITTLE_BIG_SWAP(dat.ofsRes);
-	LITTLE_BIG_SWAP(dat.ofsType);
-	LITTLE_BIG_SWAP(dat.ofsNames);
-	LITTLE_BIG_SWAP(dat.ofsSizes);
 
 	BYTE *namesp = fileBuffer+dat.ofsNames;
 	int strSize = *((int *)namesp);
-	LITTLE_BIG_SWAP(strSize);
 	namesp += sizeof(int);
 	int *ofsp = (int *)(fileBuffer+dat.ofsRes);
 	int *sizep = (int *)(fileBuffer+dat.ofsSizes);
@@ -765,11 +665,9 @@ static void Model_Bayo_GetDATEntries(CArrayList<bayoDatFile_t> &dfiles, BYTE *fi
 		namesp += strSize;
 
 		df.dataSize = *sizep;
-		LITTLE_BIG_SWAP(df.dataSize);
 		sizep++;
 
 		int ofs = *ofsp;
-		LITTLE_BIG_SWAP(ofs);
 		df.data = fileBuffer+ofs;
 		ofsp++;
 
