@@ -3,8 +3,8 @@
 
 #include "stdafx.h"
 
-const char *g_pPluginName = "bayonetta";
-const char *g_pPluginDesc = "Bayonetta model handler, by Dick.";
+const char *g_pPluginName = "bayonetta_pc";
+const char *g_pPluginDesc = "Bayonetta PC model handler, by Dick, Kerilk.";
 
 typedef struct bayoDat_s
 {
@@ -830,7 +830,7 @@ noesisModel_t *Model_Bayo_Load(BYTE *fileBuffer, int bufferLen, int &numMdl, noe
 //called by Noesis to init the plugin
 bool NPAPI_InitLocal(void)
 {
-	int fh = g_nfn->NPAPI_Register("Bayonetta Model", ".dat");
+	int fh = g_nfn->NPAPI_Register("Bayonetta PC Model", ".dat");
 	if (fh < 0)
 	{
 		return false;

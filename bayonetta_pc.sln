@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 9.00
 # Visual Studio 2005
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "bayonetta", "bayonetta\bayonetta.vcproj", "{A6A5FA32-48E6-4629-A71B-44B7DDD081FE}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "bayonetta_pc", "bayonetta_pc\bayonetta_pc.vcproj", "{A6A5FA32-48E6-4629-A71B-44B7DDD081FE}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
