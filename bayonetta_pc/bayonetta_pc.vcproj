@@ -91,7 +91,7 @@
 			<Tool
 				Name="VCPostBuildEventTool"
 				Description="Copying to Noesis plugins dir"
-				CommandLine="copy &quot;$(OutDir)\$(ProjectName).dll&quot; &quot;C:\Other\Util\Noesis\plugins\$(ProjectName).dll&quot;"
+				CommandLine="copy &quot;$(OutDir)\$(ProjectName).dll&quot; &quot;..\..\..\plugins\$(ProjectName).dll&quot;"
 			/>
 		</Configuration>
 		<Configuration
@@ -170,7 +170,7 @@
 			<Tool
 				Name="VCPostBuildEventTool"
 				Description="Copying to Noesis plugins dir"
-				CommandLine="copy &quot;$(OutDir)\$(ProjectName).dll&quot; &quot;C:\Other\Util\Noesis\plugins\$(ProjectName).dll&quot;"
+				CommandLine="copy &quot;$(OutDir)\$(ProjectName).dll&quot; &quot;..\..\..\plugins\$(ProjectName).dll&quot;"
 			/>
 		</Configuration>
 	</Configurations>
