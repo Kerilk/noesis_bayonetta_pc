@@ -28,7 +28,7 @@ typedef struct bayoWTBHdr_s
 	int					numTex;
 	int					ofsTexOfs;
 	int					ofsTexSizes;
-	int					ofsUnknowns;
+	int					ofsTexFlags;
 	int					resva;
 	int					resvb;
 } bayoWTBHdr_t;
@@ -221,6 +221,7 @@ static void Model_Bayo_LoadTextures(CArrayList<noesisTex_t *> &textures, BYTE *d
 
 	int *tofs = (int *)(data+hdr.ofsTexOfs);
 	int *tsizes = (int *)(data+hdr.ofsTexSizes);
+	int *tflags = (int *)(data+hdr.ofsTexFlags);
 	for (int i = 0; i < hdr.numTex; i++)
 	{
 		char fname[8192];
