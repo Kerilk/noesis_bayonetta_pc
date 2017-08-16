@@ -546,9 +546,11 @@ static noesisModel_t *Model_Bayo_LoadModel(CArrayList<bayoDatFile_t> &dfiles, ba
 		//create a noesis material entry
 		char matName[128];
 		sprintf_s(matName, 128, "bayomat%i", i);
+		DBGLOG(" name: %s,", matName);
 		noesisMaterial_t *nmat = rapi->Noesis_GetMaterialList(1, true);
 		nmat->name = rapi->Noesis_PooledString(matName);
-		nmat->noDefaultBlend = true;
+		//nmat->flags |= NMATFLAG_TWOSIDED;
+		//nmat->noDefaultBlend = true;
 		if (hasExMatInfo && numMatIDs > 0)
 		{ //search by global index values
 			DBGLOG("vanquish style\n");
@@ -587,8 +589,8 @@ static noesisModel_t *Model_Bayo_LoadModel(CArrayList<bayoDatFile_t> &dfiles, ba
 		{ //bayonetta-style
 			wmbMat_t mat = *((wmbMat_t *)matData);
 			nmat->texIdx = mat.texIdxA;
-			DBGLOG("texIdx: %d", nmat->texIdx);
-			int blendValB = ((mat.matFlags>>4) & 15); //no idea if this is correct. it probably isn't. but it generally happens to work out.
+			DBGLOG(" flags: %x, offset: %x, texIdxA: %d, texIdxB: %d(%x)", mat.matFlags, hdr.ofsMaterials + matOfs, nmat->texIdx, mat.texIdxB, mat.texFlagsB);
+/*			int blendValB = ((mat.matFlags>>4) & 15); //no idea if this is correct. it probably isn't. but it generally happens to work out.
 			int blendVal = (mat.matFlags & 15);
 			if (blendVal <= 7)
 			{ //blended
@@ -600,16 +602,16 @@ static noesisModel_t *Model_Bayo_LoadModel(CArrayList<bayoDatFile_t> &dfiles, ba
 				{
 					nmat->noDefaultBlend = false;
 				}
-			}
+			}*/
 
 			nmat->normalTexIdx = (textures.Num() > 0) ? textures.Num()-1 : -1;
 			//todo - some materials also do a scale+bias+rotation on the uv's at runtime to transform the texture coordinates into a
 			//specific region of the normal page. i would think the uv transform data is buried in the giant chunk of floats that
 			//follows the material data, but i don't see it in there. maybe it's related to some texture bundle flags.
-			if (!mat.texFlagsB && blendVal >= 7 && blendValB >= 2)
+			if (!mat.texFlagsB)// && blendVal >= 7 && blendValB >= 2)
 			{
 				int nrmIdx = mat.texIdxB;
-				DBGLOG(" nrmIdx: %d", nrmIdx);
+				DBGLOG(", nrmIdx: %d", nrmIdx);
 				if (nrmIdx < textures.Num())
 				{
 					noesisTex_t *tex = textures[nrmIdx];
