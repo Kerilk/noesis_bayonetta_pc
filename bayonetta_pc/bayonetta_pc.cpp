@@ -641,17 +641,29 @@ static noesisModel_t *Model_Bayo_LoadModel(CArrayList<bayoDatFile_t> &dfiles, ba
 
 	BYTE *meshStart = data + hdr.ofsMeshes;
 	int *meshOfsList = (int *)(data + hdr.ofsMeshOfs);
+	DBGLOG("Found %d meshes\n", hdr.numMeshes);
 	for (int i = 0; i < hdr.numMeshes; i++)
 	{
+		//if (i != 0) continue;
 		int meshOfs = meshOfsList[i];
 		wmbMesh_t mesh = *((wmbMesh_t *)(meshStart+meshOfs));
-
+		DBGLOG("\t%3d: id: %d, offset: %x, name: %s\n", i, mesh.id , hdr.ofsMeshes+meshOfs, mesh.name);
 		int *batchOfsList = (int *)(meshStart+meshOfs+mesh.batchOfs);
 		for (int j = 0; j < mesh.numBatch; j++)
 		{
+			DBGLOG("\t\t%3d: ", j);
 			int batchOfs = batchOfsList[j];
 			BYTE *batchData = (BYTE *)batchOfsList + batchOfs;
 			wmbBatch_t batch = *((wmbBatch_t *)batchData);
+			DBGLOG("%d, %x, %x, %x, %x,", batch.id, batch.unknownB, batch.unknownC, batch.unknownDB, batch.unknownE);
+			if (batch.unknownE) {
+				DBGLOG("skipped (shadow model)\n");
+				continue; // shadow meshes
+			}
+			/*if (batch.unknownB != 0x8001) {
+				DBGLOG("skipped\n");
+				continue;
+			}*/
 			int numBoneRefs = *((int *)(batchData+sizeof(wmbBatch_t)));
 			int *boneRefDst = NULL;
 			if (numBoneRefs > 0 && bones)
@@ -681,6 +693,7 @@ static noesisModel_t *Model_Bayo_LoadModel(CArrayList<bayoDatFile_t> &dfiles, ba
 
 			int texID = (hasExMatInfo) ? batch.unknownC : batch.texID;
 			char *matName = (texID < matList.Num()) ? matList[texID]->name : NULL;
+			DBGLOG("matName: %s\n", matName);
 			rapi->rpgSetMaterial(matName);
 
 			rpgeoPrimType_e primType = (batch.primType == 4) ? RPGEO_TRIANGLE : RPGEO_TRIANGLE_STRIP;
