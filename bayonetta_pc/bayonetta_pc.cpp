@@ -656,7 +656,7 @@ static noesisModel_t *Model_Bayo_LoadModel(CArrayList<bayoDatFile_t> &dfiles, ba
 			BYTE *batchData = (BYTE *)batchOfsList + batchOfs;
 			wmbBatch_t batch = *((wmbBatch_t *)batchData);
 			DBGLOG("%d, %x, %x, %x, %x,", batch.id, batch.unknownB, batch.unknownC, batch.unknownDB, batch.unknownE);
-			if (batch.unknownE) {
+			if (batch.unknownE == 0xf20) {
 				DBGLOG("skipped (shadow model)\n");
 				continue; // shadow meshes
 			}
