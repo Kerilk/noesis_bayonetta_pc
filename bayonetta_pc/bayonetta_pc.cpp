@@ -591,7 +591,12 @@ static noesisModel_t *Model_Bayo_LoadModel(CArrayList<bayoDatFile_t> &dfiles, ba
 		{ //bayonetta-style
 			wmbMat_t mat = *((wmbMat_t *)matData);
 			nmat->texIdx = mat.texIdxA;
-			DBGLOG(" flags: %x, offset: %x, texIdxA: %d, texIdxB: %d(%x)", mat.matFlags, hdr.ofsMaterials + matOfs, nmat->texIdx, mat.texIdxB, mat.texFlagsB);
+			int animatedFlag = 0x0;
+			animatedFlag = nmat->texIdx & 0xff00;
+			nmat->texIdx ^= animatedFlag;
+			animatedFlag >>= 4;
+			DBGLOG(" flags: %x, offset: %x, texIdxA: %d(%x, %x), texIdxB: %d(%x)",
+				   mat.matFlags, hdr.ofsMaterials + matOfs, nmat->texIdx, animatedFlag, mat.texFlagsA, mat.texIdxB, mat.texFlagsB);
 /*			int blendValB = ((mat.matFlags>>4) & 15); //no idea if this is correct. it probably isn't. but it generally happens to work out.
 			int blendVal = (mat.matFlags & 15);
 			if (blendVal <= 7)
@@ -607,10 +612,42 @@ static noesisModel_t *Model_Bayo_LoadModel(CArrayList<bayoDatFile_t> &dfiles, ba
 			}*/
 
 			nmat->normalTexIdx = (textures.Num() > 0) ? textures.Num()-1 : -1;
+			if(animatedFlag)
+			{
+				//animated texture
+				/*
+				if(!mat.texFlagsB)
+				{
+					int specIdx = mat.texIdxB;
+					if (specIdx < textures.Num())
+					{
+						DBGLOG(", specIdx: %d", specIdx);
+						noesisTex_t *tex = textures[specIdx];
+						if (tex && !(tex->flags & NTEXFLAG_SEGMENTED))
+						{
+							nmat->specularTexIdx = specIdx;
+						}
+					}
+				}*/
+				//normal texture
+				if(!mat.texFlagsC)
+				{
+					int nrmIdx = mat.texIdxC;
+					if (nrmIdx < textures.Num())
+					{
+						DBGLOG(", nrmIdx: %d", nrmIdx);
+						noesisTex_t *tex = textures[nrmIdx];
+						if (tex && !(tex->flags & NTEXFLAG_SEGMENTED))
+						{
+							nmat->normalTexIdx = nrmIdx;
+						}
+					}
+				}
 			//todo - some materials also do a scale+bias+rotation on the uv's at runtime to transform the texture coordinates into a
 			//specific region of the normal page. i would think the uv transform data is buried in the giant chunk of floats that
 			//follows the material data, but i don't see it in there. maybe it's related to some texture bundle flags.
-			if (!mat.texFlagsB)// && blendVal >= 7 && blendValB >= 2)
+			}
+			else if (!mat.texFlagsB)// != 0x8000)// && blendVal >= 7 && blendValB >= 2)
 			{
 				int nrmIdx = mat.texIdxB;
 				DBGLOG(", nrmIdx: %d", nrmIdx);
