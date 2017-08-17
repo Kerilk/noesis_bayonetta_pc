@@ -1,0 +1,16 @@
+madama butterfly legs/arms
+4c: (0100 1100) no normal (3 t, 1 v), s AC
+6c: (0110 1100) no normal (3 t, 1 v, second strange flag 0x9000), s B0
+4d: (0100 1101) wt normal (3 t, 2 v), s B0
+76: (0111 0110) wt animated specular and normal (4 textures, 3 valid, first strange flag 0x9000) s D4
+id0105 (Jeanne)
+6E: (0110 1110) wt normal (4 t, 2 v), s D4
+7F: (0111 1111) wt normal (4 t, 2 v), s 124
+87: (1000 0111) wt normal (4 t, 2 v), s D4
+bg0038 (post)
+55: (0101 0101) no normal (3 t, 1 v), size D0
+56: (0101 0110) no normal (3 t, 1 v), size D0
+bg0016 (sign)
+48: (0100 1000) material, lightmap, size
+
+
