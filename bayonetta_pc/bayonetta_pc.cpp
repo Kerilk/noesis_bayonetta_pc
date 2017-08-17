@@ -11,10 +11,12 @@ FILE *bayo_log;
 #define DBGLOG(fmt, ...) fprintf(bayo_log, fmt, __VA_ARGS__)
 #define OPENLOG() (bayo_log = fopen("bayo.log", "w"))
 #define CLOSELOG() fclose(bayo_log)
+#define DBGFLUSH() fflush(bayo_log)
 #else
 #define DBGLOG(fmt, ...) do { if (0) fprintf(bayo_log, fmt, __VA_ARGS__); } while (0)
 #define OPENLOG() do { if (0) bayo_log = fopen("bayo.log", "w+"); } while (0)
 #define CLOSELOG() do { if (0) fclose(bayo_log); } while (0)
+#define DBGFLUSH() do { if (0) fflush(bayo_log); } while (0)
 #endif
 
 typedef struct bayoDat_s
@@ -806,7 +808,7 @@ noesisModel_t *Model_Bayo_Load(BYTE *fileBuffer, int bufferLen, int &numMdl, noe
 			}
 		}
 	}
-
+	DBGFLUSH();
 	if (models.Num() <= 0)
 	{
 		return NULL;
