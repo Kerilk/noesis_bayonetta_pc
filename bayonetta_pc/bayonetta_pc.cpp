@@ -154,23 +154,107 @@ typedef struct wmbBatch_s
 	int					vertOfs;
 	int					unknownI[7];
 } wmbBatch_t;
+typedef struct bayoTex_s
+{
+	BYTE				tex_idx;
+	BYTE				tex_flagA;
+	WORD				tex_flagB;
+} bayoTex_t;
 typedef struct wmbMat_s
 {
 	WORD				matFlags;
 	WORD				unknownB;
-	WORD				texIdxA;
-	WORD				texFlagsA;
-	WORD				texIdxB;
-	WORD				texFlagsB;
-	WORD				texIdxC;
-	WORD				texFlagsC;
-	WORD				texIdxD;
-	WORD				texFlagsD;
-	WORD				texIdxE;
-	WORD				texFlagsE;
+	bayoTex_t			texs[5];
 } wmbMat_t;
 
+typedef struct bayoVertexData_s {
+	float position[3];			//00
+	short uv[2];				//0C //half float really
+	char normals[4];			//0F
+	int unknwownA;				//14
+	unsigned char boneIndex[4];	//18
+	unsigned char boneWeight[4];//1C
+} bayoVertexData_t;
+
 //see if something is a valid bayonetta .dat
+typedef struct bayoMatType_s {
+	bool known;
+	short size;
+	char texture_number;
+	char lightmap_index;
+	char normalmap_index;
+	char texture2_index;
+	char reflection_index;
+} bayoMatType_t;
+
+bayoMatType_t bayoMatTypes[256];
+
+static void bayoSetMatType(bayoMatType_t &mat,
+						   short size,
+						   char texture_number,
+						   char lightmap_index,
+						   char normalmap_index,
+						   char texture2_index,
+						   char reflection_index) {
+	mat.known = true;
+	mat.size = size;
+	mat.texture_number = texture_number;
+	mat.lightmap_index = lightmap_index;
+	mat.normalmap_index = normalmap_index;
+	mat.texture2_index = texture2_index;
+	mat.reflection_index = reflection_index;
+}
+static void bayoUnsetMatType(bayoMatType_t &mat) {
+	mat.known = false;
+	mat.size = 0;
+	mat.texture_number = 1;
+	mat.lightmap_index = -1;
+	mat.normalmap_index = -1;
+	mat.texture2_index = -1;
+	mat.reflection_index = -1;
+}
+static void bayoSetMatTypes(void) {
+	for(int i=0; i<256; i++) {
+		bayoUnsetMatType(bayoMatTypes[i]);
+	}
+	bayoSetMatType(bayoMatTypes[0x31], 0xC0, 3,  1, -1, -1, -1);
+	bayoSetMatType(bayoMatTypes[0x32], 0xE4, 4,  1, -1, -1,  3);
+	bayoSetMatType(bayoMatTypes[0x33], 0xD4, 4,  2, -1,  1, -1);
+	bayoSetMatType(bayoMatTypes[0x34], 0xF8, 5,  2, -1,  1,  4);
+	bayoSetMatType(bayoMatTypes[0x38], 0xD4, 4, -1,  2, -1, -1);
+	bayoSetMatType(bayoMatTypes[0x3A], 0xD4, 4,  1,  2, -1, -1);
+	bayoSetMatType(bayoMatTypes[0x3C], 0xD4, 4, -1, -1, -1, -1);
+	bayoSetMatType(bayoMatTypes[0x40], 0xC4, 4, -1, -1, -1, -1);
+	bayoSetMatType(bayoMatTypes[0x42], 0xAC, 2, -1, -1, -1, -1);
+	bayoSetMatType(bayoMatTypes[0x44], 0xE4, 4,  1, -1, -1, -1);
+	bayoSetMatType(bayoMatTypes[0x47], 0x68, 1, -1, -1, -1, -1);
+	bayoSetMatType(bayoMatTypes[0x48], 0xC0, 3,  1, -1,  2, -1);
+	bayoSetMatType(bayoMatTypes[0x4A], 0xD4, 4,  2, -1,  1, -1);
+	bayoSetMatType(bayoMatTypes[0x4C], 0xAC, 2, -1, -1, -1, -1);
+	bayoSetMatType(bayoMatTypes[0x53], 0x68, 1, -1, -1, -1, -1);
+	bayoSetMatType(bayoMatTypes[0x54], 0xD4, 4,  1, -1, -1, -1);
+	bayoSetMatType(bayoMatTypes[0x59], 0xD4, 4,  1, -1, -1, -1);
+	bayoSetMatType(bayoMatTypes[0x60], 0x68, 1, -1, -1, -1, -1);
+	bayoSetMatType(bayoMatTypes[0x68], 0xAC, 2, -1, -1, -1, -1);
+	bayoSetMatType(bayoMatTypes[0x6B], 0xD0, 3, -1,  1, -1, -1);
+	bayoSetMatType(bayoMatTypes[0x6E], 0xD4, 4, -1,  1, -1, -1);
+	bayoSetMatType(bayoMatTypes[0x71], 0xE4, 4,  1, -1, -1, -1);
+	bayoSetMatType(bayoMatTypes[0x72], 0xD4, 4, -1,  1, -1, -1);
+	bayoSetMatType(bayoMatTypes[0x75], 0xAC, 2, -1, -1, -1, -1);
+	bayoSetMatType(bayoMatTypes[0x7C], 0xEA, 4,  1, -1, -1,  3);
+	bayoSetMatType(bayoMatTypes[0x7F], 0x124,4, -1,  1, -1, -1);
+	bayoSetMatType(bayoMatTypes[0x83], 0xAC, 2, -1, -1, -1, -1);
+	bayoSetMatType(bayoMatTypes[0x87], 0xD4, 4, -1,  1, -1, -1);
+	bayoSetMatType(bayoMatTypes[0x89], 0xC0, 3,  1, -1, -1,  2);
+	bayoSetMatType(bayoMatTypes[0x8F], 0xD4, 4,  1, -1,  2,  3);
+	bayoSetMatType(bayoMatTypes[0x97], 0x114,4, -1, -1, -1, -1);
+	bayoSetMatType(bayoMatTypes[0xA3], 0xE4, 4, -1,  1, -1, -1);
+	bayoSetMatType(bayoMatTypes[0xB2], 0xD4, 4, -1,  1, -1, -1);
+	bayoSetMatType(bayoMatTypes[0xB3], 0x124,4, -1,  1, -1, -1);
+
+}
+
+
 bool Model_Bayo_Check(BYTE *fileBuffer, int bufferLen, noeRAPI_t *rapi)
 {
 	DBGLOG("----------------------\n");
@@ -476,6 +560,7 @@ modelBone_t *Model_Bayo_CreateBones(bayoWMBHdr_t &hdr, BYTE *data, noeRAPI_t *ra
 	float *posList = (float *)(data+hdr.ofsBoneDataB);
 	//float *rotList = (float *)(data+hdr.ofsBoneDataA); //actually relative positions
 	numBones = hdr.numBones;
+	DBGLOG("Found %d bones\n", numBones);
 	modelBone_t *bones = rapi->Noesis_AllocBones(numBones);
 	for (int i = 0; i < numBones; i++)
 	{
@@ -504,34 +589,17 @@ modelBone_t *Model_Bayo_CreateBones(bayoWMBHdr_t &hdr, BYTE *data, noeRAPI_t *ra
 	return bones;
 }
 
-//load a single model from a dat set
-static noesisModel_t *Model_Bayo_LoadModel(CArrayList<bayoDatFile_t> &dfiles, bayoDatFile_t &df, noeRAPI_t *rapi)
-{
-	DBGLOG("Loading %s\n", df.name);
-	BYTE *data = df.data;
-	int dataSize = df.dataSize;
-	if (dataSize < sizeof(bayoWMBHdr_t))
-	{
-		return NULL;
-	}
-	bayoWMBHdr_t hdr = *((bayoWMBHdr_t *)data);
-	if (memcmp(hdr.id, "WMB\0", 4))
-	{ //invalid header
-		return NULL;
-	}
-	bool isVanqModel = (hdr.unknownA < 0);
-	DBGLOG("Vanquish: %s\n", isVanqModel ? "true" : "false");
-
-	CArrayList<noesisTex_t *> textures;
-	CArrayList<noesisMaterial_t *> matList;
-	bayoDatFile_t *texBundle = Model_Bayo_GetTextureBundle(dfiles, df, rapi);
-	if (texBundle)
-	{
-		DBGLOG("Found texture bundle %s\n", texBundle->name);
-		Model_Bayo_LoadTextures(textures, texBundle->data, texBundle->dataSize, rapi);
-	}
+//load Bayonetta Material
+static void Model_Bayo_LoadMaterials(bayoWMBHdr_t &hdr,
+									 CArrayList<noesisTex_t *> &textures,
+									 bool &hasExMatInfo,
+									 CArrayList<noesisMaterial_t *> &matList,
+									 CArrayList<noesisMaterial_t *> &matListLightMap,
+									 CArrayList<noesisMaterial_t *> &totMatList,
+									 BYTE *data,
+									 noeRAPI_t *rapi) {
 	int *matOfsList = (int *)(data + hdr.ofsMaterialsOfs);
-	bool hasExMatInfo = (hdr.exMatInfo[0] && hdr.exMatInfo[1] && hdr.exMatInfo[2] && hdr.exMatInfo[3]);
+	hasExMatInfo = (hdr.exMatInfo[0] && hdr.exMatInfo[1] && hdr.exMatInfo[2] && hdr.exMatInfo[3]);
 	int *matIDs = (hasExMatInfo) ? (int *)(data + hdr.exMatInfo[1]) : NULL;
 	int numMatIDs = 0;
 	if (matIDs)
@@ -590,81 +658,80 @@ static noesisModel_t *Model_Bayo_LoadModel(CArrayList<bayoDatFile_t> &dfiles, ba
 		else
 		{ //bayonetta-style
 			wmbMat_t mat = *((wmbMat_t *)matData);
-			nmat->texIdx = mat.texIdxA;
-			int animatedFlag = 0x0;
-			animatedFlag = nmat->texIdx & 0xff00;
-			nmat->texIdx ^= animatedFlag;
-			animatedFlag >>= 4;
-			DBGLOG(" flags: %x, offset: %x, texIdxA: %d(%x, %x), texIdxB: %d(%x)",
-				   mat.matFlags, hdr.ofsMaterials + matOfs, nmat->texIdx, animatedFlag, mat.texFlagsA, mat.texIdxB, mat.texFlagsB);
-/*			int blendValB = ((mat.matFlags>>4) & 15); //no idea if this is correct. it probably isn't. but it generally happens to work out.
-			int blendVal = (mat.matFlags & 15);
-			if (blendVal <= 7)
-			{ //blended
-				if (blendVal == 7)
-				{
-					nmat->alphaTest = 0.1f;
-				}
-				else
-				{
-					nmat->noDefaultBlend = false;
-				}
-			}*/
 
-			nmat->normalTexIdx = (textures.Num() > 0) ? textures.Num()-1 : -1;
-			if(animatedFlag)
-			{
-				//animated texture
-				/*
-				if(!mat.texFlagsB)
-				{
-					int specIdx = mat.texIdxB;
-					if (specIdx < textures.Num())
-					{
-						DBGLOG(", specIdx: %d", specIdx);
-						noesisTex_t *tex = textures[specIdx];
-						if (tex && !(tex->flags & NTEXFLAG_SEGMENTED))
-						{
-							nmat->specularTexIdx = specIdx;
-						}
-					}
-				}*/
-				//normal texture
-				if(!mat.texFlagsC)
-				{
-					int nrmIdx = mat.texIdxC;
-					if (nrmIdx < textures.Num())
-					{
-						DBGLOG(", nrmIdx: %d", nrmIdx);
-						noesisTex_t *tex = textures[nrmIdx];
-						if (tex && !(tex->flags & NTEXFLAG_SEGMENTED))
-						{
-							nmat->normalTexIdx = nrmIdx;
-						}
-					}
+			if( !bayoMatTypes[mat.matFlags].known ) {
+				DBGLOG(" unknown material id: %4x, %4x", mat.matFlags, mat.unknownB);
+				for( int j=0; j<5; j++) {
+					DBGLOG(", tex%d: %d, %2x, %4x", j,  mat.texs[j].tex_idx, mat.texs[j].tex_flagA, mat.texs[j].tex_flagB);
 				}
+				DBGLOG("\n");
+				DBGFLUSH();
+			} else {
+				DBGLOG(" material id: %2x, offset: %x, tex: %d(%2x, %x)",
+					   mat.matFlags, hdr.ofsMaterials + matOfs, mat.texs[0].tex_idx, mat.texs[0].tex_flagA, mat.texs[0].tex_flagB);
+			}
+
+			nmat->texIdx = mat.texs[0].tex_idx;
+			char normalmap_index = bayoMatTypes[mat.matFlags].normalmap_index;
+
+			if( normalmap_index != -1 && !mat.texs[normalmap_index].tex_flagB ) {
+				DBGLOG(", normal: %d(%2x, %x)", mat.texs[normalmap_index], mat.texs[normalmap_index].tex_flagA, mat.texs[normalmap_index].tex_flagB);
+				nmat->normalTexIdx = mat.texs[normalmap_index].tex_idx;
+			} else {
+				nmat->normalTexIdx = (textures.Num() > 0) ? textures.Num()-1 : -1;
+			}
 			//todo - some materials also do a scale+bias+rotation on the uv's at runtime to transform the texture coordinates into a
 			//specific region of the normal page. i would think the uv transform data is buried in the giant chunk of floats that
 			//follows the material data, but i don't see it in there. maybe it's related to some texture bundle flags.
-			}
-			else if (!mat.texFlagsB)// != 0x8000)// && blendVal >= 7 && blendValB >= 2)
-			{
-				int nrmIdx = mat.texIdxB;
-				DBGLOG(", nrmIdx: %d", nrmIdx);
-				if (nrmIdx < textures.Num())
-				{
-					noesisTex_t *tex = textures[nrmIdx];
-					if (tex && !(tex->flags & NTEXFLAG_SEGMENTED))
-					{
-						nmat->normalTexIdx = nrmIdx;
-					}
-				}
-			}
+/*				if (nrmIdx == 6 || nrmIdx == 2 || nrmIdx == 13) {
+					char matNameLightMap[128];
+					sprintf_s(matNameLightMap, 128, "bayomat_light%i", i);
+					noesisMaterial_t *nmatLightMap = rapi->Noesis_GetMaterialList(1, true);
+					nmatLightMap->name = rapi->Noesis_PooledString(matNameLightMap);
+					nmatLightMap->texIdx = nrmIdx;
+					nmatLightMap->normalTexIdx = -1;
+					matListLightMap.Append(nmatLightMap);
+					totMatList.Append(nmatLightMap);
+				} */
 			DBGLOG("\n");
 		}
-
+		matListLightMap.Append(NULL);
 		matList.Append(nmat);
+		totMatList.Append(nmat);
 	}
+}
+//load a single model from a dat set
+static noesisModel_t *Model_Bayo_LoadModel(CArrayList<bayoDatFile_t> &dfiles, bayoDatFile_t &df, noeRAPI_t *rapi)
+{
+	DBGLOG("Loading %s\n", df.name);
+	BYTE *data = df.data;
+	int dataSize = df.dataSize;
+	if (dataSize < sizeof(bayoWMBHdr_t))
+	{
+		return NULL;
+	}
+	bayoWMBHdr_t hdr = *((bayoWMBHdr_t *)data);
+	if (memcmp(hdr.id, "WMB\0", 4))
+	{ //invalid header
+		return NULL;
+	}
+	bool isVanqModel = (hdr.unknownA < 0);
+	DBGLOG("Vanquish: %s\n", isVanqModel ? "true" : "false");
+
+	CArrayList<noesisTex_t *> textures;
+	CArrayList<noesisMaterial_t *> matList;
+	CArrayList<noesisMaterial_t *> matListLightMap;
+	CArrayList<noesisMaterial_t *> totMatList;
+	bool hasExMatInfo;
+
+	bayoDatFile_t *texBundle = Model_Bayo_GetTextureBundle(dfiles, df, rapi);
+	if (texBundle)
+	{
+		DBGLOG("Found texture bundle %s\n", texBundle->name);
+		Model_Bayo_LoadTextures(textures, texBundle->data, texBundle->dataSize, rapi);
+	}
+
+	Model_Bayo_LoadMaterials(hdr, textures, hasExMatInfo, matList, matListLightMap, totMatList, data, rapi);
 
 	void *pgctx = rapi->rpgCreateContext();
 	rapi->rpgSetEndian(false);
@@ -745,7 +812,7 @@ static noesisModel_t *Model_Bayo_LoadModel(CArrayList<bayoDatFile_t> &dfiles, ba
 		}
 	}
 
-	noesisMatData_t *md = rapi->Noesis_GetMatDataFromLists(matList, textures);
+	noesisMatData_t *md = rapi->Noesis_GetMatDataFromLists(totMatList, textures);
 	rapi->rpgSetExData_Materials(md);
 	rapi->rpgSetExData_Bones(bones, numBones);
 
@@ -868,6 +935,7 @@ bool NPAPI_InitLocal(void)
 		return false;
 	}
 	OPENLOG();
+	bayoSetMatTypes();
 	//set the data handlers for this format
 	g_nfn->NPAPI_SetTypeHandler_TypeCheck(fh, Model_Bayo_Check);
 	g_nfn->NPAPI_SetTypeHandler_LoadModel(fh, Model_Bayo_Load);
