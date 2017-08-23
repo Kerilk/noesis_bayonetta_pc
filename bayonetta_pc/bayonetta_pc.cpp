@@ -230,6 +230,7 @@ static void bayoSetMatTypes(void) {
 	bayoSetMatType(bayoMatTypes[0x47], 0x68, 1, -1, -1, -1, -1);
 	bayoSetMatType(bayoMatTypes[0x48], 0xC0, 3,  1, -1,  2, -1);
 	bayoSetMatType(bayoMatTypes[0x4A], 0xD4, 4,  2, -1,  1, -1);
+	bayoSetMatType(bayoMatTypes[0x4B], 0xD4, 4, -1,  2, -1, -1);
 	bayoSetMatType(bayoMatTypes[0x4C], 0xAC, 2, -1, -1, -1, -1);
 	bayoSetMatType(bayoMatTypes[0x53], 0x68, 1, -1, -1, -1, -1);
 	bayoSetMatType(bayoMatTypes[0x54], 0xD4, 4,  1, -1, -1, -1);
@@ -237,17 +238,20 @@ static void bayoSetMatTypes(void) {
 	bayoSetMatType(bayoMatTypes[0x60], 0x68, 1, -1, -1, -1, -1);
 	bayoSetMatType(bayoMatTypes[0x68], 0xAC, 2, -1, -1, -1, -1);
 	bayoSetMatType(bayoMatTypes[0x6B], 0xD0, 3, -1,  1, -1, -1);
+	bayoSetMatType(bayoMatTypes[0x6D], 0xD0, 3, -1,  1, -1, -1);
 	bayoSetMatType(bayoMatTypes[0x6E], 0xD4, 4, -1,  1, -1, -1);
 	bayoSetMatType(bayoMatTypes[0x71], 0xE4, 4,  1, -1, -1, -1);
 	bayoSetMatType(bayoMatTypes[0x72], 0xD4, 4, -1,  1, -1, -1);
 	bayoSetMatType(bayoMatTypes[0x75], 0xAC, 2, -1, -1, -1, -1);
 	bayoSetMatType(bayoMatTypes[0x7C], 0xEA, 4,  1, -1, -1,  3);
 	bayoSetMatType(bayoMatTypes[0x7F], 0x124,4, -1,  1, -1, -1);
+	bayoSetMatType(bayoMatTypes[0x81], 0x120,3, -1, -1, -1, -1);
 	bayoSetMatType(bayoMatTypes[0x83], 0xAC, 2, -1, -1, -1, -1);
 	bayoSetMatType(bayoMatTypes[0x87], 0xD4, 4, -1,  1, -1, -1);
 	bayoSetMatType(bayoMatTypes[0x89], 0xC0, 3,  1, -1, -1,  2);
 	bayoSetMatType(bayoMatTypes[0x8F], 0xD4, 4,  1, -1,  2,  3);
 	bayoSetMatType(bayoMatTypes[0x97], 0x114,4, -1, -1, -1, -1);
+	bayoSetMatType(bayoMatTypes[0xA1], 0xB0, 3,  1, -1, -1, -1);
 	bayoSetMatType(bayoMatTypes[0xA3], 0xE4, 4, -1,  1, -1, -1);
 	bayoSetMatType(bayoMatTypes[0xB2], 0xD4, 4, -1,  1, -1, -1);
 	bayoSetMatType(bayoMatTypes[0xB3], 0x124,4, -1,  1, -1, -1);
