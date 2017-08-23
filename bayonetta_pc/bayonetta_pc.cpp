@@ -820,7 +820,7 @@ static noesisModel_t *Model_Bayo_LoadModel(CArrayList<bayoDatFile_t> &dfiles, ba
 			DBGLOG("matName: %s\n", matName);
 			rapi->rpgSetMaterial(matName);
 			if(texID < matList.Num() && matList[texID]->ex->pUvScaleBias) {
-				rapi->rpgSetUVScaleBias(matList[texID]->ex->pUvScaleBias, matList[texID]->ex->pUvScaleBias + 2);
+				rapi->rpgSetUVScaleBias(matList[texID]->ex->pUvScaleBias, NULL);
 			} else {
 				rapi->rpgSetUVScaleBias(NULL, NULL);
 			}
