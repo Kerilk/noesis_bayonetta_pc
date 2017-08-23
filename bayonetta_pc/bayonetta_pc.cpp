@@ -705,11 +705,11 @@ static void Model_Bayo_LoadMaterials(bayoWMBHdr_t &hdr,
 			scaleBias[3] = 0.0f;
 			nmat->ex->pUvScaleBias = scaleBias;
 
-			if( bayoMatTypes[mat.matFlags].known ) {
+/*			if( bayoMatTypes[mat.matFlags].known ) { //Doesn't work everywhere unfortunately (bayonetta's eyes seem wrong with this) but works for sapientia's leg
 				float *scale_p = ((float *)matData) + 1 + bayoMatTypes[mat.matFlags].texture_number;
 				scaleBias[0] = scale_p[0];
 				scaleBias[1] = scale_p[1];
-			}
+			}*/
 			DBGLOG("scale: %f %f\n", nmat->ex->pUvScaleBias[0], nmat->ex->pUvScaleBias[1] );
 
 		}
@@ -820,7 +820,7 @@ static noesisModel_t *Model_Bayo_LoadModel(CArrayList<bayoDatFile_t> &dfiles, ba
 			DBGLOG("matName: %s\n", matName);
 			rapi->rpgSetMaterial(matName);
 			if(texID < matList.Num() && matList[texID]->ex->pUvScaleBias) {
-				rapi->rpgSetUVScaleBias(matList[texID]->ex->pUvScaleBias, NULL);
+				rapi->rpgSetUVScaleBias(matList[texID]->ex->pUvScaleBias, matList[texID]->ex->pUvScaleBias + 2);
 			} else {
 				rapi->rpgSetUVScaleBias(NULL, NULL);
 			}
