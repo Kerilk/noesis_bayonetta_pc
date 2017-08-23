@@ -679,7 +679,7 @@ static void Model_Bayo_LoadMaterials(bayoWMBHdr_t &hdr,
 			char normalmap_index = bayoMatTypes[mat.matFlags].normalmap_index;
 
 			if( normalmap_index != -1 && !mat.texs[normalmap_index].tex_flagB ) {
-				DBGLOG(", normal: %d(%2x, %x)", mat.texs[normalmap_index], mat.texs[normalmap_index].tex_flagA, mat.texs[normalmap_index].tex_flagB);
+				DBGLOG(", normal: %d(%2x, %x)", mat.texs[normalmap_index].tex_idx, mat.texs[normalmap_index].tex_flagA, mat.texs[normalmap_index].tex_flagB);
 				nmat->normalTexIdx = mat.texs[normalmap_index].tex_idx;
 			} else {
 				nmat->normalTexIdx = (textures.Num() > 0) ? textures.Num()-1 : -1;
