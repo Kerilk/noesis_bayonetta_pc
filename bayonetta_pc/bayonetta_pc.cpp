@@ -698,6 +698,20 @@ static void Model_Bayo_LoadMaterials(bayoWMBHdr_t &hdr,
 					totMatList.Append(nmatLightMap);
 				} */
 			DBGLOG("\n");
+			float *scaleBias = (float *)rapi->Noesis_PooledAlloc(4*sizeof(float));
+			scaleBias[0] = 1.0f;
+			scaleBias[1] = 1.0f;
+			scaleBias[2] = 0.0f;
+			scaleBias[3] = 0.0f;
+			nmat->ex->pUvScaleBias = scaleBias;
+
+			if( bayoMatTypes[mat.matFlags].known ) {
+				float *scale_p = ((float *)matData) + 1 + bayoMatTypes[mat.matFlags].texture_number;
+				scaleBias[0] = scale_p[0];
+				scaleBias[1] = scale_p[1];
+			}
+			DBGLOG("scale: %f %f\n", nmat->ex->pUvScaleBias[0], nmat->ex->pUvScaleBias[1] );
+
 		}
 		matListLightMap.Append(NULL);
 		matList.Append(nmat);
@@ -805,6 +819,11 @@ static noesisModel_t *Model_Bayo_LoadModel(CArrayList<bayoDatFile_t> &dfiles, ba
 			char *matName = (texID < matList.Num()) ? matList[texID]->name : NULL;
 			DBGLOG("matName: %s\n", matName);
 			rapi->rpgSetMaterial(matName);
+			if(texID < matList.Num() && matList[texID]->ex->pUvScaleBias) {
+				rapi->rpgSetUVScaleBias(matList[texID]->ex->pUvScaleBias, matList[texID]->ex->pUvScaleBias + 2);
+			} else {
+				rapi->rpgSetUVScaleBias(NULL, NULL);
+			}
 
 			rpgeoPrimType_e primType = (batch.primType == 4) ? RPGEO_TRIANGLE : RPGEO_TRIANGLE_STRIP;
 			rapi->rpgCommitTriangles(batchData+batch.ofsIndices, RPGEODATA_USHORT, batch.numIndices, primType, true);
