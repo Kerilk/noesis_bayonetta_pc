@@ -1,7 +1,12 @@
 //this is kind of a poor example for plugins, since the format's not totally known and the code is WIP.
 //but it does showcase some interesting usages.
 
+
 #include "stdafx.h"
+#undef max
+#undef min
+#include "half.hpp"
+using half_float::half;
 
 const char *g_pPluginName = "bayonetta_pc";
 const char *g_pPluginDesc = "Bayonetta PC model handler, by Dick, Kerilk.";
@@ -166,7 +171,29 @@ typedef struct wmbMat_s
 	WORD				unknownB;
 	bayoTex_t			texs[5];
 } wmbMat_t;
+typedef struct bayoMOTHdr_s
+{
+	BYTE				id[4];
+	short int			unknownA;
+	short int			frameCount;
+	int					ofsMotion;
+	int					numEntries;
+} bayoMOTHdr_t;
+typedef union bayoMotField_u
+{
+	float flt;
+	int offset;
+} bayoMotField_t;
 
+typedef struct bayoMotItem_s
+{
+	short int			boneIndex;
+	char				index;
+	BYTE				flag;
+	short int			elem_number;
+	short int			unknown;
+	bayoMotField_t		value;
+} bayoMotItem_t;
 typedef struct bayoVertexData_s {
 	float position[3];			//00
 	short uv[2];				//0C //half float really
@@ -335,7 +362,21 @@ static bayoDatFile_t *Model_Bayo_GetTextureBundle(CArrayList<bayoDatFile_t> &dfi
 	}
 	return NULL;
 }
-
+// get motion files
+static void Model_Bayo_GetMotionFiles(CArrayList<bayoDatFile_t> &dfiles, bayoDatFile_t &df, noeRAPI_t *rapi, CArrayList<bayoDatFile_t *> &motfiles)
+{
+	char motName[MAX_NOESIS_PATH];
+	rapi->Noesis_GetExtensionlessName(motName, df.name);
+	for (int i = 0; i < dfiles.Num(); i++)
+	{
+		bayoDatFile_t &dft = dfiles[i];
+		if (rapi->Noesis_CheckFileExt(dft.name, ".mot") && !_strnicoll(dft.name, motName, strlen(motName)))
+		{
+			DBGLOG("Found motion file: %s\n", dft.name);
+			motfiles.Append(&dft);
+		}
+	}
+}
 //load texture bundle
 static void Model_Bayo_LoadTextures(CArrayList<noesisTex_t *> &textures, BYTE *data, int dataSize, noeRAPI_t *rapi)
 {
@@ -523,6 +564,97 @@ static void Model_Bayo_LoadTextures(CArrayList<noesisTex_t *> &textures, BYTE *d
 	textures.Append(nt);
 }
 
+//loat motion file
+static void Model_Bayo_LoadMotion(BYTE *data, int dataSize, noeRAPI_t *rapi)
+{
+	if (dataSize < sizeof(bayoMOTHdr_t))
+	{
+		return;
+	}
+	bayoMOTHdr_t hdr = *((bayoMOTHdr_t *)data);
+	if (memcmp(hdr.id, "mot\0", 4))
+	{ //not a valid motion file
+		return;
+	}
+	bayoMotItem_t * items = (bayoMotItem_t*)(data + hdr.ofsMotion);
+	DBGLOG("unknown flag: 0x%04x, frame count: %d, data offset: 0x%04x, record number: %d\n", hdr.unknownA, hdr.frameCount, hdr.ofsMotion, hdr.numEntries);
+	for(int i=0; i < hdr.numEntries; i++) {
+		bayoMotItem_t *it = &items[i];
+		DBGLOG("%5d %3d 0x%02x %3d %3d", it->boneIndex, it->index, it->flag, it->elem_number, it->unknown);
+		if( it->flag == 6 ) {
+			DBGLOG(" 0x%08x\n", it->value.offset);
+			BYTE *p_data = (BYTE *)(data + it->value.offset);
+			DBGLOG("\t");
+			for(int j=0; j<6; j++)
+			{
+				DBGLOG("%+f ", (float)((half *)p_data)[j]);
+			}
+			DBGLOG("\n\t(");
+			for(int j=0; j<12; j++)
+			{
+				DBGLOG("%02x ", p_data[j]);
+			}
+			DBGLOG(")\n\t");
+			p_data += 12;
+			for(int j=0; j<it->elem_number; j++)
+			{
+				DBGLOG("%3d 0x%02x 0x%02x 0x%02x\n\t", p_data[j*4], p_data[j*4+1], p_data[j*4+2], p_data[j*4+3]);
+			}
+			DBGLOG("\n");
+		} else if( it->flag == 4 ) {
+			DBGLOG(" 0x%08x\n", it->value.offset);
+			short unsigned int *p_data = (short unsigned int *)(data + it->value.offset);
+			DBGLOG("\t");
+			float * fData = (float *)p_data;
+			for(int j=0; j<6; j++)
+			{
+				DBGLOG("%+f ", fData[j]);
+			}
+			DBGLOG("\n\t(");
+			for(int j=0; j<24; j++)
+			{
+				DBGLOG("%02x ", ((BYTE *)p_data)[j]);
+			}
+			DBGLOG(")\n\t");
+			p_data = (short unsigned int *)(data + it->value.offset + 24);
+			for(int j=0; j<it->elem_number; j++)
+			{
+				DBGLOG("%3d 0x%04x 0x%04x 0x%04x", p_data[j*4], p_data[j*4+1], p_data[j*4+2], p_data[j*4+3]);
+				DBGLOG("\n\t");
+			}
+			DBGLOG("\n");
+		} else if( it->flag == 7 ) {
+			DBGLOG(" 0x%08x\n", it->value.offset);
+			DBGLOG("flag 7\n");
+			BYTE *p_data = (BYTE *)(data + it->value.offset);
+			DBGLOG("\t");
+			for(int j=0; j<6; j++)
+			{
+				DBGLOG("%+f ", (float)((half *)p_data)[j]);
+			}
+			DBGLOG("\n\t(");
+			for(int j=0; j<12; j++)
+			{
+				DBGLOG("%02x ", p_data[j]);
+			}
+			DBGLOG(")\n\t");
+			p_data += 12;
+			for(int j=0; j<it->elem_number; j++)
+			{
+				DBGLOG("%3d 0x%02x 0x%02x 0x%02x 0x%02x\n\t", *((unsigned short int *)(p_data + j*6)), p_data[j*6+2], p_data[j*6+3], p_data[j*6+4], p_data[j*6+5]);
+			}
+			DBGLOG("\n");
+		} else if( it->flag ==  0xff ) {
+			DBGLOG(" %+f (0x%08x)\n", it->value.flt, it->value.offset);
+		} else if ( it->flag != 0 ) {
+			DBGLOG(" %+f (0x%08x)\n", it->value.flt, it->value.offset);
+			assert(0);
+			rapi->LogOutput("WARNING: Unknown motion flag %0x02x.\n", it->flag);
+		} else {
+			DBGLOG(" %+f\n", it->value.flt);
+		}
+	}
+}
 //decode bayonetta x10y10z10 normals
 static void Model_Bayo_CreateNormals(BYTE *data, float *dsts, int numVerts, int stride, bool eet)
 {
@@ -736,6 +868,7 @@ static noesisModel_t *Model_Bayo_LoadModel(CArrayList<bayoDatFile_t> &dfiles, ba
 	bool isVanqModel = (hdr.unknownA < 0);
 	DBGLOG("Vanquish: %s\n", isVanqModel ? "true" : "false");
 
+	CArrayList<bayoDatFile_t *> motfiles;
 	CArrayList<noesisTex_t *> textures;
 	CArrayList<noesisMaterial_t *> matList;
 	CArrayList<noesisMaterial_t *> matListLightMap;
@@ -758,6 +891,13 @@ static noesisModel_t *Model_Bayo_LoadModel(CArrayList<bayoDatFile_t> &dfiles, ba
 
 	int numBones;
 	modelBone_t *bones = Model_Bayo_CreateBones(hdr, data, rapi, numBones);
+
+	Model_Bayo_GetMotionFiles(dfiles, df, rapi, motfiles);
+
+	for(int i=0; i < motfiles.Num(); i++) {
+		DBGLOG("Loading %s\n", motfiles[i]->name);
+		Model_Bayo_LoadMotion(motfiles[i]->data, motfiles[i]->dataSize, rapi);
+	}
 
 	//decode normals
 	float *normals = (float *)rapi->Noesis_PooledAlloc(sizeof(float)*3*hdr.numVerts);
