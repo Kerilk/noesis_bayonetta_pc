@@ -608,7 +608,7 @@ static void Model_Bayo_LoadMotion(BYTE *data, int dataSize, noeRAPI_t *rapi)
 			float * fData = (float *)p_data;
 			for(int j=0; j<6; j++)
 			{
-				DBGLOG("%+f ", fData[j]);
+				DBGLOG("%#g ", fData[j]);
 			}
 			DBGLOG("\n\t(");
 			for(int j=0; j<24; j++)
