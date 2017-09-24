@@ -216,6 +216,79 @@ typedef struct bayoMatType_s {
 
 bayoMatType_t bayoMatTypes[256];
 
+//thanks Phernost (stackoverflow)
+class FloatCompressor
+{
+	union Bits
+	{
+		float f;
+		int si;
+		unsigned int ui;
+	};
+
+	static int const significandFBits = 23;
+	static int const exponentFBits = 8;
+	static int const biasF = 127;
+	static int const exponentF    = 0x7F800000;
+	static int const significandF = 0x007fffff;
+	static int const signF        = 0x80000000;
+
+	int const significandHBits;
+	int const exponentHBits;
+	int const biasH;
+    int exponentH;
+	int significandH;
+    static int const signH        = 0x8000;
+
+	int shiftSign;
+	int shiftBits;
+
+public:
+
+	FloatCompressor(int eHBits, int sHBits, int bH): exponentHBits(eHBits), significandHBits(sHBits), biasH(bH) {
+		int tmp = 0;
+		for(int i = 0; i < eHBits; i++) {
+			tmp <<= 1;
+			tmp += 1;
+		}
+		tmp <<= sHBits;
+		exponentH = tmp;
+
+		tmp = 0;
+		for(int i = 0; i < sHBits; i++) {
+			tmp <<= 1;
+			tmp += 1;
+		}
+		significandH = tmp;
+		shiftSign = significandFBits + exponentFBits - significandHBits - exponentHBits;
+		shiftBits = significandFBits - significandHBits;
+	}
+
+	float decompress(short unsigned int value)
+	{
+		Bits v;
+		v.ui = value;
+		int sign = v.si & signH;
+		v.si ^= sign;
+
+		sign <<=  shiftSign;
+		int exponent = v.si & exponentH;
+		int significand = v.si ^ exponent;
+		significand <<= shiftBits;
+
+        v.si = sign | significand;
+		if( exponent == exponentH ) {
+			v.si |= exponentF;
+		} else if ( exponent != 0 ) {
+			exponent >>= significandHBits;
+			exponent += biasF - biasH;
+			exponent <<= significandFBits;
+			v.si |= exponent;
+		}
+		return v.f;
+	}
+};
+
 static void bayoSetMatType(bayoMatType_t &mat,
 						   short size,
 						   char texture_number,
@@ -464,6 +537,7 @@ static void Model_Bayo_LoadTextures(CArrayList<noesisTex_t *> &textures, BYTE *d
 			case 0x33545844: //"DXT3"
 				dxtFmt = NOESISTEX_DXT3;
 				break;
+			case 0x34545844: //"DXT4"
 			case 0x35545844: //"DXT5"
 				dxtFmt = NOESISTEX_DXT5;
 				break;
@@ -565,50 +639,87 @@ static void Model_Bayo_LoadTextures(CArrayList<noesisTex_t *> &textures, BYTE *d
 }
 
 //loat motion file
-static void Model_Bayo_LoadMotion(BYTE *data, int dataSize, noeRAPI_t *rapi)
+static void Model_Bayo_LoadMotions(CArrayList<noesisAnim_t *> &animList, CArrayList<bayoDatFile_t *> &motfiles, modelBone_t *bones, int bone_number, noeRAPI_t *rapi)
 {
+  FloatCompressor C(6, 9, 47);
+  for(int mi=0; mi < motfiles.Num(); mi++)
+  {
+	DBGLOG("Loading %s\n", motfiles[mi]->name);
+
+	BYTE * data     = motfiles[mi]->data;
+	size_t dataSize = motfiles[mi]->dataSize;
 	if (dataSize < sizeof(bayoMOTHdr_t))
 	{
-		return;
+		continue;
 	}
 	bayoMOTHdr_t hdr = *((bayoMOTHdr_t *)data);
 	if (memcmp(hdr.id, "mot\0", 4))
 	{ //not a valid motion file
-		return;
+		continue;
 	}
+
+	char fname[8192];
+	rapi->Noesis_GetDirForFilePath(fname, rapi->Noesis_GetOutputName());
+	char nameStr[MAX_NOESIS_PATH];
+	sprintf_s(nameStr, MAX_NOESIS_PATH, ".\\%s%s-%03i", rapi->Noesis_GetOption("animpre"), motfiles[mi]->name, mi);
+	strcat_s(fname, MAX_NOESIS_PATH, nameStr);
+
+    const int max_coeffs = 10;
+    modelMatrix_t * matrixes = (modelMatrix_t *)rapi->Noesis_UnpooledAlloc(sizeof(modelMatrix_t) * bone_number * hdr.frameCount);
+	float * tmp_values = (float *)rapi->Noesis_UnpooledAlloc(sizeof(float) * bone_number * hdr.frameCount * max_coeffs);
+    memset(tmp_values, 0, sizeof(float) * bone_number * hdr.frameCount * max_coeffs);
+
+	for(int i = 0; i < bone_number; i++) {
+		float translate[3] = {0.0,0.0,0.0};
+		if(bones[i].eData.parent) {
+
+			g_mfn->Math_VecSub(bones[i].mat.o, bones[i].eData.parent->mat.o, translate);
+			//g_mfn->Math_TranslateMatrix(&matrixes[i + j*bone_number], translate);
+		}
+		for( int j = 0; j < hdr.frameCount; j++) {
+			matrixes[i + j*bone_number] = g_identityMatrix;
+			for( int k = 0; k < 3; k++) {
+				tmp_values[j + k * hdr.frameCount + i *  hdr.frameCount * max_coeffs] = translate[k];
+			}
+			//g_mfn->Math_TranslateMatrix(&matrixes[i + j*bone_number], bones[i].mat.o);
+			//float zero[3] = {0.0f, 0.0f, 0.0f};
+			//g_mfn->Math_RotationMatrix(0.0, 0, &matrixes[i + j*bone_number]);
+		}
+	}
+	DBGLOG("%f %f %f\n", matrixes[0].x1[0], matrixes[0].x1[1], matrixes[0].x1[2]);
+	DBGLOG("%f %f %f\n", matrixes[0].x2[0], matrixes[0].x2[1], matrixes[0].x2[2]);
+	DBGLOG("%f %f %f\n", matrixes[0].x3[0], matrixes[0].x3[1], matrixes[0].x3[2]);
+	DBGLOG("%f %f %f\n", matrixes[0].o[0], matrixes[0].o[1], matrixes[0].o[2]);
+
 	bayoMotItem_t * items = (bayoMotItem_t*)(data + hdr.ofsMotion);
 	DBGLOG("unknown flag: 0x%04x, frame count: %d, data offset: 0x%04x, record number: %d\n", hdr.unknownA, hdr.frameCount, hdr.ofsMotion, hdr.numEntries);
 	for(int i=0; i < hdr.numEntries; i++) {
 		bayoMotItem_t *it = &items[i];
+		//float tmp_values[65536];
 		DBGLOG("%5d %3d 0x%02x %3d %3d", it->boneIndex, it->index, it->flag, it->elem_number, it->unknown);
-		if( it->flag == 6 ) {
+		if( it->boneIndex < 0 || it->boneIndex >= bone_number ) {
+			DBGLOG(" out of bone bounds\n");
+			continue;
+		}
+		if( it->flag == 1 ) {
 			DBGLOG(" 0x%08x\n", it->value.offset);
-			BYTE *p_data = (BYTE *)(data + it->value.offset);
-			DBGLOG("\t");
-			for(int j=0; j<6; j++)
-			{
-				DBGLOG("%+f ", (float)((half *)p_data)[j]);
+			float *fdata = (float *)(data + it->value.offset);
+			for(int frame_count=0; frame_count < it->elem_number; frame_count++) {
+				tmp_values[frame_count + it->index * hdr.frameCount + it->boneIndex *  hdr.frameCount * max_coeffs] = fdata[frame_count];
+				DBGLOG("\t%3d %+f\n", frame_count, fdata[frame_count]);
 			}
-			DBGLOG("\n\t(");
-			for(int j=0; j<12; j++)
-			{
-				DBGLOG("%02x ", p_data[j]);
-			}
-			DBGLOG(")\n\t");
-			p_data += 12;
-			for(int j=0; j<it->elem_number; j++)
-			{
-				DBGLOG("%3d 0x%02x 0x%02x 0x%02x\n\t", p_data[j*4], p_data[j*4+1], p_data[j*4+2], p_data[j*4+3]);
-			}
-			DBGLOG("\n");
 		} else if( it->flag == 4 ) {
+			int frame_count = 0;
+			float fvals[6];
+
 			DBGLOG(" 0x%08x\n", it->value.offset);
 			short unsigned int *p_data = (short unsigned int *)(data + it->value.offset);
 			DBGLOG("\t");
 			float * fData = (float *)p_data;
 			for(int j=0; j<6; j++)
 			{
-				DBGLOG("%#g ", fData[j]);
+				fvals[j] = fData[j];
+				DBGLOG("%#g ", fvals[j]);
 			}
 			DBGLOG("\n\t(");
 			for(int j=0; j<24; j++)
@@ -616,21 +727,56 @@ static void Model_Bayo_LoadMotion(BYTE *data, int dataSize, noeRAPI_t *rapi)
 				DBGLOG("%02x ", ((BYTE *)p_data)[j]);
 			}
 			DBGLOG(")\n\t");
+
 			p_data = (short unsigned int *)(data + it->value.offset + 24);
-			for(int j=0; j<it->elem_number; j++)
+
+			DBGLOG("%3d %5d %5d %5d (%+f %+f %+f)\n\t", p_data[0], p_data[1], p_data[2], p_data[3],
+					fvals[0] + fvals[1] * p_data[1],
+					fvals[2] + fvals[3] * p_data[2],
+					fvals[4] + fvals[5] * p_data[3]);
+			
+			short unsigned int * previous_data = p_data;
+			tmp_values[frame_count + it->index * hdr.frameCount + it->boneIndex *  hdr.frameCount * max_coeffs] = fvals[0] + fvals[1] * p_data[1];
+			p_data += 4;
+			
+			DBGLOG("%f, %d, %f\n\t", 0.0, frame_count, tmp_values[frame_count + it->index * hdr.frameCount + it->boneIndex *  hdr.frameCount * max_coeffs]);
+			frame_count++;
+
+			for(int j=1; j<it->elem_number; j++)
 			{
-				DBGLOG("%3d 0x%04x 0x%04x 0x%04x", p_data[j*4], p_data[j*4+1], p_data[j*4+2], p_data[j*4+3]);
-				DBGLOG("\n\t");
+				float p0, p1, m0, m1;
+				float t0, t1, t;
+				p0 = fvals[0] + fvals[1] * previous_data[1];
+				p1 = fvals[0] + fvals[1] * p_data[1];
+				m0 = fvals[4] + fvals[5] * previous_data[3];
+				m1 = fvals[2] + fvals[3] * p_data[2];
+				t0 = (float)previous_data[0];
+				t1 = (float)p_data[0];
+
+			    for (; frame_count <= p_data[0]; frame_count++) {
+					t = (frame_count-previous_data[0])/(t1-t0);
+					tmp_values[frame_count + it->index * hdr.frameCount + it->boneIndex *  hdr.frameCount * max_coeffs] = (2*t*t*t -3*t*t + 1)*p0 + (t*t*t -2*t*t + t)*m0 + (-2*t*t*t + 3*t*t)*p1 + (t*t*t - t*t)*m1;
+					DBGLOG("%f, %d, %f\n\t", t, frame_count, tmp_values[frame_count + it->index * hdr.frameCount + it->boneIndex *  hdr.frameCount * max_coeffs]);
+				}
+				DBGLOG("%3d %5d %5d %5d (%+f %+f %+f)\n\t", p_data[0], p_data[1], p_data[2], p_data[3],
+					fvals[0] + fvals[1] * p_data[1],
+					fvals[2] + fvals[3] * p_data[2],
+					fvals[4] + fvals[5] * p_data[3]);
+				previous_data = p_data;
+				p_data += 4;
 			}
 			DBGLOG("\n");
-		} else if( it->flag == 7 ) {
+		} else if( it->flag == 6 ) {
+			int frame_count = 0;
 			DBGLOG(" 0x%08x\n", it->value.offset);
-			DBGLOG("flag 7\n");
 			BYTE *p_data = (BYTE *)(data + it->value.offset);
+			short unsigned int *f_data = (short unsigned int *)(data + it->value.offset);
+			float fvals[6];
 			DBGLOG("\t");
 			for(int j=0; j<6; j++)
 			{
-				DBGLOG("%+f ", (float)((half *)p_data)[j]);
+				fvals[j] = C.decompress(f_data[j]);
+				DBGLOG("%+f ", fvals[j]);
 			}
 			DBGLOG("\n\t(");
 			for(int j=0; j<12; j++)
@@ -639,21 +785,150 @@ static void Model_Bayo_LoadMotion(BYTE *data, int dataSize, noeRAPI_t *rapi)
 			}
 			DBGLOG(")\n\t");
 			p_data += 12;
-			for(int j=0; j<it->elem_number; j++)
+			
+			DBGLOG("%3d %3d %3d %3d (%+f %+f %+f)\n\t", p_data[0], p_data[1], p_data[2], p_data[3],
+					fvals[0] + fvals[1] * p_data[1],
+					fvals[2] + fvals[3] * p_data[2],
+					fvals[4] + fvals[5] * p_data[3]);
+
+			tmp_values[frame_count + it->index * hdr.frameCount + it->boneIndex *  hdr.frameCount * max_coeffs] = fvals[0] + fvals[1] * p_data[1];
+			BYTE * previous_data = p_data;
+			p_data += 4;
+			DBGLOG("%f, %d, %f\n\t", 0.0, frame_count, tmp_values[frame_count + it->index * hdr.frameCount + it->boneIndex *  hdr.frameCount * max_coeffs]);
+			for(int j=1; j<it->elem_number; j++)
 			{
-				DBGLOG("%3d 0x%02x 0x%02x 0x%02x 0x%02x\n\t", *((unsigned short int *)(p_data + j*6)), p_data[j*6+2], p_data[j*6+3], p_data[j*6+4], p_data[j*6+5]);
+				float p0, p1, m0, m1;
+				float t0, t1, t;
+				p0 = fvals[0] + fvals[1] * previous_data[1];
+				p1 = fvals[0] + fvals[1] * p_data[1];
+				m0 = fvals[4] + fvals[5] * previous_data[3];
+				m1 = fvals[2] + fvals[3] * p_data[2];
+				t0 = (float)frame_count;
+				t1 = (float)frame_count + p_data[0];
+				
+				for(int k = 1; k <= p_data[0]; k++) {
+					t = k/(t1-t0);
+					tmp_values[frame_count + k + it->index * hdr.frameCount + it->boneIndex *  hdr.frameCount * max_coeffs] = (2*t*t*t -3*t*t + 1)*p0 + (t*t*t -2*t*t + t)*m0 + (-2*t*t*t + 3*t*t)*p1 + (t*t*t - t*t)*m1;
+					DBGLOG("%f, %d, %f\n\t", t, frame_count+k, tmp_values[frame_count + k + it->index * hdr.frameCount + it->boneIndex *  hdr.frameCount * max_coeffs]);
+				}
+				DBGLOG("%3d %3d %3d %3d (%+f %+f %+f)\n\t", p_data[0], p_data[1], p_data[2], p_data[3],
+					fvals[0] + fvals[1] * p_data[1],
+					fvals[2] + fvals[3] * p_data[2],
+					fvals[4] + fvals[5] * p_data[3]);
+
+				frame_count += p_data[0];
+				previous_data = p_data;
+				p_data += 4;
+			}
+			DBGLOG("\n");
+		} else if( it->flag == 7 ) { //diff from 6 because frame delta would be > 255
+			int frame_count = 0;
+			DBGLOG(" 0x%08x\n", it->value.offset);
+			DBGLOG("flag 7\n");
+			BYTE *p_data = (BYTE *)(data + it->value.offset);
+			short unsigned int *f_data = (short unsigned int *)(data + it->value.offset);
+			float fvals[6];
+			DBGLOG("\t");
+			for(int j=0; j<6; j++)
+			{
+				fvals[j] = C.decompress(f_data[j]);
+				DBGLOG("%+f ", fvals[j]);
+			}
+			DBGLOG("\n\t(");
+			for(int j=0; j<12; j++)
+			{
+				DBGLOG("%02x ", p_data[j]);
+			}
+			DBGLOG(")\n\t");
+			p_data += 12;
+
+			DBGLOG("%5d 0x%02x %3d %3d %3d\n\t", *((unsigned short int *)(p_data)), p_data[2], p_data[3], p_data[4], p_data[5]);
+			BYTE * previous_data = p_data;
+
+			tmp_values[frame_count + it->index * hdr.frameCount + it->boneIndex *  hdr.frameCount * max_coeffs] = fvals[0] + fvals[1] * p_data[3];
+			p_data += 6;
+			
+			DBGLOG("%f, %d, %f\n\t", 0.0, frame_count, tmp_values[frame_count + it->index * hdr.frameCount + it->boneIndex *  hdr.frameCount * max_coeffs]);
+			frame_count++;
+			for(int j=1; j<it->elem_number; j++)
+			{
+				float p0, p1, m0, m1;
+				float t0, t1, t;
+				p0 = fvals[0] + fvals[1] * previous_data[3];
+				p1 = fvals[0] + fvals[1] * p_data[3];
+				m0 = fvals[4] + fvals[5] * previous_data[5];
+				m1 = fvals[2] + fvals[3] * p_data[4];
+				t0 = *((unsigned short int *)(previous_data));
+				t1 = *((unsigned short int *)(p_data));
+
+				for (; frame_count <= *((unsigned short int *)(p_data)); frame_count++) {
+					t = (frame_count-*((unsigned short int *)(previous_data)))/(t1-t0);
+					tmp_values[frame_count + it->index * hdr.frameCount + it->boneIndex *  hdr.frameCount * max_coeffs] = (2*t*t*t -3*t*t + 1)*p0 + (t*t*t -2*t*t + t)*m0 + (-2*t*t*t + 3*t*t)*p1 + (t*t*t - t*t)*m1;
+					DBGLOG("%f, %d, %f\n\t", t, frame_count, tmp_values[frame_count + it->index * hdr.frameCount + it->boneIndex *  hdr.frameCount * max_coeffs]);
+				}
+				DBGLOG("%5d 0x%02x %3d %3d %3d\n\t", *((unsigned short int *)(p_data)), p_data[2], p_data[3], p_data[4], p_data[5]);
+
+				previous_data = p_data;
+				p_data += 6;
 			}
 			DBGLOG("\n");
 		} else if( it->flag ==  0xff ) {
 			DBGLOG(" %+f (0x%08x)\n", it->value.flt, it->value.offset);
+			continue;
 		} else if ( it->flag != 0 ) {
 			DBGLOG(" %+f (0x%08x)\n", it->value.flt, it->value.offset);
 			assert(0);
 			rapi->LogOutput("WARNING: Unknown motion flag %0x02x.\n", it->flag);
 		} else {
 			DBGLOG(" %+f\n", it->value.flt);
+			for(int j = 0; j < hdr.frameCount; j++) {
+				tmp_values[j + it->index * hdr.frameCount + it->boneIndex *  hdr.frameCount * max_coeffs] = it->value.flt;
+			}
+		}
+
+	}
+	DBGLOG("-------------------------------\n");
+	for(int bi = 0; bi < bone_number; bi++) {
+		DBGLOG("bone %d\n", bi);
+		for( int fi = 0; fi < hdr.frameCount; fi++) {
+			DBGLOG("\tframe %d\n", fi);
+			modelMatrix_t tmp_mat;
+			modelMatrix_t tmp_mat2;
+			float translate[3] = {0.0, 0.0, 0.0};
+			float rotate[3] = {0.0, 0.0, 0.0};
+			int rotate_order[3] = {1,2,0};
+			float rotate_coeff[3] = {1.0, -1.0, 1.0};
+			float translate_coeff[3] = {1.0, 1.0, 1.0};
+
+			for( int i = 0; i < 3; i++) {
+				translate[i] = translate_coeff[i] * tmp_values[fi + i * hdr.frameCount + bi *  hdr.frameCount * max_coeffs];
+			}
+			for( int i = 0; i < 3; i++) {
+				rotate[i] = rotate_coeff[i] * tmp_values[fi + (3 + i) * hdr.frameCount + bi *  hdr.frameCount * max_coeffs];
+			}
+			DBGLOG("\t\ttranslate: %f, %f, %f\n", translate[0], translate[1], translate[2]);
+			DBGLOG("\t\trotate: %f, %f, %f\n", rotate[0], rotate[1], rotate[2]);
+
+			g_mfn->Math_TranslateMatrix(&matrixes[bi + bone_number * fi], translate);			
+
+			for( int i = 0; i < 3; i++) {
+				g_mfn->Math_RotationMatrix(rotate[rotate_order[i]], rotate_order[i], &tmp_mat);
+				g_mfn->Math_MatrixMultiply(&matrixes[bi + bone_number * fi], &tmp_mat, &tmp_mat2);
+				matrixes[bi + bone_number * fi] = tmp_mat2;
+			}
+
 		}
 	}
+	noesisAnim_t *anim = rapi->rpgAnimFromBonesAndMatsFinish(bones, bone_number, matrixes, hdr.frameCount, 60);
+	
+	if (anim)
+	{
+		animList.Append(anim);
+	}
+	rapi->Noesis_UnpooledFree(matrixes);
+	rapi->Noesis_UnpooledFree(tmp_values);
+  }
+
 }
 //decode bayonetta x10y10z10 normals
 static void Model_Bayo_CreateNormals(BYTE *data, float *dsts, int numVerts, int stride, bool eet)
@@ -756,7 +1031,7 @@ static void Model_Bayo_LoadMaterials(bayoWMBHdr_t &hdr,
 		noesisMaterial_t *nmat = rapi->Noesis_GetMaterialList(1, true);
 		nmat->name = rapi->Noesis_PooledString(matName);
 		//nmat->flags |= NMATFLAG_TWOSIDED;
-		//nmat->noDefaultBlend = true;
+
 		if (hasExMatInfo && numMatIDs > 0)
 		{ //search by global index values
 			DBGLOG("vanquish style\n");
@@ -873,6 +1148,8 @@ static noesisModel_t *Model_Bayo_LoadModel(CArrayList<bayoDatFile_t> &dfiles, ba
 	CArrayList<noesisMaterial_t *> matList;
 	CArrayList<noesisMaterial_t *> matListLightMap;
 	CArrayList<noesisMaterial_t *> totMatList;
+	CArrayList<noesisAnim_t *> animList;
+
 	bool hasExMatInfo;
 
 	bayoDatFile_t *texBundle = Model_Bayo_GetTextureBundle(dfiles, df, rapi);
@@ -893,11 +1170,6 @@ static noesisModel_t *Model_Bayo_LoadModel(CArrayList<bayoDatFile_t> &dfiles, ba
 	modelBone_t *bones = Model_Bayo_CreateBones(hdr, data, rapi, numBones);
 
 	Model_Bayo_GetMotionFiles(dfiles, df, rapi, motfiles);
-
-	for(int i=0; i < motfiles.Num(); i++) {
-		DBGLOG("Loading %s\n", motfiles[i]->name);
-		Model_Bayo_LoadMotion(motfiles[i]->data, motfiles[i]->dataSize, rapi);
-	}
 
 	//decode normals
 	float *normals = (float *)rapi->Noesis_PooledAlloc(sizeof(float)*3*hdr.numVerts);
@@ -940,9 +1212,8 @@ static noesisModel_t *Model_Bayo_LoadModel(CArrayList<bayoDatFile_t> &dfiles, ba
 				}
 			}
 			rapi->rpgSetBoneMap(boneRefDst);
-
 			int vertOfs = batch.vertOfs;
-
+			DBGLOG("vertAddr: %x, ", hdr.ofsVerts + vertOfs*bayoVertSize);
 			//bind positions
 			rapi->rpgBindPositionBuffer(vertData + vertOfs*bayoVertSize, RPGEODATA_FLOAT, bayoVertSize);
 			//bind normals
@@ -964,6 +1235,13 @@ static noesisModel_t *Model_Bayo_LoadModel(CArrayList<bayoDatFile_t> &dfiles, ba
 			} else {
 				rapi->rpgSetUVScaleBias(NULL, NULL);
 			}
+/*			if(matListLightMap[texID]) {
+				rapi->rpgSetLightmap(matListLightMap[texID]->name);
+				rapi->rpgBindUV2Buffer(vertData+20 + vertOfs*bayoVertSize, RPGEODATA_HALFFLOAT, bayoVertSize);
+			} else {
+				rapi->rpgSetLightmap(NULL);
+				rapi->rpgBindUV2Buffer(NULL, RPGEODATA_HALFFLOAT, 0);
+			}*/
 
 			rpgeoPrimType_e primType = (batch.primType == 4) ? RPGEO_TRIANGLE : RPGEO_TRIANGLE_STRIP;
 			rapi->rpgCommitTriangles(batchData+batch.ofsIndices, RPGEODATA_USHORT, batch.numIndices, primType, true);
@@ -999,11 +1277,25 @@ static noesisModel_t *Model_Bayo_LoadModel(CArrayList<bayoDatFile_t> &dfiles, ba
 		}
 	}
 #endif
-
+	Model_Bayo_LoadMotions(animList, motfiles, bones, numBones, rapi);
+/*    int anims_num = 0;
+	if( animList.Num() > 0 ) {
+		rapi->rpgSetExData_AnimsNum(animList[0], 1);
+	}*/
+	int anims_num;
+    noesisAnim_t *anims = rapi->Noesis_AnimsFromList(animList, anims_num);
+    rapi->rpgSetExData_AnimsNum(anims, anims_num);
+	//rapi->rpgMultiplyBones(bones, numBones);
+	DBGLOG("Found %d anims\n", anims_num);
 	rapi->rpgSetTriWinding(true); //bayonetta uses reverse face windings
 	noesisModel_t *mdl = rapi->rpgConstructModel();
 	rapi->rpgDestroyContext(pgctx);
+	animList.Clear();
 	matList.Clear();
+	motfiles.Clear();
+	textures.Clear();
+	matListLightMap.Clear();
+	totMatList.Clear();
 	return mdl;
 }
 
