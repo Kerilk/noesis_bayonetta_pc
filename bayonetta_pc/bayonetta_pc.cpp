@@ -645,8 +645,20 @@ static void Model_Bayo_LoadTextures(CArrayList<noesisTex_t *> &textures, BYTE *d
 	textures.Append(nt);
 }
 
+//decode motion index (simpler thanks to Alquazar(zenhax))
+static inline short int Model_Bayo_DecodeMotionIndex(const short int *table, const short int boneIndex) {
+	short int index = table[(boneIndex >> 8) & 0xf];
+	if ( index != -1 ) {
+		index = table[((boneIndex >> 4) & 0xf) + index];
+		if ( index != -1 ) {
+			index = table[(boneIndex & 0xf) + index];
+			return index;
+		}
+	}
+	return 0x0fff;
+}
 //loat motion file
-static void Model_Bayo_LoadMotions(CArrayList<noesisAnim_t *> &animList, CArrayList<bayoDatFile_t *> &motfiles, modelBone_t *bones, int bone_number, noeRAPI_t *rapi, short int * animBoneTT, BYTE * highBT)
+static void Model_Bayo_LoadMotions(CArrayList<noesisAnim_t *> &animList, CArrayList<bayoDatFile_t *> &motfiles, modelBone_t *bones, int bone_number, noeRAPI_t *rapi, short int * animBoneTT)
 {
   FloatCompressor C(6, 9, 47);
   for(int mi=0; mi < motfiles.Num(); mi++)
@@ -695,35 +707,22 @@ static void Model_Bayo_LoadMotions(CArrayList<noesisAnim_t *> &animList, CArrayL
 	DBGLOG("unknown flag: 0x%04x, frame count: %d, data offset: 0x%04x, record number: %d\n", hdr.unknownA, hdr.frameCount, hdr.ofsMotion, hdr.numEntries);
 	for(int i=0; i < hdr.numEntries; i++) {
 		bayoMotItem_t *it = &items[i];
-		if( it->boneIndex == 0x7fff) {
+		if( it->boneIndex == 0x7fff || it->boneIndex == -1) {
 			DBGLOG("%5d %3d 0x%02x %3d %3d %+f (0x%08x)\n",it->boneIndex, it->index, it->flag, it->elem_number, it->unknown, it->value.flt, it->value.offset);
 			continue;
 		} else if ( it->boneIndex >= 0xf60 ) {
 			DBGLOG("%5d %3d 0x%02x %3d %3d %+f (0x%08x) special flag 0x2 index\n", it->boneIndex, it->index, it->flag, it->elem_number, it->unknown, it->value.flt, it->value.offset);
 		    continue;
 		}
-		short int boneIndex = it->boneIndex;
-		if ( boneIndex >= 0 ) {
-			short int lowerBoneIndex = boneIndex & 0x0f;
-			boneIndex >>= 4;
-			//DBGLOG("high bone mult: %3d\n", boneIndex);
-			boneIndex = highBT[boneIndex];
-			//DBGLOG("high bone mult: %3d\n", boneIndex);
-			if( boneIndex == 0xff ) {
-				DBGLOG("%5d %3d 0x%02x %3d %3d %+f (0x%08x) cannot translate bone\n", it->boneIndex, it->index, it->flag, it->elem_number, it->unknown, it->value.flt, it->value.offset);
-				continue;
-			}
-			boneIndex <<= 4;
-			boneIndex |= lowerBoneIndex;
-			//DBGLOG("high bone mult: %5d\n", boneIndex);
-			boneIndex = animBoneTT[boneIndex];
+		short int boneIndex = Model_Bayo_DecodeMotionIndex(animBoneTT, it->boneIndex);
+		if( boneIndex == 0x0fff ) {
+			DBGLOG("%5d %3d 0x%02x %3d %3d %+f (0x%08x) cannot translate bone\n", it->boneIndex, it->index, it->flag, it->elem_number, it->unknown, it->value.flt, it->value.offset);
+			continue;
 		}
+
 		//float tmp_values[65536];
 		DBGLOG("%5d (%5d) %3d 0x%02x %3d %3d", boneIndex, it->boneIndex, it->index, it->flag, it->elem_number, it->unknown);
-		if( boneIndex < 0 ) {
-			DBGLOG(" world transforms\n");
-			continue;
-		} else if ( boneIndex >= bone_number ) {
+		if ( boneIndex >= bone_number ) {
 			DBGLOG(" out of bone bounds\n");
 			continue;
 		}
@@ -1005,7 +1004,7 @@ static void Model_Bayo_CreateNormals(BYTE *data, float *dsts, int numVerts, int 
 }
 
 //convert the bones
-modelBone_t *Model_Bayo_CreateBones(bayoWMBHdr_t &hdr, BYTE *data, noeRAPI_t *rapi, int &numBones, short int * &animBoneTT, BYTE * highBT)
+modelBone_t *Model_Bayo_CreateBones(bayoWMBHdr_t &hdr, BYTE *data, noeRAPI_t *rapi, int &numBones, short int * &animBoneTT)
 {
 	numBones = 0;
 	if (hdr.numBones <= 0 || hdr.ofsBoneHie <= 0 || hdr.ofsBoneDataA <= 0 || hdr.ofsBoneDataB <= 0)
@@ -1016,31 +1015,7 @@ modelBone_t *Model_Bayo_CreateBones(bayoWMBHdr_t &hdr, BYTE *data, noeRAPI_t *ra
 	float *posList = (float *)(data+hdr.ofsBoneDataB);
 	float *relPosList = (float *)(data+hdr.ofsBoneDataA); //actually relative positions
 	animBoneTT = (short int *)(data+hdr.ofsBoneHieB);
-	//try an decode the mask portion of the translate table
-	int mask_mask_length = 0;
-	for( int i = 0; i < 16; i++ ) {
-		if( animBoneTT[i] != -1 ) mask_mask_length += 1;
 
-	}
-	DBGLOG("mask mask length: %d \n", mask_mask_length);
-	if( mask_mask_length > 2 ) {
-		DBGLOG("Warning mask mask length > 2 !!!!");
-		assert(0);
-	}
-
-	int mask_length = 0;
-	for( int i = 0; i < 16*mask_mask_length; i++ ) {
-		if( animBoneTT[16+i] != -1 ) {
-			highBT[i] = mask_length;
-			mask_length += 1;
-		}
-	}
-	DBGLOG("mask length: %d \n", mask_length);
-	for( int i = 0; i < 16*mask_mask_length; i++ ) {
-		DBGLOG("interval %d - %d: %d - %d\n", i*16, (i+1)*16-1, highBT[i]*16, (highBT[i]+1) * 16 - 1);
-	}
-
-	while(*animBoneTT != 0) animBoneTT++;
 	numBones = hdr.numBones;
 	DBGLOG("Found %d bones\n", numBones);
 	modelBone_t *bones = rapi->Noesis_AllocBones(numBones);
@@ -1251,9 +1226,7 @@ static void Model_Bayo_LoadModel(CArrayList<bayoDatFile_t> &dfiles, bayoDatFile_
 
 	int numBones;
 	short int * animBoneTT;
-	BYTE highBT[16*16];
-	for(int i = 0; i < 16*16; i++) highBT[i] = 0xff;
-	modelBone_t *bones = Model_Bayo_CreateBones(hdr, data, rapi, numBones, animBoneTT, highBT);
+	modelBone_t *bones = Model_Bayo_CreateBones(hdr, data, rapi, numBones, animBoneTT);
 
 	Model_Bayo_GetMotionFiles(dfiles, df, rapi, motfiles);
 
@@ -1363,7 +1336,7 @@ static void Model_Bayo_LoadModel(CArrayList<bayoDatFile_t> &dfiles, bayoDatFile_
 		}
 	}
 #endif
-	Model_Bayo_LoadMotions(animList, motfiles, bones, numBones, rapi, animBoneTT, highBT);
+	Model_Bayo_LoadMotions(animList, motfiles, bones, numBones, rapi, animBoneTT);
 /*    int anims_num = 0;
 	if( animList.Num() > 0 ) {
 		rapi->rpgSetExData_AnimsNum(animList[0], 1);
