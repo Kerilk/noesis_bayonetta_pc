@@ -1126,19 +1126,19 @@ static void Model_Bayo_LoadMaterials(bayoWMBHdr_t &hdr,
 	}
 }
 //load a single model from a dat set
-static noesisModel_t *Model_Bayo_LoadModel(CArrayList<bayoDatFile_t> &dfiles, bayoDatFile_t &df, noeRAPI_t *rapi)
+static void Model_Bayo_LoadModel(CArrayList<bayoDatFile_t> &dfiles, bayoDatFile_t &df, noeRAPI_t *rapi, CArrayList<noesisModel_t *> &models)
 {
 	DBGLOG("Loading %s\n", df.name);
 	BYTE *data = df.data;
 	int dataSize = df.dataSize;
 	if (dataSize < sizeof(bayoWMBHdr_t))
 	{
-		return NULL;
+		return;
 	}
 	bayoWMBHdr_t hdr = *((bayoWMBHdr_t *)data);
 	if (memcmp(hdr.id, "WMB\0", 4))
 	{ //invalid header
-		return NULL;
+		return;
 	}
 	bool isVanqModel = (hdr.unknownA < 0);
 	DBGLOG("Vanquish: %s\n", isVanqModel ? "true" : "false");
@@ -1282,21 +1282,36 @@ static noesisModel_t *Model_Bayo_LoadModel(CArrayList<bayoDatFile_t> &dfiles, ba
 	if( animList.Num() > 0 ) {
 		rapi->rpgSetExData_AnimsNum(animList[0], 1);
 	}*/
-	int anims_num;
-    noesisAnim_t *anims = rapi->Noesis_AnimsFromList(animList, anims_num);
-    rapi->rpgSetExData_AnimsNum(anims, anims_num);
+	int anims_num = animList.Num();
+    //noesisAnim_t *anims = rapi->Noesis_AnimFromAnimsList(animList, anims_num);
+	//for(int i = 0; i < anims_num; i++) {
+	//	DBGLOG("anim: %s, size: %d, flag: %d\n", animList[i]->filename, animList[i]->dataLen, animList[i]->flags & NANIMFLAG_FILENAMETOSEQ);
+	//	DBGLOG("seq: %p, size: %d\n", (anims+i)->aseq, (anims+i)->dataLen );
+	//}
+    //rapi->rpgSetExData_AnimsNum(anims, anims_num);
 	//rapi->rpgMultiplyBones(bones, numBones);
 	DBGLOG("Found %d anims\n", anims_num);
 	rapi->rpgSetTriWinding(true); //bayonetta uses reverse face windings
 	noesisModel_t *mdl = rapi->rpgConstructModel();
+	if( mdl ) {
+		models.Append(mdl);
+	}
+	for(int i = 0; i < anims_num; i++) {
+		noesisModel_t *mdl = rapi->rpgConstructModel();
+		if( mdl ) {
+			models.Append(mdl);
+			rapi->Noesis_SetModelAnims(mdl, animList[i], 1);
+		}
+	}
+	
 	rapi->rpgDestroyContext(pgctx);
+
 	animList.Clear();
 	matList.Clear();
 	motfiles.Clear();
 	textures.Clear();
 	matListLightMap.Clear();
 	totMatList.Clear();
-	return mdl;
 }
 
 //gather entries from a dat file
@@ -1360,11 +1375,7 @@ noesisModel_t *Model_Bayo_Load(BYTE *fileBuffer, int bufferLen, int &numMdl, noe
 		bayoDatFile_t &df = dfiles[i];
 		if (rapi->Noesis_CheckFileExt(df.name, ".wmb"))
 		{ //it's a model
-			noesisModel_t *mdl = Model_Bayo_LoadModel(dfiles, df, rapi);
-			if (mdl)
-			{
-				models.Append(mdl);
-			}
+			Model_Bayo_LoadModel(dfiles, df, rapi, models);
 		}
 	}
 	DBGFLUSH();
