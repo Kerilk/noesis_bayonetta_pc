@@ -960,7 +960,7 @@ static void Model_Bayo_CreateNormals(BYTE *data, float *dsts, int numVerts, int 
 }
 
 //convert the bones
-modelBone_t *Model_Bayo_CreateBones(bayoWMBHdr_t &hdr, BYTE *data, noeRAPI_t *rapi, int &numBones)
+modelBone_t *Model_Bayo_CreateBones(bayoWMBHdr_t &hdr, BYTE *data, noeRAPI_t *rapi, int &numBones, short int * &animBoneTT, BYTE * highBT)
 {
 	numBones = 0;
 	if (hdr.numBones <= 0 || hdr.ofsBoneHie <= 0 || hdr.ofsBoneDataA <= 0 || hdr.ofsBoneDataB <= 0)
@@ -969,7 +969,33 @@ modelBone_t *Model_Bayo_CreateBones(bayoWMBHdr_t &hdr, BYTE *data, noeRAPI_t *ra
 	}
 	short *parentList = (short *)(data+hdr.ofsBoneHie);
 	float *posList = (float *)(data+hdr.ofsBoneDataB);
-	//float *rotList = (float *)(data+hdr.ofsBoneDataA); //actually relative positions
+	float *relPosList = (float *)(data+hdr.ofsBoneDataA); //actually relative positions
+	animBoneTT = (short int *)(data+hdr.ofsBoneHieB);
+	//try an decode the mask portion of the translate table
+	int mask_mask_length = 0;
+	for( int i = 0; i < 16; i++ ) {
+		if( animBoneTT[i] != -1 ) mask_mask_length += 1;
+
+	}
+	DBGLOG("mask mask length: %d \n", mask_mask_length);
+	if( mask_mask_length > 2 ) {
+		DBGLOG("Warning mask mask length > 2 !!!!");
+		assert(0);
+	}
+
+	int mask_length = 0;
+	for( int i = 0; i < 16*mask_mask_length; i++ ) {
+		if( animBoneTT[16+i] != -1 ) {
+			highBT[i] = mask_length;
+			mask_length += 1;
+		}
+	}
+	DBGLOG("mask length: %d \n", mask_length);
+	for( int i = 0; i < 16*mask_mask_length; i++ ) {
+		DBGLOG("interval %d - %d: %d - %d\n", i*16, (i+1)*16-1, highBT[i]*16, (highBT[i]+1) * 16 - 1);
+	}
+
+	while(*animBoneTT != 0) animBoneTT++;
 	numBones = hdr.numBones;
 	DBGLOG("Found %d bones\n", numBones);
 	modelBone_t *bones = rapi->Noesis_AllocBones(numBones);
@@ -994,6 +1020,18 @@ modelBone_t *Model_Bayo_CreateBones(bayoWMBHdr_t &hdr, BYTE *data, noeRAPI_t *ra
 		g_mfn->Math_MatrixMultiply(&mat3, &mat1, &bone->mat);
 		*/
 		g_mfn->Math_VecCopy(pos, bone->mat.o);
+
+	}
+	DBGLOG("-------------------------------\n");
+	for(int bi = 0; bi < numBones; bi++) {
+		DBGLOG("bone %d (%d)\n", bi, bones[bi].index);
+		DBGLOG("parent %d\n", bones[bi].eData.parent ? bones[bi].eData.parent->index : -1);
+		DBGLOG("\ttranslate: %f, %f, %f\n", bones[bi].mat.o[0], bones[bi].mat.o[1], bones[bi].mat.o[2]);
+		DBGLOG("\trelative_c: %f, %f, %f\n",
+			bones[bi].mat.o[0] - (bones[bi].eData.parent ? bones[bi].eData.parent->mat.o[0] : 0.0),
+			bones[bi].mat.o[1] - (bones[bi].eData.parent ? bones[bi].eData.parent->mat.o[1] : 0.0),
+			bones[bi].mat.o[2] - (bones[bi].eData.parent ? bones[bi].eData.parent->mat.o[2] : 0.0));
+		DBGLOG("\trelative_g: %f, %f, %f\n", relPosList[3 * bi], relPosList[3 * bi + 1], relPosList[3 * bi + 2]);
 	}
 	//bones come pre-transformed
 	//rapi->rpgMultiplyBones(bones, numBones);
@@ -1167,7 +1205,10 @@ static void Model_Bayo_LoadModel(CArrayList<bayoDatFile_t> &dfiles, bayoDatFile_
 	const int bayoVertSize = 32;//(hdr.ofsVerts > 128) ? 48 : 32;
 
 	int numBones;
-	modelBone_t *bones = Model_Bayo_CreateBones(hdr, data, rapi, numBones);
+	short int * animBoneTT;
+	BYTE highBT[16*16];
+	for(int i = 0; i < 16*16; i++) highBT[i] = 0xff;
+	modelBone_t *bones = Model_Bayo_CreateBones(hdr, data, rapi, numBones, animBoneTT, highBT);
 
 	Model_Bayo_GetMotionFiles(dfiles, df, rapi, motfiles);
 
