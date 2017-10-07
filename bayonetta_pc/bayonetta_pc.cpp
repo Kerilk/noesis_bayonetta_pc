@@ -201,6 +201,29 @@ typedef struct bayoMotItem_s
 	short int			unknown;
 	bayoMotField_t		value;
 } bayoMotItem_t;
+typedef struct bayoInterpolHeader4_s {
+	float values[6];
+} bayoInterpolHeader4_t;
+typedef struct bayoInterpolKeyframe4_s {
+	unsigned short int index;
+	unsigned short int coeffs[3];
+} bayoInterpolKeyframe4_t;
+typedef short unsigned int pghalf;
+typedef struct bayoInterpolHeader6_s {
+	pghalf values[6];
+} bayoInterpolHeader6_t;
+typedef struct bayoInterpolKeyframe6_s {
+	BYTE index;
+	BYTE coeffs[3];
+} bayoInterpolKeyframe6_t;
+typedef struct bayoInterpolHeader7_s {
+	pghalf values[6];
+} bayoInterpolHeader7_t;
+typedef struct bayoInterpolKeyframe7_s {
+	unsigned short int index;
+	BYTE dummy;
+	BYTE coeffs[3];
+} bayoInterpolKeyframe7_t;
 typedef struct bayoVertexData_s {
 	float position[3];			//00
 	short uv[2];				//0C //half float really
@@ -730,6 +753,151 @@ static void Model_Bayo_ApplyMotions(modelMatrix_t * matrixes, float * tmpValues,
 		}
 	}
 }
+template <class T>
+static void Model_Bayo_HermitInterpolate(float * tmpValues, float *fvals, const T *p_v, const T *v, short int &frameCount, const short int first_frame, const short int last_frame) {
+	float p0, p1, m0, m1;
+	p0 = fvals[0] + fvals[1] * p_v->coeffs[0];
+	p1 = fvals[0] + fvals[1] * v->coeffs[0];
+	m0 = fvals[4] + fvals[5] * p_v->coeffs[2];
+	m1 = fvals[2] + fvals[3] * v->coeffs[1];
+
+	for(; frameCount <= last_frame; frameCount++) {
+		float t;
+		t = (float)(frameCount - first_frame)/(last_frame - first_frame);
+		tmpValues[frameCount] = (2*t*t*t - 3*t*t + 1)*p0 + (t*t*t - 2*t*t + t)*m0 + (-2*t*t*t + 3*t*t)*p1 + (t*t*t - t*t)*m1;
+		DBGALOG("%f, %d, %f\n\t", t, frameCount, tmpValues[frameCount]);
+	}
+	DBGALOG("%3d %5d %5d %5d (%+f %+f %+f)\n\t", v->coeffs[0], v->coeffs[1], v->coeffs[2],
+			fvals[0] + fvals[1] * v->coeffs[0],
+			fvals[2] + fvals[3] * v->coeffs[1],
+			fvals[4] + fvals[5] * v->coeffs[2]);
+}
+//interpolate motion
+static void Model_Bayo_Interpolate4(float * tmpValues, BYTE * data, const short int elemNumber) {
+	short int frameCount = 0;
+	bayoInterpolHeader4_t *h = (bayoInterpolHeader4_t *)(data);
+	bayoInterpolKeyframe4_t *v = (bayoInterpolKeyframe4_t *)(h+1);
+	bayoInterpolKeyframe4_t *p_v;
+
+	DBGALOG("\t");
+	for(int j = 0; j < 6; j++)
+	{
+		DBGALOG("%#g ", h->values[j]);
+	}
+	DBGALOG("\n\t(");
+	for(int j = 0; j < sizeof(*h); j++)
+	{
+		DBGALOG("%02x ", ((BYTE *)h)[j]);
+	}
+	DBGALOG(")\n\t");
+
+	DBGALOG("%3d %5d %5d %5d (%+f %+f %+f)\n\t", v->index, v->coeffs[0], v->coeffs[1], v->coeffs[2],
+			h->values[0] + h->values[1] * v->coeffs[0],
+			h->values[2] + h->values[3] * v->coeffs[1],
+			h->values[4] + h->values[5] * v->coeffs[2]);
+
+	p_v = v;
+	tmpValues[frameCount] = h->values[0] + h->values[1] * v->coeffs[0];
+	v++;
+	DBGALOG("%f, %d, %f\n\t", 0.0, frameCount, tmpValues[frameCount]);
+	frameCount++;
+
+	for(int j = 1; j < elemNumber; j++)
+	{
+		short int first_frame = p_v->index;
+		short int last_frame = v->index;
+
+		Model_Bayo_HermitInterpolate(tmpValues, h->values, p_v, v, frameCount, first_frame, last_frame);
+
+		p_v = v;
+		v++;
+	}
+	DBGALOG("\n");
+}
+static void Model_Bayo_Interpolate6(float * tmpValues, BYTE * data, const short int elemNumber) {
+	FloatDecompressor C(6, 9, 47);
+	short int frameCount = 0;
+	bayoInterpolHeader6_t *h = (bayoInterpolHeader6_t *)(data);
+	bayoInterpolKeyframe6_t *v = (bayoInterpolKeyframe6_t *)(h+1);
+	bayoInterpolKeyframe6_t *p_v;
+
+	float fvals[6];
+	DBGALOG("\t");
+	for(int j = 0; j < 6; j++)
+	{
+		fvals[j] = C.decompress(h->values[j]);
+		DBGALOG("%+f ", fvals[j]);
+	}
+	DBGALOG("\n\t(");
+	for(int j=0; j < sizeof(*h); j++)
+	{
+		DBGALOG("%02x ", ((BYTE *)h)[j]);
+	}
+	DBGALOG(")\n\t");
+
+	DBGALOG("%3d %5d %5d %5d (%+f %+f %+f)\n\t", v->index, v->coeffs[0], v->coeffs[1], v->coeffs[2],
+			fvals[0] + fvals[1] * v->coeffs[0],
+			fvals[2] + fvals[3] * v->coeffs[1],
+			fvals[4] + fvals[5] * v->coeffs[2]);
+
+	tmpValues[frameCount] = fvals[0] + fvals[1] * v->coeffs[0];
+	p_v = v;
+	v++;
+	DBGALOG("%f, %d, %f\n\t", 0.0, frameCount, tmpValues[frameCount]);
+	frameCount++;
+	for(int j = 1; j < elemNumber; j++)
+	{
+		short int first_frame = frameCount - 1;
+		short int last_frame = frameCount - 1 + v->index;
+		Model_Bayo_HermitInterpolate(tmpValues, fvals, p_v, v, frameCount, first_frame, last_frame);
+		p_v = v;
+		v++;
+	}
+	DBGALOG("\n");
+}
+static void Model_Bayo_Interpolate7(float * tmpValues, BYTE * data, const short int elemNumber) {
+	FloatDecompressor C(6, 9, 47);
+	short int frameCount = 0;
+	bayoInterpolHeader7_t *h = (bayoInterpolHeader7_t *)(data);
+	bayoInterpolKeyframe7_t *v = (bayoInterpolKeyframe7_t *)(h+1);
+	bayoInterpolKeyframe7_t *p_v;
+
+	float fvals[6];
+	DBGALOG("\t");
+	for(int j=0; j<6; j++)
+	{
+		fvals[j] = C.decompress(h->values[j]);
+		DBGALOG("%+f ", fvals[j]);
+	}
+	DBGALOG("\n\t(");
+	for(int j=0; j<sizeof(*h); j++)
+	{
+		DBGALOG("%02x ", ((BYTE *)h)[j]);
+	}
+	DBGALOG(")\n\t");
+
+	DBGALOG("%3d %5d %5d %5d (%+f %+f %+f)\n\t", v->index, v->coeffs[0], v->coeffs[1], v->coeffs[2],
+			fvals[0] + fvals[1] * v->coeffs[0],
+			fvals[2] + fvals[3] * v->coeffs[1],
+			fvals[4] + fvals[5] * v->coeffs[2]);
+
+	tmpValues[frameCount] = fvals[0] + fvals[1] * v->coeffs[0];
+	p_v = v;
+	v++;
+	DBGALOG("%f, %d, %f\n\t", 0.0, frameCount, tmpValues[frameCount]);
+	frameCount++;
+	for(int j = 1; j < elemNumber; j++)
+	{
+		short int first_frame = p_v->index;
+		short int last_frame = v->index;
+
+		Model_Bayo_HermitInterpolate(tmpValues, fvals, p_v, v, frameCount, first_frame, last_frame);
+
+		p_v = v;
+		v++;
+	}
+	DBGALOG("\n");
+}
 //loat motion file
 static void Model_Bayo_LoadMotions(CArrayList<noesisAnim_t *> &animList, CArrayList<bayoDatFile_t *> &motfiles, modelBone_t *bones, int bone_number, noeRAPI_t *rapi, short int * animBoneTT)
 {
@@ -790,168 +958,26 @@ static void Model_Bayo_LoadMotions(CArrayList<noesisAnim_t *> &animList, CArrayL
 				DBGALOG("\t%3d %+f\n", frame_count, fdata[frame_count]);
 			}
 		} else if( it->flag == 4 ) {
-			int frame_count = 0;
-			float fvals[6];
-
 			DBGLOG(" 0x%08x\n", it->value.offset);
-			short unsigned int *p_data = (short unsigned int *)(data + it->value.offset);
-			DBGALOG("\t");
-			float * fData = (float *)p_data;
-			for(int j=0; j<6; j++)
-			{
-				fvals[j] = fData[j];
-				DBGALOG("%#g ", fvals[j]);
-			}
-			DBGALOG("\n\t(");
-			for(int j=0; j<24; j++)
-			{
-				DBGALOG("%02x ", ((BYTE *)p_data)[j]);
-			}
-			DBGALOG(")\n\t");
 
-			p_data = (short unsigned int *)(data + it->value.offset + 24);
+			Model_Bayo_Interpolate4(tmp_values + it->index * hdr.frameCount + boneIndex *  hdr.frameCount * max_coeffs,
+									data + it->value.offset,
+									it->elem_number);
 
-			DBGALOG("%3d %5d %5d %5d (%+f %+f %+f)\n\t", p_data[0], p_data[1], p_data[2], p_data[3],
-					fvals[0] + fvals[1] * p_data[1],
-					fvals[2] + fvals[3] * p_data[2],
-					fvals[4] + fvals[5] * p_data[3]);
-			
-			short unsigned int * previous_data = p_data;
-			tmp_values[frame_count + it->index * hdr.frameCount + boneIndex *  hdr.frameCount * max_coeffs] = fvals[0] + fvals[1] * p_data[1];
-			p_data += 4;
-			
-			DBGALOG("%f, %d, %f\n\t", 0.0, frame_count, tmp_values[frame_count + it->index * hdr.frameCount + boneIndex *  hdr.frameCount * max_coeffs]);
-			frame_count++;
-
-			for(int j=1; j<it->elem_number; j++)
-			{
-				float p0, p1, m0, m1;
-				float t0, t1, t;
-				p0 = fvals[0] + fvals[1] * previous_data[1];
-				p1 = fvals[0] + fvals[1] * p_data[1];
-				m0 = fvals[4] + fvals[5] * previous_data[3];
-				m1 = fvals[2] + fvals[3] * p_data[2];
-				t0 = (float)previous_data[0];
-				t1 = (float)p_data[0];
-
-			    for (; frame_count <= p_data[0]; frame_count++) {
-					t = (frame_count-previous_data[0])/(t1-t0);
-					tmp_values[frame_count + it->index * hdr.frameCount + boneIndex *  hdr.frameCount * max_coeffs] = (2*t*t*t -3*t*t + 1)*p0 + (t*t*t -2*t*t + t)*m0 + (-2*t*t*t + 3*t*t)*p1 + (t*t*t - t*t)*m1;
-					DBGALOG("%f, %d, %f\n\t", t, frame_count, tmp_values[frame_count + it->index * hdr.frameCount + boneIndex *  hdr.frameCount * max_coeffs]);
-				}
-				DBGALOG("%3d %5d %5d %5d (%+f %+f %+f)\n\t", p_data[0], p_data[1], p_data[2], p_data[3],
-					fvals[0] + fvals[1] * p_data[1],
-					fvals[2] + fvals[3] * p_data[2],
-					fvals[4] + fvals[5] * p_data[3]);
-				previous_data = p_data;
-				p_data += 4;
-			}
-			DBGALOG("\n");
 		} else if( it->flag == 6 ) {
-			int frame_count = 0;
 			DBGLOG(" 0x%08x\n", it->value.offset);
-			BYTE *p_data = (BYTE *)(data + it->value.offset);
-			short unsigned int *f_data = (short unsigned int *)(data + it->value.offset);
-			float fvals[6];
-			DBGALOG("\t");
-			for(int j=0; j<6; j++)
-			{
-				fvals[j] = C.decompress(f_data[j]);
-				DBGALOG("%+f ", fvals[j]);
-			}
-			DBGALOG("\n\t(");
-			for(int j=0; j<12; j++)
-			{
-				DBGALOG("%02x ", p_data[j]);
-			}
-			DBGALOG(")\n\t");
-			p_data += 12;
-			
-			DBGALOG("%3d %3d %3d %3d (%+f %+f %+f)\n\t", p_data[0], p_data[1], p_data[2], p_data[3],
-					fvals[0] + fvals[1] * p_data[1],
-					fvals[2] + fvals[3] * p_data[2],
-					fvals[4] + fvals[5] * p_data[3]);
 
-			tmp_values[frame_count + it->index * hdr.frameCount + boneIndex *  hdr.frameCount * max_coeffs] = fvals[0] + fvals[1] * p_data[1];
-			BYTE * previous_data = p_data;
-			p_data += 4;
-			DBGALOG("%f, %d, %f\n\t", 0.0, frame_count, tmp_values[frame_count + it->index * hdr.frameCount + boneIndex *  hdr.frameCount * max_coeffs]);
-			for(int j=1; j<it->elem_number; j++)
-			{
-				float p0, p1, m0, m1;
-				float t0, t1, t;
-				p0 = fvals[0] + fvals[1] * previous_data[1];
-				p1 = fvals[0] + fvals[1] * p_data[1];
-				m0 = fvals[4] + fvals[5] * previous_data[3];
-				m1 = fvals[2] + fvals[3] * p_data[2];
-				t0 = (float)frame_count;
-				t1 = (float)frame_count + p_data[0];
-				
-				for(int k = 1; k <= p_data[0]; k++) {
-					t = k/(t1-t0);
-					tmp_values[frame_count + k + it->index * hdr.frameCount + boneIndex *  hdr.frameCount * max_coeffs] = (2*t*t*t -3*t*t + 1)*p0 + (t*t*t -2*t*t + t)*m0 + (-2*t*t*t + 3*t*t)*p1 + (t*t*t - t*t)*m1;
-					DBGALOG("%f, %d, %f\n\t", t, frame_count+k, tmp_values[frame_count + k + it->index * hdr.frameCount + boneIndex *  hdr.frameCount * max_coeffs]);
-				}
-				DBGALOG("%3d %3d %3d %3d (%+f %+f %+f)\n\t", p_data[0], p_data[1], p_data[2], p_data[3],
-					fvals[0] + fvals[1] * p_data[1],
-					fvals[2] + fvals[3] * p_data[2],
-					fvals[4] + fvals[5] * p_data[3]);
+			Model_Bayo_Interpolate6(tmp_values + it->index * hdr.frameCount + boneIndex *  hdr.frameCount * max_coeffs,
+									data + it->value.offset,
+									it->elem_number);
 
-				frame_count += p_data[0];
-				previous_data = p_data;
-				p_data += 4;
-			}
-			DBGALOG("\n");
 		} else if( it->flag == 7 ) { //diff from 6 because frame delta would be > 255
-			int frame_count = 0;
 			DBGLOG(" 0x%08x\n", it->value.offset);
-			BYTE *p_data = (BYTE *)(data + it->value.offset);
-			short unsigned int *f_data = (short unsigned int *)(data + it->value.offset);
-			float fvals[6];
-			DBGALOG("\t");
-			for(int j=0; j<6; j++)
-			{
-				fvals[j] = C.decompress(f_data[j]);
-				DBGALOG("%+f ", fvals[j]);
-			}
-			DBGALOG("\n\t(");
-			for(int j=0; j<12; j++)
-			{
-				DBGALOG("%02x ", p_data[j]);
-			}
-			DBGALOG(")\n\t");
-			p_data += 12;
 
-			DBGALOG("%5d 0x%02x %3d %3d %3d\n\t", *((unsigned short int *)(p_data)), p_data[2], p_data[3], p_data[4], p_data[5]);
-			BYTE * previous_data = p_data;
+			Model_Bayo_Interpolate7(tmp_values + it->index * hdr.frameCount + boneIndex *  hdr.frameCount * max_coeffs,
+									data + it->value.offset,
+									it->elem_number);
 
-			tmp_values[frame_count + it->index * hdr.frameCount + boneIndex *  hdr.frameCount * max_coeffs] = fvals[0] + fvals[1] * p_data[3];
-			p_data += 6;
-			
-			DBGALOG("%f, %d, %f\n\t", 0.0, frame_count, tmp_values[frame_count + it->index * hdr.frameCount + boneIndex *  hdr.frameCount * max_coeffs]);
-			frame_count++;
-			for(int j=1; j<it->elem_number; j++)
-			{
-				float p0, p1, m0, m1;
-				float t0, t1, t;
-				p0 = fvals[0] + fvals[1] * previous_data[3];
-				p1 = fvals[0] + fvals[1] * p_data[3];
-				m0 = fvals[4] + fvals[5] * previous_data[5];
-				m1 = fvals[2] + fvals[3] * p_data[4];
-				t0 = *((unsigned short int *)(previous_data));
-				t1 = *((unsigned short int *)(p_data));
-
-				for (; frame_count <= *((unsigned short int *)(p_data)); frame_count++) {
-					t = (frame_count-*((unsigned short int *)(previous_data)))/(t1-t0);
-					tmp_values[frame_count + it->index * hdr.frameCount + boneIndex *  hdr.frameCount * max_coeffs] = (2*t*t*t -3*t*t + 1)*p0 + (t*t*t -2*t*t + t)*m0 + (-2*t*t*t + 3*t*t)*p1 + (t*t*t - t*t)*m1;
-					DBGALOG("%f, %d, %f\n\t", t, frame_count, tmp_values[frame_count + it->index * hdr.frameCount + boneIndex *  hdr.frameCount * max_coeffs]);
-				}
-				DBGALOG("%5d 0x%02x %3d %3d %3d\n\t", *((unsigned short int *)(p_data)), p_data[2], p_data[3], p_data[4], p_data[5]);
-
-				previous_data = p_data;
-				p_data += 6;
-			}
-			DBGALOG("\n");
 		} else if( it->flag ==  0xff ) {
 			DBGLOG(" %+f (0x%08x)\n", it->value.flt, it->value.offset);
 			continue;
