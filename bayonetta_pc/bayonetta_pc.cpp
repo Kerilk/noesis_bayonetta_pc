@@ -753,6 +753,34 @@ static void Model_Bayo_ApplyMotions(modelMatrix_t * matrixes, float * tmpValues,
 		}
 	}
 }
+static inline void Model_Bayo_DecodeInterpolateHeader(float * fvals, bayoInterpolHeader4_t *h) {
+	for(int j = 0; j < 6; j++) {
+		fvals[j] = h->values[j];
+	}
+}
+static FloatDecompressor C(6, 9, 47);
+static inline void Model_Bayo_DecodeInterpolateHeader(float * fvals, bayoInterpolHeader6_t *h) {
+	for(int j = 0; j < 6; j++) {
+		fvals[j] = C.decompress(h->values[j]);
+	}
+}
+static inline void Model_Bayo_DecodeInterpolateHeader(float * fvals, bayoInterpolHeader7_t *h) {
+	for(int j = 0; j < 6; j++) {
+		fvals[j] = C.decompress(h->values[j]);
+	}
+}
+static inline void Model_Bayo_DecodeFrameIndex(short int &firstFrame, short int &lastFrame, short int, bayoInterpolKeyframe4_t *p_v, bayoInterpolKeyframe4_t *v) {
+	firstFrame = p_v->index;
+    lastFrame = v->index;
+}
+static inline void Model_Bayo_DecodeFrameIndex(short int &firstFrame, short int &lastFrame, short int frameCount, bayoInterpolKeyframe6_t *p_v, bayoInterpolKeyframe6_t *v) {
+	firstFrame = frameCount - 1;
+	lastFrame = frameCount - 1 + v->index;
+}
+static inline void Model_Bayo_DecodeFrameIndex(short int &firstFrame, short int &lastFrame, short int, bayoInterpolKeyframe7_t *p_v, bayoInterpolKeyframe7_t *v) {
+	firstFrame = p_v->index;
+    lastFrame = v->index;
+}
 template <class T>
 static void Model_Bayo_HermitInterpolate(float * tmpValues, float *fvals, const T *p_v, const T *v, short int &frameCount, const short int first_frame, const short int last_frame) {
 	float p0, p1, m0, m1;
@@ -767,22 +795,25 @@ static void Model_Bayo_HermitInterpolate(float * tmpValues, float *fvals, const 
 		tmpValues[frameCount] = (2*t*t*t - 3*t*t + 1)*p0 + (t*t*t - 2*t*t + t)*m0 + (-2*t*t*t + 3*t*t)*p1 + (t*t*t - t*t)*m1;
 		DBGALOG("%f, %d, %f\n\t", t, frameCount, tmpValues[frameCount]);
 	}
-	DBGALOG("%3d %5d %5d %5d (%+f %+f %+f)\n\t", v->coeffs[0], v->coeffs[1], v->coeffs[2],
+	DBGALOG("%3d %5d %5d %5d (%+f %+f %+f)\n\t", v->index, v->coeffs[0], v->coeffs[1], v->coeffs[2],
 			fvals[0] + fvals[1] * v->coeffs[0],
 			fvals[2] + fvals[3] * v->coeffs[1],
 			fvals[4] + fvals[5] * v->coeffs[2]);
 }
 //interpolate motion
-static void Model_Bayo_Interpolate4(float * tmpValues, BYTE * data, const short int elemNumber) {
+template <class T1, class T2>
+static void Model_Bayo_Interpolate(float * tmpValues, BYTE * data, const short int elemNumber) {
 	short int frameCount = 0;
-	bayoInterpolHeader4_t *h = (bayoInterpolHeader4_t *)(data);
-	bayoInterpolKeyframe4_t *v = (bayoInterpolKeyframe4_t *)(h+1);
-	bayoInterpolKeyframe4_t *p_v;
+	T1 *h = (T1 *)(data);
+	T2 *v = (T2 *)(h+1);
+	T2 *p_v;
 
+	float fvals[6];
+	Model_Bayo_DecodeInterpolateHeader(fvals, h);
 	DBGALOG("\t");
 	for(int j = 0; j < 6; j++)
 	{
-		DBGALOG("%#g ", h->values[j]);
+		DBGALOG("%#g ", fvals[j]);
 	}
 	DBGALOG("\n\t(");
 	for(int j = 0; j < sizeof(*h); j++)
@@ -792,105 +823,20 @@ static void Model_Bayo_Interpolate4(float * tmpValues, BYTE * data, const short 
 	DBGALOG(")\n\t");
 
 	DBGALOG("%3d %5d %5d %5d (%+f %+f %+f)\n\t", v->index, v->coeffs[0], v->coeffs[1], v->coeffs[2],
-			h->values[0] + h->values[1] * v->coeffs[0],
-			h->values[2] + h->values[3] * v->coeffs[1],
-			h->values[4] + h->values[5] * v->coeffs[2]);
-
-	p_v = v;
-	tmpValues[frameCount] = h->values[0] + h->values[1] * v->coeffs[0];
-	v++;
-	DBGALOG("%f, %d, %f\n\t", 0.0, frameCount, tmpValues[frameCount]);
-	frameCount++;
-
-	for(int j = 1; j < elemNumber; j++)
-	{
-		short int first_frame = p_v->index;
-		short int last_frame = v->index;
-
-		Model_Bayo_HermitInterpolate(tmpValues, h->values, p_v, v, frameCount, first_frame, last_frame);
-
-		p_v = v;
-		v++;
-	}
-	DBGALOG("\n");
-}
-static void Model_Bayo_Interpolate6(float * tmpValues, BYTE * data, const short int elemNumber) {
-	FloatDecompressor C(6, 9, 47);
-	short int frameCount = 0;
-	bayoInterpolHeader6_t *h = (bayoInterpolHeader6_t *)(data);
-	bayoInterpolKeyframe6_t *v = (bayoInterpolKeyframe6_t *)(h+1);
-	bayoInterpolKeyframe6_t *p_v;
-
-	float fvals[6];
-	DBGALOG("\t");
-	for(int j = 0; j < 6; j++)
-	{
-		fvals[j] = C.decompress(h->values[j]);
-		DBGALOG("%+f ", fvals[j]);
-	}
-	DBGALOG("\n\t(");
-	for(int j=0; j < sizeof(*h); j++)
-	{
-		DBGALOG("%02x ", ((BYTE *)h)[j]);
-	}
-	DBGALOG(")\n\t");
-
-	DBGALOG("%3d %5d %5d %5d (%+f %+f %+f)\n\t", v->index, v->coeffs[0], v->coeffs[1], v->coeffs[2],
 			fvals[0] + fvals[1] * v->coeffs[0],
 			fvals[2] + fvals[3] * v->coeffs[1],
 			fvals[4] + fvals[5] * v->coeffs[2]);
 
-	tmpValues[frameCount] = fvals[0] + fvals[1] * v->coeffs[0];
 	p_v = v;
+	tmpValues[frameCount] = fvals[0] + fvals[1] * v->coeffs[0];
 	v++;
 	DBGALOG("%f, %d, %f\n\t", 0.0, frameCount, tmpValues[frameCount]);
 	frameCount++;
+
 	for(int j = 1; j < elemNumber; j++)
 	{
-		short int first_frame = frameCount - 1;
-		short int last_frame = frameCount - 1 + v->index;
-		Model_Bayo_HermitInterpolate(tmpValues, fvals, p_v, v, frameCount, first_frame, last_frame);
-		p_v = v;
-		v++;
-	}
-	DBGALOG("\n");
-}
-static void Model_Bayo_Interpolate7(float * tmpValues, BYTE * data, const short int elemNumber) {
-	FloatDecompressor C(6, 9, 47);
-	short int frameCount = 0;
-	bayoInterpolHeader7_t *h = (bayoInterpolHeader7_t *)(data);
-	bayoInterpolKeyframe7_t *v = (bayoInterpolKeyframe7_t *)(h+1);
-	bayoInterpolKeyframe7_t *p_v;
-
-	float fvals[6];
-	DBGALOG("\t");
-	for(int j=0; j<6; j++)
-	{
-		fvals[j] = C.decompress(h->values[j]);
-		DBGALOG("%+f ", fvals[j]);
-	}
-	DBGALOG("\n\t(");
-	for(int j=0; j<sizeof(*h); j++)
-	{
-		DBGALOG("%02x ", ((BYTE *)h)[j]);
-	}
-	DBGALOG(")\n\t");
-
-	DBGALOG("%3d %5d %5d %5d (%+f %+f %+f)\n\t", v->index, v->coeffs[0], v->coeffs[1], v->coeffs[2],
-			fvals[0] + fvals[1] * v->coeffs[0],
-			fvals[2] + fvals[3] * v->coeffs[1],
-			fvals[4] + fvals[5] * v->coeffs[2]);
-
-	tmpValues[frameCount] = fvals[0] + fvals[1] * v->coeffs[0];
-	p_v = v;
-	v++;
-	DBGALOG("%f, %d, %f\n\t", 0.0, frameCount, tmpValues[frameCount]);
-	frameCount++;
-	for(int j = 1; j < elemNumber; j++)
-	{
-		short int first_frame = p_v->index;
-		short int last_frame = v->index;
-
+		short int first_frame, last_frame;
+		Model_Bayo_DecodeFrameIndex(first_frame, last_frame, frameCount, p_v, v);
 		Model_Bayo_HermitInterpolate(tmpValues, fvals, p_v, v, frameCount, first_frame, last_frame);
 
 		p_v = v;
@@ -960,21 +906,21 @@ static void Model_Bayo_LoadMotions(CArrayList<noesisAnim_t *> &animList, CArrayL
 		} else if( it->flag == 4 ) {
 			DBGLOG(" 0x%08x\n", it->value.offset);
 
-			Model_Bayo_Interpolate4(tmp_values + it->index * hdr.frameCount + boneIndex *  hdr.frameCount * max_coeffs,
+			Model_Bayo_Interpolate<bayoInterpolHeader4_t,bayoInterpolKeyframe4_t>(tmp_values + it->index * hdr.frameCount + boneIndex *  hdr.frameCount * max_coeffs,
 									data + it->value.offset,
 									it->elem_number);
 
 		} else if( it->flag == 6 ) {
 			DBGLOG(" 0x%08x\n", it->value.offset);
 
-			Model_Bayo_Interpolate6(tmp_values + it->index * hdr.frameCount + boneIndex *  hdr.frameCount * max_coeffs,
+			Model_Bayo_Interpolate<bayoInterpolHeader6_t,bayoInterpolKeyframe6_t>(tmp_values + it->index * hdr.frameCount + boneIndex *  hdr.frameCount * max_coeffs,
 									data + it->value.offset,
 									it->elem_number);
 
 		} else if( it->flag == 7 ) { //diff from 6 because frame delta would be > 255
 			DBGLOG(" 0x%08x\n", it->value.offset);
 
-			Model_Bayo_Interpolate7(tmp_values + it->index * hdr.frameCount + boneIndex *  hdr.frameCount * max_coeffs,
+			Model_Bayo_Interpolate<bayoInterpolHeader7_t,bayoInterpolKeyframe7_t>(tmp_values + it->index * hdr.frameCount + boneIndex *  hdr.frameCount * max_coeffs,
 									data + it->value.offset,
 									it->elem_number);
 
