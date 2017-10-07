@@ -224,7 +224,7 @@ typedef struct bayoMatType_s {
 bayoMatType_t bayoMatTypes[256];
 
 //thanks Phernost (stackoverflow)
-class FloatCompressor
+class FloatDecompressor
 {
 	union Bits
 	{
@@ -252,7 +252,7 @@ class FloatCompressor
 
 public:
 
-	FloatCompressor(int eHBits, int sHBits, int bH): exponentHBits(eHBits), significandHBits(sHBits), biasH(bH) {
+	FloatDecompressor(int eHBits, int sHBits, int bH): exponentHBits(eHBits), significandHBits(sHBits), biasH(bH) {
 		int tmp = 0;
 		for(int i = 0; i < eHBits; i++) {
 			tmp <<= 1;
@@ -660,7 +660,7 @@ static inline short int Model_Bayo_DecodeMotionIndex(const short int *table, con
 //loat motion file
 static void Model_Bayo_LoadMotions(CArrayList<noesisAnim_t *> &animList, CArrayList<bayoDatFile_t *> &motfiles, modelBone_t *bones, int bone_number, noeRAPI_t *rapi, short int * animBoneTT)
 {
-  FloatCompressor C(6, 9, 47);
+  FloatDecompressor C(6, 9, 47);
   for(int mi=0; mi < motfiles.Num(); mi++)
   {
 	DBGLOG("Loading %s\n", motfiles[mi]->name);
