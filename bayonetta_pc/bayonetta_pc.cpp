@@ -722,12 +722,12 @@ static void Model_Bayo_ApplyMotions(modelMatrix_t * matrixes, float * tmpValues,
 
 		for( int fi = 0; fi < frameCount; fi++) {
 			DBGALOG("\tframe %d\n", fi);
-			modelMatrix_t tmp_mat;
-			modelMatrix_t tmp_mat2;
+			//modelMatrix_t tmp_mat;
+			//modelMatrix_t tmp_mat2;
 			float translate[3] = {0.0, 0.0, 0.0};
 			float rotate[3] = {0.0, 0.0, 0.0};
 			int rotate_order[3] = {1,2,0};
-			float rotate_coeff[3] = {1.0, -1.0, 1.0};
+			float rotate_coeff[3] = {-1.0, 1.0, -1.0};
 			float translate_coeff[3] = {1.0, 1.0, 1.0};
 
 			for( int i = 0; i < 3; i++) {
@@ -745,11 +745,16 @@ static void Model_Bayo_ApplyMotions(modelMatrix_t * matrixes, float * tmpValues,
 
 			g_mfn->Math_TranslateMatrix(&matrixes[bi + boneNumber * fi], translate);
 
-			for( int i = 0; i < 3; i++) {
+			/*for( int i = 0; i < 3; i++) {
 				g_mfn->Math_RotationMatrix(rotate[rotate_order[i]], rotate_order[i], &tmp_mat);
 				g_mfn->Math_MatrixMultiply(&matrixes[bi + boneNumber * fi], &tmp_mat, &tmp_mat2);
 				matrixes[bi + boneNumber * fi] = tmp_mat2;
-			}
+			}*/
+
+			g_mfn->Math_RotateMatrix(&matrixes[bi + boneNumber * fi], rotate[2]*180.0f/3.14159265f, 0.0f, 0.0f, 1.0f);
+			g_mfn->Math_RotateMatrix(&matrixes[bi + boneNumber * fi], rotate[1]*180.0f/3.14159265f, 0.0f, 1.0f, 0.0f);
+			g_mfn->Math_RotateMatrix(&matrixes[bi + boneNumber * fi], rotate[0]*180.0f/3.14159265f, 1.0f, 0.0f, 0.0f);
+
 		}
 	}
 }
