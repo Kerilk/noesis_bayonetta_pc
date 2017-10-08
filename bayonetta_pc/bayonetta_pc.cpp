@@ -964,21 +964,6 @@ static void Model_Bayo_CreateNormals(BYTE *data, float *dsts, int numVerts, int 
 {
 	for (int i = 0; i < numVerts; i++)
 	{
-		/*
-		BYTE *src = (BYTE *)(data + stride*i);
-		float *dst = dsts+i*3;
-		DWORD r;
-		memcpy(&r, src, sizeof(r));
-		int xBits = (eet) ? 11 : 10;
-		int yBits = (eet) ? 11 : 10;
-		int zBits = 10;
-		int x = ((r>>0) & ((1<<xBits)-1));
-		int y = ((r>>xBits) & ((1<<yBits)-1));
-		int z = ((r>>(xBits+yBits)) & ((1<<zBits)-1));
-		dst[0] = (float)SignedBits(x, xBits) / (float)((1<<(xBits-1))-1);
-		dst[1] = (float)SignedBits(y, yBits) / (float)((1<<(yBits-1))-1);
-		dst[2] = (float)SignedBits(z, zBits) / (float)((1<<(zBits-1))-1);
-		g_mfn->Math_VecNorm(dst);*/
 		char *src = (char *)(data + stride*i + 1);
 		float *dst = dsts+i*3;
 		for (int j = 0; j < 3;  j++) {
