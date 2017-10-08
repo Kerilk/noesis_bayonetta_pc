@@ -959,6 +959,34 @@ static void Model_Bayo_LoadMotions(CArrayList<noesisAnim_t *> &animList, CArrayL
   }
 
 }
+static void Model_Bayo_GetDATEntries(CArrayList<bayoDatFile_t> &dfiles, BYTE *fileBuffer, int bufferLen);
+static void Model_Bayo_LoadExternalMotions(CArrayList<noesisAnim_t *> &animList, bayoDatFile_t &df, modelBone_t *bones, int bone_number, noeRAPI_t *rapi, short int * animBoneTT){
+	noeUserPromptParam_t promptParams;
+	promptParams.titleStr = "Motion load?";
+	promptParams.promptStr = "Load motions in other files?";
+	promptParams.defaultValue = "Just click!";
+	promptParams.valType = NOEUSERVAL_NONE;
+	promptParams.valHandler = NULL;
+
+	while( g_nfn->NPAPI_UserPrompt(&promptParams) ) {
+		int dataLength;
+		BYTE* data = rapi->Noesis_LoadPairedFile("Bayonetta PC Model", ".dat", dataLength, NULL);
+		if (data) {
+			CArrayList<bayoDatFile_t> datfiles;
+			Model_Bayo_GetDATEntries(datfiles, data, dataLength);
+			if(datfiles.Num() > 0) {
+				CArrayList<bayoDatFile_t *> motfiles;
+				Model_Bayo_GetMotionFiles(datfiles, df, rapi, motfiles);
+				if(motfiles.Num() > 0) {
+					Model_Bayo_LoadMotions(animList, motfiles, bones, bone_number, rapi, animBoneTT);
+				}
+				motfiles.Clear();
+			}
+			datfiles.Clear();
+		}
+		rapi->Noesis_UnpooledFree(data);
+	}
+}
 //decode bayonetta x10y10z10 normals
 static void Model_Bayo_CreateNormals(BYTE *data, float *dsts, int numVerts, int stride, bool eet)
 {
@@ -1199,6 +1227,9 @@ static void Model_Bayo_LoadModel(CArrayList<bayoDatFile_t> &dfiles, bayoDatFile_
 	modelBone_t *bones = Model_Bayo_CreateBones(hdr, data, rapi, numBones, animBoneTT);
 
 	Model_Bayo_GetMotionFiles(dfiles, df, rapi, motfiles);
+	Model_Bayo_LoadMotions(animList, motfiles, bones, numBones, rapi, animBoneTT);
+
+	//Model_Bayo_LoadExternalMotions(animList, df, bones, numBones, rapi, animBoneTT);
 
 	//decode normals
 	float *normals = (float *)rapi->Noesis_PooledAlloc(sizeof(float)*3*hdr.numVerts);
@@ -1306,7 +1337,6 @@ static void Model_Bayo_LoadModel(CArrayList<bayoDatFile_t> &dfiles, bayoDatFile_
 		}
 	}
 #endif
-	Model_Bayo_LoadMotions(animList, motfiles, bones, numBones, rapi, animBoneTT);
 /*    int anims_num = 0;
 	if( animList.Num() > 0 ) {
 		rapi->rpgSetExData_AnimsNum(animList[0], 1);
