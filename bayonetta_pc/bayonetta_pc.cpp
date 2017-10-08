@@ -707,19 +707,20 @@ static void Model_Bayo_InitMotions(modelMatrix_t * &matrixes, float * &tmpValues
 }
 //apply rotate/translate to model matrix
 static void Model_Bayo_ApplyMotions(modelMatrix_t * matrixes, float * tmpValues, modelBone_t *bones, const int boneNumber, const int maxCoeffs, const short int frameCount) {
-	DBGLOG("-------------------------------\n");
+	DBGALOG("-------------------------------\n");
 	for(int bi = 0; bi < boneNumber; bi++) {
-		DBGLOG("bone %d (%d)", bi, bones[bi].index);
-		DBGLOG(" parent %d\n", bones[bi].eData.parent ? bones[bi].eData.parent->index : -1);
+		DBGALOG("bone %d (%d)", bi, bones[bi].index);
+		DBGALOG(" parent %d\n", bones[bi].eData.parent ? bones[bi].eData.parent->index : -1);
 		//DBGLOG("\ttranslate: %f, %f, %f\n", bones[bi].mat.o[0], bones[bi].mat.o[1], bones[bi].mat.o[2]);
-		DBGLOG("\trelative: %f, %f, %f\n",
+		DBGALOG("\trelative: %f, %f, %f\n",
 			bones[bi].mat.o[0] - (bones[bi].eData.parent ? bones[bi].eData.parent->mat.o[0] : 0.0),
 			bones[bi].mat.o[1] - (bones[bi].eData.parent ? bones[bi].eData.parent->mat.o[1] : 0.0),
 			bones[bi].mat.o[2] - (bones[bi].eData.parent ? bones[bi].eData.parent->mat.o[2] : 0.0));
 	}
-	DBGLOG("-------------------------------\n");
+	DBGALOG("-------------------------------\n");
 	for(int bi = 0; bi < boneNumber; bi++) {
 		DBGALOG("bone %d\n", bi);
+
 		for( int fi = 0; fi < frameCount; fi++) {
 			DBGALOG("\tframe %d\n", fi);
 			modelMatrix_t tmp_mat;
@@ -874,65 +875,65 @@ static void Model_Bayo_LoadMotions(CArrayList<noesisAnim_t *> &animList, CArrayL
 	Model_Bayo_InitMotions(matrixes, tmp_values, bones, bone_number, max_coeffs, hdr.frameCount, rapi);
 
 	bayoMotItem_t * items = (bayoMotItem_t*)(data + hdr.ofsMotion);
-	DBGLOG("unknown flag: 0x%04x, frame count: %d, data offset: 0x%04x, record number: %d\n", hdr.unknownA, hdr.frameCount, hdr.ofsMotion, hdr.numEntries);
+	DBGALOG("unknown flag: 0x%04x, frame count: %d, data offset: 0x%04x, record number: %d\n", hdr.unknownA, hdr.frameCount, hdr.ofsMotion, hdr.numEntries);
 	for(int i=0; i < hdr.numEntries; i++) {
 		bayoMotItem_t *it = &items[i];
 		if( it->boneIndex == 0x7fff || it->boneIndex == -1) {
-			DBGLOG("%5d %3d 0x%02x %3d %3d %+f (0x%08x)\n",it->boneIndex, it->index, it->flag, it->elem_number, it->unknown, it->value.flt, it->value.offset);
+			DBGALOG("%5d %3d 0x%02x %3d %3d %+f (0x%08x)\n",it->boneIndex, it->index, it->flag, it->elem_number, it->unknown, it->value.flt, it->value.offset);
 			continue;
 		} else if ( it->boneIndex >= 0xf60 ) {
-			DBGLOG("%5d %3d 0x%02x %3d %3d %+f (0x%08x) special flag 0x2 index\n", it->boneIndex, it->index, it->flag, it->elem_number, it->unknown, it->value.flt, it->value.offset);
+			DBGALOG("%5d %3d 0x%02x %3d %3d %+f (0x%08x) special flag 0x2 index\n", it->boneIndex, it->index, it->flag, it->elem_number, it->unknown, it->value.flt, it->value.offset);
 		    continue;
 		}
 		short int boneIndex = Model_Bayo_DecodeMotionIndex(animBoneTT, it->boneIndex);
 		if( boneIndex == 0x0fff ) {
-			DBGLOG("%5d %3d 0x%02x %3d %3d %+f (0x%08x) cannot translate bone\n", it->boneIndex, it->index, it->flag, it->elem_number, it->unknown, it->value.flt, it->value.offset);
+			DBGALOG("%5d %3d 0x%02x %3d %3d %+f (0x%08x) cannot translate bone\n", it->boneIndex, it->index, it->flag, it->elem_number, it->unknown, it->value.flt, it->value.offset);
 			continue;
 		}
 
 		//float tmp_values[65536];
-		DBGLOG("%5d (%5d) %3d 0x%02x %3d %3d", boneIndex, it->boneIndex, it->index, it->flag, it->elem_number, it->unknown);
+		DBGALOG("%5d (%5d) %3d 0x%02x %3d %3d", boneIndex, it->boneIndex, it->index, it->flag, it->elem_number, it->unknown);
 		if ( boneIndex >= bone_number ) {
-			DBGLOG(" out of bone bounds\n");
+			DBGALOG(" out of bone bounds\n");
 			continue;
 		}
 		if( it->flag == 1 ) {
-			DBGLOG(" 0x%08x\n", it->value.offset);
+			DBGALOG(" 0x%08x\n", it->value.offset);
 			float *fdata = (float *)(data + it->value.offset);
 			for(int frame_count=0; frame_count < it->elem_number; frame_count++) {
 				tmp_values[frame_count + it->index * hdr.frameCount + boneIndex *  hdr.frameCount * max_coeffs] = fdata[frame_count];
 				DBGALOG("\t%3d %+f\n", frame_count, fdata[frame_count]);
 			}
 		} else if( it->flag == 4 ) {
-			DBGLOG(" 0x%08x\n", it->value.offset);
+			DBGALOG(" 0x%08x\n", it->value.offset);
 
 			Model_Bayo_Interpolate<bayoInterpolHeader4_t,bayoInterpolKeyframe4_t>(tmp_values + it->index * hdr.frameCount + boneIndex *  hdr.frameCount * max_coeffs,
 									data + it->value.offset,
 									it->elem_number);
 
 		} else if( it->flag == 6 ) {
-			DBGLOG(" 0x%08x\n", it->value.offset);
+			DBGALOG(" 0x%08x\n", it->value.offset);
 
 			Model_Bayo_Interpolate<bayoInterpolHeader6_t,bayoInterpolKeyframe6_t>(tmp_values + it->index * hdr.frameCount + boneIndex *  hdr.frameCount * max_coeffs,
 									data + it->value.offset,
 									it->elem_number);
 
 		} else if( it->flag == 7 ) { //diff from 6 because frame delta would be > 255
-			DBGLOG(" 0x%08x\n", it->value.offset);
+			DBGALOG(" 0x%08x\n", it->value.offset);
 
 			Model_Bayo_Interpolate<bayoInterpolHeader7_t,bayoInterpolKeyframe7_t>(tmp_values + it->index * hdr.frameCount + boneIndex *  hdr.frameCount * max_coeffs,
 									data + it->value.offset,
 									it->elem_number);
 
 		} else if( it->flag ==  0xff ) {
-			DBGLOG(" %+f (0x%08x)\n", it->value.flt, it->value.offset);
+			DBGALOG(" %+f (0x%08x)\n", it->value.flt, it->value.offset);
 			continue;
 		} else if ( it->flag != 0 ) {
-			DBGLOG(" %+f (0x%08x)\n", it->value.flt, it->value.offset);
+			DBGALOG(" %+f (0x%08x)\n", it->value.flt, it->value.offset);
 			assert(0);
 			rapi->LogOutput("WARNING: Unknown motion flag %0x02x.\n", it->flag);
 		} else {
-			DBGLOG(" %+f\n", it->value.flt);
+			DBGALOG(" %+f\n", it->value.flt);
 			for(int j = 0; j < hdr.frameCount; j++) {
 				tmp_values[j + it->index * hdr.frameCount + boneIndex *  hdr.frameCount * max_coeffs] = it->value.flt;
 			}
@@ -1027,16 +1028,16 @@ modelBone_t *Model_Bayo_CreateBones(bayoWMBHdr_t &hdr, BYTE *data, noeRAPI_t *ra
 		g_mfn->Math_VecCopy(pos, bone->mat.o);
 
 	}
-	DBGLOG("-------------------------------\n");
+	DBGALOG("-------------------------------\n");
 	for(int bi = 0; bi < numBones; bi++) {
-		DBGLOG("bone %d (%d)\n", bi, bones[bi].index);
-		DBGLOG("parent %d\n", bones[bi].eData.parent ? bones[bi].eData.parent->index : -1);
-		DBGLOG("\ttranslate: %f, %f, %f\n", bones[bi].mat.o[0], bones[bi].mat.o[1], bones[bi].mat.o[2]);
-		DBGLOG("\trelative_c: %f, %f, %f\n",
+		DBGALOG("bone %d (%d)\n", bi, bones[bi].index);
+		DBGALOG("parent %d\n", bones[bi].eData.parent ? bones[bi].eData.parent->index : -1);
+		DBGALOG("\ttranslate: %f, %f, %f\n", bones[bi].mat.o[0], bones[bi].mat.o[1], bones[bi].mat.o[2]);
+		DBGALOG("\trelative_c: %f, %f, %f\n",
 			bones[bi].mat.o[0] - (bones[bi].eData.parent ? bones[bi].eData.parent->mat.o[0] : 0.0),
 			bones[bi].mat.o[1] - (bones[bi].eData.parent ? bones[bi].eData.parent->mat.o[1] : 0.0),
 			bones[bi].mat.o[2] - (bones[bi].eData.parent ? bones[bi].eData.parent->mat.o[2] : 0.0));
-		DBGLOG("\trelative_g: %f, %f, %f\n", relPosList[3 * bi], relPosList[3 * bi + 1], relPosList[3 * bi + 2]);
+		DBGALOG("\trelative_g: %f, %f, %f\n", relPosList[3 * bi], relPosList[3 * bi + 1], relPosList[3 * bi + 2]);
 	}
 	//bones come pre-transformed
 	//rapi->rpgMultiplyBones(bones, numBones);
