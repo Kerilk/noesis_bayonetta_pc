@@ -191,7 +191,6 @@ typedef union bayoMotField_u
 	float flt;
 	int offset;
 } bayoMotField_t;
-
 typedef struct bayoMotItem_s
 {
 	short int			boneIndex;
@@ -232,8 +231,6 @@ typedef struct bayoVertexData_s {
 	unsigned char boneIndex[4];	//18
 	unsigned char boneWeight[4];//1C
 } bayoVertexData_t;
-
-//see if something is a valid bayonetta .dat
 typedef struct bayoMatType_s {
 	bool known;
 	short size;
@@ -319,6 +316,7 @@ public:
 	}
 };
 
+
 static void bayoSetMatType(bayoMatType_t &mat,
 						   short size,
 						   char texture_number,
@@ -389,6 +387,7 @@ static void bayoSetMatTypes(void) {
 }
 
 
+//see if something is a valid bayonetta .dat
 bool Model_Bayo_Check(BYTE *fileBuffer, int bufferLen, noeRAPI_t *rapi)
 {
 	DBGLOG("----------------------\n");
