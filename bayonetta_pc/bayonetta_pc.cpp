@@ -726,7 +726,7 @@ static void Model_Bayo_ApplyMotions(modelMatrix_t * matrixes, float * tmpValues,
 			//modelMatrix_t tmp_mat2;
 			float translate[3] = {0.0, 0.0, 0.0};
 			float rotate[3] = {0.0, 0.0, 0.0};
-			int rotate_order[3] = {1,2,0};
+			//int rotate_order[3] = {2,1,0};
 			float rotate_coeff[3] = {-1.0, 1.0, -1.0};
 			float translate_coeff[3] = {1.0, 1.0, 1.0};
 
@@ -967,8 +967,12 @@ static void Model_Bayo_LoadMotions(CArrayList<noesisAnim_t *> &animList, CArrayL
 static void Model_Bayo_GetDATEntries(CArrayList<bayoDatFile_t> &dfiles, BYTE *fileBuffer, int bufferLen);
 static void Model_Bayo_LoadExternalMotions(CArrayList<noesisAnim_t *> &animList, bayoDatFile_t &df, modelBone_t *bones, int bone_number, noeRAPI_t *rapi, short int * animBoneTT){
 	noeUserPromptParam_t promptParams;
-	promptParams.titleStr = "Motion load?";
-	promptParams.promptStr = "Load motions in other files?";
+	char wmbName[MAX_NOESIS_PATH];
+	char motionPrompt[MAX_NOESIS_PATH];
+	rapi->Noesis_GetExtensionlessName(wmbName, df.name);
+	sprintf_s(motionPrompt, MAX_NOESIS_PATH, "Load motions for %s in other files?", wmbName);
+	promptParams.titleStr = "Load motions?";
+	promptParams.promptStr = motionPrompt;
 	promptParams.defaultValue = "Just click!";
 	promptParams.valType = NOEUSERVAL_NONE;
 	promptParams.valHandler = NULL;
@@ -1234,7 +1238,7 @@ static void Model_Bayo_LoadModel(CArrayList<bayoDatFile_t> &dfiles, bayoDatFile_
 	Model_Bayo_GetMotionFiles(dfiles, df, rapi, motfiles);
 	Model_Bayo_LoadMotions(animList, motfiles, bones, numBones, rapi, animBoneTT);
 
-	//Model_Bayo_LoadExternalMotions(animList, df, bones, numBones, rapi, animBoneTT);
+	Model_Bayo_LoadExternalMotions(animList, df, bones, numBones, rapi, animBoneTT);
 
 	//decode normals
 	float *normals = (float *)rapi->Noesis_PooledAlloc(sizeof(float)*3*hdr.numVerts);
@@ -1347,26 +1351,27 @@ static void Model_Bayo_LoadModel(CArrayList<bayoDatFile_t> &dfiles, bayoDatFile_
 		rapi->rpgSetExData_AnimsNum(animList[0], 1);
 	}*/
 	int anims_num = animList.Num();
-    //noesisAnim_t *anims = rapi->Noesis_AnimFromAnimsList(animList, anims_num);
+    noesisAnim_t *anims = rapi->Noesis_AnimFromAnimsList(animList, anims_num);
 	//for(int i = 0; i < anims_num; i++) {
 	//	DBGLOG("anim: %s, size: %d, flag: %d\n", animList[i]->filename, animList[i]->dataLen, animList[i]->flags & NANIMFLAG_FILENAMETOSEQ);
 	//	DBGLOG("seq: %p, size: %d\n", (anims+i)->aseq, (anims+i)->dataLen );
 	//}
-    //rapi->rpgSetExData_AnimsNum(anims, anims_num);
+    rapi->rpgSetExData_AnimsNum(anims, 1);
 	//rapi->rpgMultiplyBones(bones, numBones);
 	DBGLOG("Found %d anims\n", anims_num);
 	rapi->rpgSetTriWinding(true); //bayonetta uses reverse face windings
+	//rapi->rpgSetName(rapi->Noesis_PooledString(df.name));
 	noesisModel_t *mdl = rapi->rpgConstructModel();
 	if( mdl ) {
 		models.Append(mdl);
 	}
-	for(int i = 0; i < anims_num; i++) {
+/*	for(int i = 0; i < anims_num; i++) {
 		noesisModel_t *mdl = rapi->rpgConstructModel();
 		if( mdl ) {
 			models.Append(mdl);
 			rapi->Noesis_SetModelAnims(mdl, animList[i], 1);
 		}
-	}
+	}*/
 	
 	rapi->rpgDestroyContext(pgctx);
 
