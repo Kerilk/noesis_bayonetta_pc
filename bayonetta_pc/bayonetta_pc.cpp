@@ -680,8 +680,8 @@ static inline short int Model_Bayo_DecodeMotionIndex(const short int *table, con
 	return 0x0fff;
 }
 //initialize motion matrix
-static void Model_Bayo_InitMotions(modelMatrix_t * &matrixes, float * &tmpValues, modelBone_t *bones, const int boneNumber, const int maxCoeffs, const short int frameCount, noeRAPI_t *rapi) {
-
+static void Model_Bayo_InitMotions(modelMatrix_t * &matrixes, float * &tmpValues, modelBone_t *bones, const int boneNumber, const short int frameCount, noeRAPI_t *rapi) {
+	const int maxCoeffs = 10;
 	matrixes = (modelMatrix_t *)rapi->Noesis_UnpooledAlloc(sizeof(modelMatrix_t) * boneNumber * frameCount);
 	tmpValues = (float *)rapi->Noesis_UnpooledAlloc(sizeof(float) * boneNumber * frameCount * maxCoeffs);
     memset(tmpValues, 0, sizeof(float) * boneNumber * frameCount * maxCoeffs);
@@ -698,6 +698,9 @@ static void Model_Bayo_InitMotions(modelMatrix_t * &matrixes, float * &tmpValues
 			for( int k = 0; k < 3; k++) {
 				tmpValues[j + k * frameCount + i *  frameCount * maxCoeffs] = translate[k];
 			}
+			for( int k = 7; k < 10; k++) {
+				tmpValues[j + k * frameCount + i *  frameCount * maxCoeffs] = 1.0f;
+			}
 			//g_mfn->Math_TranslateMatrix(&matrixes[i + j*bone_number], bones[i].mat.o);
 			//float zero[3] = {0.0f, 0.0f, 0.0f};
 			//g_mfn->Math_RotationMatrix(0.0, 0, &matrixes[i + j*bone_number]);
@@ -705,7 +708,8 @@ static void Model_Bayo_InitMotions(modelMatrix_t * &matrixes, float * &tmpValues
 	}
 }
 //apply rotate/translate to model matrix
-static void Model_Bayo_ApplyMotions(modelMatrix_t * matrixes, float * tmpValues, modelBone_t *bones, const int boneNumber, const int maxCoeffs, const short int frameCount) {
+static void Model_Bayo_ApplyMotions(modelMatrix_t * matrixes, float * tmpValues, modelBone_t *bones, const int boneNumber, const short int frameCount) {
+	const int maxCoeffs = 10;
 	DBGALOG("-------------------------------\n");
 	for(int bi = 0; bi < boneNumber; bi++) {
 		DBGALOG("bone %d (%d)", bi, bones[bi].index);
@@ -722,39 +726,43 @@ static void Model_Bayo_ApplyMotions(modelMatrix_t * matrixes, float * tmpValues,
 
 		for( int fi = 0; fi < frameCount; fi++) {
 			DBGALOG("\tframe %d\n", fi);
-			//modelMatrix_t tmp_mat;
-			//modelMatrix_t tmp_mat2;
-			float translate[3] = {0.0, 0.0, 0.0};
-			float rotate[3] = {0.0, 0.0, 0.0};
+			float translate[3];
+			float rotate[3];
+			float scale[3];
 			//int rotate_order[3] = {2,1,0};
 			float rotate_coeff[3] = {-1.0, 1.0, -1.0};
 			float translate_coeff[3] = {1.0, 1.0, 1.0};
+			float scale_coeff[3] = {1.0, 1.0, 1.0};
 
-			for( int i = 0; i < 3; i++) {
+			for ( int i = 0; i < 3; i++) {
 				translate[i] = translate_coeff[i] * tmpValues[fi + i * frameCount + bi *  frameCount * maxCoeffs];
 			}
-			for( int i = 0; i < 3; i++) {
-				rotate[i] = rotate_coeff[i] * tmpValues[fi + (3 + i) * frameCount + bi *  frameCount * maxCoeffs];
+			for ( int i = 3, j = 0; i < 6; i++, j++) {
+				rotate[j] = rotate_coeff[j] * tmpValues[fi + i * frameCount + bi *  frameCount * maxCoeffs];
+			}
+			for ( int i = 7, j = 0; i < 10; i++, j++) {
+				scale[j] = scale_coeff[j] * tmpValues[fi + i * frameCount + bi *  frameCount * maxCoeffs];
 			}
 			DBGALOG("\t\ttranslate: %f, %f, %f\n", translate[0], translate[1], translate[2]);
 			DBGALOG("\t\tref relative: %f, %f, %f\n",
 			bones[bi].mat.o[0] - (bones[bi].eData.parent ? bones[bi].eData.parent->mat.o[0] : 0.0),
 			bones[bi].mat.o[1] - (bones[bi].eData.parent ? bones[bi].eData.parent->mat.o[1] : 0.0),
 			bones[bi].mat.o[2] - (bones[bi].eData.parent ? bones[bi].eData.parent->mat.o[2] : 0.0));
-			DBGALOG("\t\trotate: %f, %f, %f\n", rotate[0], rotate[1], rotate[2]);
 
 			g_mfn->Math_TranslateMatrix(&matrixes[bi + boneNumber * fi], translate);
 
-			/*for( int i = 0; i < 3; i++) {
-				g_mfn->Math_RotationMatrix(rotate[rotate_order[i]], rotate_order[i], &tmp_mat);
-				g_mfn->Math_MatrixMultiply(&matrixes[bi + boneNumber * fi], &tmp_mat, &tmp_mat2);
-				matrixes[bi + boneNumber * fi] = tmp_mat2;
-			}*/
+			DBGALOG("\t\trotate: %f, %f, %f\n", rotate[0], rotate[1], rotate[2]);
 
-			g_mfn->Math_RotateMatrix(&matrixes[bi + boneNumber * fi], rotate[2]*180.0f/3.14159265f, 0.0f, 0.0f, 1.0f);
-			g_mfn->Math_RotateMatrix(&matrixes[bi + boneNumber * fi], rotate[1]*180.0f/3.14159265f, 0.0f, 1.0f, 0.0f);
-			g_mfn->Math_RotateMatrix(&matrixes[bi + boneNumber * fi], rotate[0]*180.0f/3.14159265f, 1.0f, 0.0f, 0.0f);
+			g_mfn->Math_RotateMatrix(&matrixes[bi + boneNumber * fi], rotate[2]*g_flRadToDeg, 0.0f, 0.0f, 1.0f);
+			g_mfn->Math_RotateMatrix(&matrixes[bi + boneNumber * fi], rotate[1]*g_flRadToDeg, 0.0f, 1.0f, 0.0f);
+			g_mfn->Math_RotateMatrix(&matrixes[bi + boneNumber * fi], rotate[0]*g_flRadToDeg, 1.0f, 0.0f, 0.0f);
 
+			DBGALOG("\t\tscale: %f, %f, %f\n", scale[0], scale[1], scale[2]);
+			for ( int i = 0; i < 3; i++ ) {
+				matrixes[bi + boneNumber * fi].x1[i] *= scale[i];
+				matrixes[bi + boneNumber * fi].x2[i] *= scale[i];
+				matrixes[bi + boneNumber * fi].x3[i] *= scale[i];
+			}
 		}
 	}
 }
@@ -852,6 +860,7 @@ static void Model_Bayo_Interpolate(float * tmpValues, BYTE * data, const short i
 //loat motion file
 static void Model_Bayo_LoadMotions(CArrayList<noesisAnim_t *> &animList, CArrayList<bayoDatFile_t *> &motfiles, modelBone_t *bones, int bone_number, noeRAPI_t *rapi, short int * animBoneTT)
 {
+  const int maxCoeffs = 10;
   FloatDecompressor C(6, 9, 47);
   for(int mi=0; mi < motfiles.Num(); mi++)
   {
@@ -872,11 +881,9 @@ static void Model_Bayo_LoadMotions(CArrayList<noesisAnim_t *> &animList, CArrayL
 	char fname[MAX_NOESIS_PATH];
 	sprintf_s(fname, MAX_NOESIS_PATH, "%s", motfiles[mi]->name);
 
-    const int max_coeffs = 10;
-
 	modelMatrix_t * matrixes;
 	float * tmp_values;
-	Model_Bayo_InitMotions(matrixes, tmp_values, bones, bone_number, max_coeffs, hdr.frameCount, rapi);
+	Model_Bayo_InitMotions(matrixes, tmp_values, bones, bone_number, hdr.frameCount, rapi);
 
 	bayoMotItem_t * items = (bayoMotItem_t*)(data + hdr.ofsMotion);
 	DBGALOG("unknown flag: 0x%04x, frame count: %d, data offset: 0x%04x, record number: %d\n", hdr.unknownA, hdr.frameCount, hdr.ofsMotion, hdr.numEntries);
@@ -905,27 +912,27 @@ static void Model_Bayo_LoadMotions(CArrayList<noesisAnim_t *> &animList, CArrayL
 			DBGALOG(" 0x%08x\n", it->value.offset);
 			float *fdata = (float *)(data + it->value.offset);
 			for(int frame_count=0; frame_count < it->elem_number; frame_count++) {
-				tmp_values[frame_count + it->index * hdr.frameCount + boneIndex *  hdr.frameCount * max_coeffs] = fdata[frame_count];
+				tmp_values[frame_count + it->index * hdr.frameCount + boneIndex *  hdr.frameCount * maxCoeffs] = fdata[frame_count];
 				DBGALOG("\t%3d %+f\n", frame_count, fdata[frame_count]);
 			}
 		} else if( it->flag == 4 ) {
 			DBGALOG(" 0x%08x\n", it->value.offset);
 
-			Model_Bayo_Interpolate<bayoInterpolHeader4_t,bayoInterpolKeyframe4_t>(tmp_values + it->index * hdr.frameCount + boneIndex *  hdr.frameCount * max_coeffs,
+			Model_Bayo_Interpolate<bayoInterpolHeader4_t,bayoInterpolKeyframe4_t>(tmp_values + it->index * hdr.frameCount + boneIndex *  hdr.frameCount * maxCoeffs,
 									data + it->value.offset,
 									it->elem_number);
 
 		} else if( it->flag == 6 ) {
 			DBGALOG(" 0x%08x\n", it->value.offset);
 
-			Model_Bayo_Interpolate<bayoInterpolHeader6_t,bayoInterpolKeyframe6_t>(tmp_values + it->index * hdr.frameCount + boneIndex *  hdr.frameCount * max_coeffs,
+			Model_Bayo_Interpolate<bayoInterpolHeader6_t,bayoInterpolKeyframe6_t>(tmp_values + it->index * hdr.frameCount + boneIndex *  hdr.frameCount * maxCoeffs,
 									data + it->value.offset,
 									it->elem_number);
 
 		} else if( it->flag == 7 ) { //diff from 6 because frame delta would be > 255
 			DBGALOG(" 0x%08x\n", it->value.offset);
 
-			Model_Bayo_Interpolate<bayoInterpolHeader7_t,bayoInterpolKeyframe7_t>(tmp_values + it->index * hdr.frameCount + boneIndex *  hdr.frameCount * max_coeffs,
+			Model_Bayo_Interpolate<bayoInterpolHeader7_t,bayoInterpolKeyframe7_t>(tmp_values + it->index * hdr.frameCount + boneIndex *  hdr.frameCount * maxCoeffs,
 									data + it->value.offset,
 									it->elem_number);
 
@@ -939,13 +946,13 @@ static void Model_Bayo_LoadMotions(CArrayList<noesisAnim_t *> &animList, CArrayL
 		} else {
 			DBGALOG(" %+f\n", it->value.flt);
 			for(int j = 0; j < hdr.frameCount; j++) {
-				tmp_values[j + it->index * hdr.frameCount + boneIndex *  hdr.frameCount * max_coeffs] = it->value.flt;
+				tmp_values[j + it->index * hdr.frameCount + boneIndex *  hdr.frameCount * maxCoeffs] = it->value.flt;
 			}
 		}
 
 	}
 
-	Model_Bayo_ApplyMotions(matrixes, tmp_values, bones, bone_number, max_coeffs, hdr.frameCount);
+	Model_Bayo_ApplyMotions(matrixes, tmp_values, bones, bone_number, hdr.frameCount);
 
 	noesisAnim_t *anim = rapi->rpgAnimFromBonesAndMatsFinish(bones, bone_number, matrixes, hdr.frameCount, 60);
 	anim->filename = rapi->Noesis_PooledString(fname);
