@@ -31,6 +31,12 @@ FILE *bayo_log;
 #define DBGALOG(fmt, ...) do { if (0) DBGLOG(fmt, __VA_ARGS__); } while (0)
 #endif
 
+typedef enum game_e {
+	BAYONETTA,
+	BAYONETTA2,
+	VANQUISH
+} game_t;
+
 typedef struct bayoDat_s
 {
 	BYTE			id[4];
@@ -68,9 +74,23 @@ typedef struct bayoWTBHdr_s
 	int					ofsTexSizes;
 	int					ofsTexFlags;
 	int					resva;
-	int					resvb;
+	int					texInfoOffset;
 } bayoWTBHdr_t;
-
+template <bool big>
+struct bayoWTBHdr : public bayoWTBHdr_s {
+	bayoWTBHdr( bayoWTBHdr_t *ptr ): bayoWTBHdr_s(*ptr) {
+		if (big) {
+			LITTLE_BIG_SWAP(*((int *)id));
+			LITTLE_BIG_SWAP(unknown);
+			LITTLE_BIG_SWAP(numTex);
+			LITTLE_BIG_SWAP(ofsTexOfs);
+			LITTLE_BIG_SWAP(ofsTexSizes);
+			LITTLE_BIG_SWAP(ofsTexFlags);
+			LITTLE_BIG_SWAP(resva);
+			LITTLE_BIG_SWAP(texInfoOffset);
+		}
+	}
+};
 // Texture is now DDS
 typedef struct ddsPixelFormat_s
 {
@@ -121,6 +141,58 @@ typedef struct wtbTexHdr_s
 	int					unknownP;
 	int					unknownQ;
 } wtbTexHdr_t;
+typedef struct GX2Hdr_s {
+	DWORD dimension;
+	DWORD width;
+	DWORD height;
+	DWORD depth;
+	DWORD numMipmaps;
+	DWORD format;
+	DWORD AAMode;
+	DWORD usage;
+	DWORD dataLength;
+	DWORD dataPointer;
+	DWORD mipmapsDataLength;
+	DWORD mimapsPointer;
+	DWORD tileMode;
+	DWORD swizzleValue;
+	DWORD alignment;
+	DWORD pitch;
+	DWORD mimapOffsets[13];
+	DWORD firstMipmap;
+	DWORD numMipmaps2;
+	DWORD firstSlice;
+	DWORD numSlices;
+	BYTE component[4];
+	DWORD textureRegisters[5];
+} GX2Hdr_t;
+template <bool big>
+struct GX2Hdr : public GX2Hdr_s {
+	GX2Hdr( GX2Hdr_t *ptr ): GX2Hdr_s(*ptr) {
+		LITTLE_BIG_SWAP(dimension);
+		LITTLE_BIG_SWAP(width);
+		LITTLE_BIG_SWAP(height);
+		LITTLE_BIG_SWAP(depth);
+		LITTLE_BIG_SWAP(numMipmaps);
+		LITTLE_BIG_SWAP(format);
+		LITTLE_BIG_SWAP(AAMode);
+		LITTLE_BIG_SWAP(usage);
+		LITTLE_BIG_SWAP(dataLength);
+		LITTLE_BIG_SWAP(dataPointer);
+		LITTLE_BIG_SWAP(mipmapsDataLength);
+		LITTLE_BIG_SWAP(mimapsPointer);
+		LITTLE_BIG_SWAP(tileMode);
+		LITTLE_BIG_SWAP(swizzleValue);
+		LITTLE_BIG_SWAP(alignment);
+		LITTLE_BIG_SWAP(pitch);
+		for (int i = 0; i < 13; i++) LITTLE_BIG_SWAP(mimapOffsets);
+		LITTLE_BIG_SWAP(firstMipmap);
+		LITTLE_BIG_SWAP(numMipmaps2);
+		LITTLE_BIG_SWAP(firstSlice);
+		LITTLE_BIG_SWAP(numSlices);
+		for (int i = 0; i < 5; i++) LITTLE_BIG_SWAP(textureRegisters[i]);
+	}
+};
 typedef struct bayoWMBHdr_s
 {
 	BYTE				id[4];				// 0
@@ -270,6 +342,36 @@ typedef struct bayoMOTHdr_s
 	int					ofsMotion;
 	int					numEntries;
 } bayoMOTHdr_t;
+template <bool big>
+struct bayoMOTHdr : public bayoMOTHdr_s {
+	bayoMOTHdr( bayoMOTHdr_t *ptr ): bayoMOTHdr_s(*ptr) {
+		if (big) {
+			LITTLE_BIG_SWAP(unknownA);
+			LITTLE_BIG_SWAP(frameCount);
+			LITTLE_BIG_SWAP(ofsMotion);
+			LITTLE_BIG_SWAP(numEntries);
+		}
+	}
+};
+typedef struct bayo2MOTHdr_s
+{
+	BYTE				id[4];
+	int					unknownA;
+	int					frameCount;
+	int					ofsMotion;
+	int					numEntries;
+} bayo2MOTHdr_t;
+template <bool big>
+struct bayo2MOTHdr : public bayo2MOTHdr_s {
+	bayo2MOTHdr( bayo2MOTHdr_t *ptr ): bayo2MOTHdr_s(*ptr) {
+		if (big) {
+			LITTLE_BIG_SWAP(unknownA);
+			LITTLE_BIG_SWAP(frameCount);
+			LITTLE_BIG_SWAP(ofsMotion);
+			LITTLE_BIG_SWAP(numEntries);
+		}
+	}
+};
 typedef union bayoMotField_u
 {
 	float flt;
@@ -284,6 +386,19 @@ typedef struct bayoMotItem_s
 	short int			unknown;
 	bayoMotField_t		value;
 } bayoMotItem_t;
+template <bool big>
+struct bayoMotItem : public bayoMotItem_s {
+	bayoMotItem( bayoMotItem_t *ptr ): bayoMotItem_s(*ptr) {
+		if(big) {
+			LITTLE_BIG_SWAP(boneIndex);
+			LITTLE_BIG_SWAP(index);
+			LITTLE_BIG_SWAP(flag);
+			LITTLE_BIG_SWAP(elem_number);
+			LITTLE_BIG_SWAP(unknown);
+			LITTLE_BIG_SWAP(value);
+		}
+	}
+};
 typedef struct bayoInterpolHeader4_s {
 	float values[6];
 } bayoInterpolHeader4_t;
@@ -291,6 +406,15 @@ typedef struct bayoInterpolKeyframe4_s {
 	unsigned short int index;
 	unsigned short int coeffs[3];
 } bayoInterpolKeyframe4_t;
+template <bool big>
+struct bayoInterpolKeyframe4 : public bayoInterpolKeyframe4_s {
+	bayoInterpolKeyframe4( bayoInterpolKeyframe4_t *ptr): bayoInterpolKeyframe4_s(*ptr) {
+		if (big) {
+			LITTLE_BIG_SWAP(index);
+			for(int i = 0; i < 3; i++) LITTLE_BIG_SWAP(coeffs[i]);
+		}
+	}
+};
 typedef short unsigned int pghalf;
 typedef struct bayoInterpolHeader6_s {
 	pghalf values[6];
@@ -299,6 +423,11 @@ typedef struct bayoInterpolKeyframe6_s {
 	BYTE index;
 	BYTE coeffs[3];
 } bayoInterpolKeyframe6_t;
+template <bool big>
+struct bayoInterpolKeyframe6 : public bayoInterpolKeyframe6_s {
+	bayoInterpolKeyframe6( bayoInterpolKeyframe6_t *ptr): bayoInterpolKeyframe6_s(*ptr) {
+	}
+};
 typedef struct bayoInterpolHeader7_s {
 	pghalf values[6];
 } bayoInterpolHeader7_t;
@@ -307,6 +436,14 @@ typedef struct bayoInterpolKeyframe7_s {
 	BYTE dummy;
 	BYTE coeffs[3];
 } bayoInterpolKeyframe7_t;
+template <bool big>
+struct bayoInterpolKeyframe7 : public bayoInterpolKeyframe7_s {
+	bayoInterpolKeyframe7( bayoInterpolKeyframe7_t *ptr): bayoInterpolKeyframe7_s(*ptr) {
+		if (big) {
+			LITTLE_BIG_SWAP(index);
+		}
+	}
+};
 typedef struct bayoVertexData_s {
 	float position[3];			//00
 	short uv[2];				//0C //half float really
@@ -398,6 +535,12 @@ public:
 		}
 		return v.f;
 	}
+	float decompress(short unsigned int value, bool big) {
+		short unsigned int v2 = value;
+		if (big) LITTLE_BIG_SWAP(v2);
+		return decompress(v2);
+	}
+
 };
 
 
@@ -536,7 +679,10 @@ bool Model_Bayo_Check(BYTE *fileBuffer, int bufferLen, noeRAPI_t *rapi)
 }
 
 //get a texture bundle file for a specific model
-static bayoDatFile_t *Model_Bayo_GetTextureBundle(CArrayList<bayoDatFile_t> &dfiles, bayoDatFile_t &df, noeRAPI_t *rapi)
+template <game_t game>
+static void Model_Bayo_GetTextureBundle(CArrayList<bayoDatFile_t *> &texFiles, CArrayList<bayoDatFile_t> &dfiles, bayoDatFile_t &df, noeRAPI_t *rapi);
+template <>
+static void Model_Bayo_GetTextureBundle<BAYONETTA>(CArrayList<bayoDatFile_t *> &texFiles, CArrayList<bayoDatFile_t> &dfiles, bayoDatFile_t &df, noeRAPI_t *rapi)
 {
 	char texName[MAX_NOESIS_PATH];
 	rapi->Noesis_GetExtensionlessName(texName, df.name);
@@ -546,10 +692,38 @@ static bayoDatFile_t *Model_Bayo_GetTextureBundle(CArrayList<bayoDatFile_t> &dfi
 		bayoDatFile_t &dft = dfiles[i];
 		if (!_stricmp(dft.name, texName))
 		{
-			return &dft;
+			texFiles.Append(&dft);
 		}
 	}
-	return NULL;
+}
+template <>
+static void Model_Bayo_GetTextureBundle<BAYONETTA2>(CArrayList<bayoDatFile_t *> &texFiles, CArrayList<bayoDatFile_t> &dfiles, bayoDatFile_t &df, noeRAPI_t *rapi)
+{
+	char texName[MAX_NOESIS_PATH];
+	char texName2[MAX_NOESIS_PATH];
+	rapi->Noesis_GetExtensionlessName(texName, df.name);
+	strcat_s(texName, MAX_NOESIS_PATH, ".wta");
+	rapi->Noesis_GetExtensionlessName(texName2, df.name);
+	strcat_s(texName2, MAX_NOESIS_PATH, ".wtp");
+	for (int i = 0; i < dfiles.Num(); i++)
+	{
+		bayoDatFile_t &dft = dfiles[i];
+		if (!_stricmp(dft.name, texName))
+		{
+			texFiles.Append(&dft);
+		}
+	}
+	for (int i = 0; i < dfiles.Num(); i++)
+	{
+		bayoDatFile_t &dft = dfiles[i];
+		if (!_stricmp(dft.name, texName2))
+		{
+			texFiles.Append(&dft);
+		}
+	}
+	if (texFiles.Num() < 2) {
+		texFiles.Clear();
+	}
 }
 // get motion files
 static void Model_Bayo_GetMotionFiles(CArrayList<bayoDatFile_t> &dfiles, bayoDatFile_t &df, noeRAPI_t *rapi, CArrayList<bayoDatFile_t *> &motfiles)
@@ -567,13 +741,243 @@ static void Model_Bayo_GetMotionFiles(CArrayList<bayoDatFile_t> &dfiles, bayoDat
 	}
 }
 //load texture bundle
-static void Model_Bayo_LoadTextures(CArrayList<noesisTex_t *> &textures, BYTE *data, int dataSize, noeRAPI_t *rapi)
+template <bool big, game_t game>
+static void Model_Bayo_LoadTextures(CArrayList<noesisTex_t *> &textures, CArrayList<bayoDatFile_t *> &texFiles, noeRAPI_t *rapi);
+template <>
+static void Model_Bayo_LoadTextures<true, BAYONETTA2>(CArrayList<noesisTex_t *> &textures, CArrayList<bayoDatFile_t *> &texFiles, noeRAPI_t *rapi)
 {
+	const bool big = true;
+	int dataSize = texFiles[0]->dataSize;
+	BYTE * data = texFiles[0]->data;
+	int dataSize2 = texFiles[1]->dataSize;
+	BYTE * data2 = texFiles[1]->data;
+
 	if (dataSize < sizeof(bayoWTBHdr_t))
 	{
 		return;
 	}
-	bayoWTBHdr_t hdr = *((bayoWTBHdr_t *)data);
+	bayoWTBHdr<true> hdr((bayoWTBHdr_t *)data);
+	if (memcmp(hdr.id, "WTB\0", 4))
+	{ //not a valid texture bundle
+		return;
+	}
+	if (hdr.numTex <= 0 || hdr.ofsTexOfs <= 0 || hdr.ofsTexOfs >= dataSize ||
+		hdr.ofsTexSizes <= 0 || hdr.ofsTexSizes >= dataSize)
+	{
+		return;
+	}
+	DBGLOG("found valid texture header file, containing %d textures, headers offset: %x\n", hdr.numTex, hdr.texInfoOffset);
+	int *tofs = (int *)(data+hdr.ofsTexOfs);
+	int *tsizes = (int *)(data+hdr.ofsTexSizes);
+	for (int i = 0; i < hdr.numTex; i++)
+	{
+		char fname[8192];
+		rapi->Noesis_GetDirForFilePath(fname, rapi->Noesis_GetOutputName());
+		char nameStr[MAX_NOESIS_PATH];
+		sprintf_s(nameStr, MAX_NOESIS_PATH, ".\\%sbayotex%03i", rapi->Noesis_GetOption("texpre"), i);
+		strcat_s(fname, MAX_NOESIS_PATH, nameStr);
+
+		GX2Hdr<big> texHdr((GX2Hdr_t *)(data + hdr.texInfoOffset + i*0xc0));
+		DBGLOG("%d: dim: %d, width %d, height %d, depth %d, numMimap: %d, format: %x\n", i, texHdr.dimension, texHdr.width, texHdr.height, texHdr.depth, texHdr.numMipmaps, texHdr.format);
+		DBGLOG("\tusage: %x, length: %d, mipmapDataLength: %d, tileMode: %x\n", texHdr.usage, texHdr.dataLength, texHdr.mipmapsDataLength, texHdr.tileMode);
+		DBGLOG("\tswizzle: %x, alignment %d, pitch %d, first mipmap: %d\n", texHdr.swizzleValue, texHdr.alignment, texHdr.pitch, texHdr.firstMipmap);
+		DBGLOG("\tcomponents: %d, %d, %d, %d\n", texHdr.component[0], texHdr.component[1], texHdr.component[2], texHdr.component[3]);
+		//GX2_SURFACE_FORMAT_T_BC1_UNORM = 0x31
+		//GX2_SURFACE_FORMAT_T_BC3_UNORM = 0x33
+
+	}
+}
+template <>
+static void Model_Bayo_LoadTextures<true, BAYONETTA>(CArrayList<noesisTex_t *> &textures, CArrayList<bayoDatFile_t *> &texFiles, noeRAPI_t *rapi)
+{
+	int dataSize = texFiles[0]->dataSize;
+	BYTE * data = texFiles[0]->data;
+	if (dataSize < sizeof(bayoWTBHdr_t))
+	{
+		return;
+	}
+	bayoWTBHdr<true> hdr((bayoWTBHdr_t *)data);
+	if (memcmp(hdr.id, "\0BTW", 4))
+	{ //not a valid texture bundle
+		return;
+	}
+	if (hdr.numTex <= 0 || hdr.ofsTexOfs <= 0 || hdr.ofsTexOfs >= dataSize ||
+		hdr.ofsTexSizes <= 0 || hdr.ofsTexSizes >= dataSize)
+	{
+		return;
+	}
+
+	int *tofs = (int *)(data+hdr.ofsTexOfs);
+	int *tsizes = (int *)(data+hdr.ofsTexSizes);
+	for (int i = 0; i < hdr.numTex; i++)
+	{
+		char fname[8192];
+		rapi->Noesis_GetDirForFilePath(fname, rapi->Noesis_GetOutputName());
+		char nameStr[MAX_NOESIS_PATH];
+		sprintf_s(nameStr, MAX_NOESIS_PATH, ".\\%sbayotex%03i", rapi->Noesis_GetOption("texpre"), i);
+		strcat_s(fname, MAX_NOESIS_PATH, nameStr);
+
+		int ofs = tofs[i];
+		int size = tsizes[i];
+		LITTLE_BIG_SWAP(ofs);
+		LITTLE_BIG_SWAP(size);
+		if (ofs < 0 || ofs > dataSize)
+		{
+			continue;
+		}
+		BYTE *texData = data+ofs;
+		BYTE *pix;
+		int globalIdx = -1;
+		wtbTexHdr_t tex;
+		if (hdr.resva)
+		{ //global id's (probably generated as checksums)
+			int *ip = (int  *)(data+hdr.resva+sizeof(int)*i);
+			globalIdx = *ip;
+		}
+		if (hdr.texInfoOffset)
+		{ //texture info is contiguous in its own section
+			wtbTexHdr_t *thdr = (wtbTexHdr_t  *)(data+hdr.texInfoOffset+sizeof(wtbTexHdr_t)*i);
+			tex = *thdr;
+			pix = texData;
+		}
+		else
+		{
+			tex = *((wtbTexHdr_t *)texData);
+			pix = texData + sizeof(wtbTexHdr_t);
+		}
+		LITTLE_BIG_SWAP(tex.unknownJ);
+		LITTLE_BIG_SWAP(tex.unknownO);
+		LITTLE_BIG_SWAP(tex.unknownP);
+		LITTLE_BIG_SWAP(tex.unknownQ);
+		LITTLE_BIG_SWAP(tex.texFmt);
+		LITTLE_BIG_SWAP(tex.heightBits);
+		LITTLE_BIG_SWAP(tex.widthBits);
+		if (tex.texFmt == 0)
+		{
+			noesisTex_t *nt = rapi->Noesis_AllocPlaceholderTex(fname, 32, 32, false);
+			textures.Append(nt);
+			continue;
+		}
+		int width = (((tex.widthBits>>5) & 127)+1)<<5;
+		int height = ((tex.heightBits & 1023)+1) << 3;
+
+		bool endianSwap = true;
+		bool untile = !!(tex.unknownJ & 32768);
+		bool uncompressed = false;
+		bool channelSwiz = false;
+		int dxtFmt = NOESISTEX_RGBA32;
+		int texFlags = 0;
+		if (tex.unknownJ > 0)
+		{ //just a guess
+			texFlags |= NTEXFLAG_SEGMENTED;
+		}
+		switch (tex.texFmt)
+		{
+		case 82:
+			dxtFmt = NOESISTEX_DXT1;
+			break;
+		case 83:
+			dxtFmt = NOESISTEX_DXT3;
+			break;
+		case 84:
+			dxtFmt = NOESISTEX_DXT5;
+			break;
+		case 134:
+			dxtFmt = NOESISTEX_RGBA32;
+			uncompressed = true;
+			channelSwiz = true;
+			break;
+		default:
+			assert(0);
+			rapi->LogOutput("WARNING: Unknown texture format %i.\n", tex.texFmt);
+			dxtFmt = NOESISTEX_DXT1;
+			break;
+		}
+		int mipSize;
+		BYTE *untiledMip;
+		if (uncompressed)
+		{
+			int bytesPerPixel = (dxtFmt == NOESISTEX_RGB24) ? 3 : 4;
+			mipSize = (width*height)*bytesPerPixel;
+			untiledMip = (BYTE *)rapi->Noesis_PooledAlloc(mipSize);
+			if (untile)
+			{
+				rapi->Noesis_UntileImageRAW(untiledMip, pix, mipSize, width, height, bytesPerPixel);
+			}
+			else
+			{
+				memcpy(untiledMip, pix, mipSize);
+			}
+			if (endianSwap)
+			{
+				int swapCount = bytesPerPixel;
+				for (int i = 0; i < mipSize-swapCount; i += swapCount)
+				{
+					LittleBigSwap(untiledMip+i, swapCount);
+				}
+			}
+			if (channelSwiz)
+			{
+				int swapCount = 4;
+				for (int i = 0; i < mipSize-swapCount; i += swapCount)
+				{
+					BYTE *p = untiledMip+i;
+					BYTE t = p[0];
+					p[0] = p[2];
+					p[2] = t;
+					p[3] = 255;
+					//if i knew which textures were normal maps, they could be made consistent with this
+					//rapi->Noesis_SwizzleNormalPix(p, false, true, false);
+				}
+			}
+		}
+		else
+		{
+			mipSize = (dxtFmt == NOESISTEX_DXT1) ? (width*height)/2 : (width*height);
+			untiledMip = (BYTE *)rapi->Noesis_PooledAlloc(mipSize);
+			if (untile)
+			{
+				rapi->Noesis_UntileImageDXT(untiledMip, pix, mipSize, width, height, (dxtFmt == NOESISTEX_DXT1) ? 8 : 16);
+			}
+			else
+			{
+				memcpy(untiledMip, pix, mipSize);
+			}
+			if (endianSwap)
+			{
+				int swapCount = 2;
+				for (int j = 0; j < mipSize-swapCount; j += swapCount)
+				{
+					LittleBigSwap(untiledMip+j, swapCount);
+				}
+			}
+		}
+		noesisTex_t *nt = rapi->Noesis_TextureAlloc(fname, width, height, untiledMip, dxtFmt);
+		nt->flags |= texFlags;
+		nt->shouldFreeData = false; //because the untiledMip data is pool-allocated, it does not need to be freed
+		nt->globalIdx = globalIdx;
+		textures.Append(nt);
+	}
+
+	//insert a flat normal map placeholder
+	char fname[MAX_NOESIS_PATH];
+	rapi->Noesis_GetDirForFilePath(fname, rapi->Noesis_GetOutputName());
+	char nameStr[MAX_NOESIS_PATH];
+	sprintf_s(nameStr, MAX_NOESIS_PATH, ".\\%sbayoflatnormal", rapi->Noesis_GetOption("texpre"));
+	strcat_s(fname, MAX_NOESIS_PATH, nameStr);
+	noesisTex_t *nt = rapi->Noesis_AllocPlaceholderTex(fname, 32, 32, true);
+	textures.Append(nt);
+}
+template <>
+static void Model_Bayo_LoadTextures<false, BAYONETTA>(CArrayList<noesisTex_t *> &textures, CArrayList<bayoDatFile_t *> &texFiles, noeRAPI_t *rapi)
+{
+	int dataSize = texFiles[0]->dataSize;
+	BYTE * data = texFiles[0]->data;
+	if (dataSize < sizeof(bayoWTBHdr_t))
+	{
+		return;
+	}
+	bayoWTBHdr<false> hdr((bayoWTBHdr_t *)data);
 	if (memcmp(hdr.id, "WTB\0", 4))
 	{ //not a valid texture bundle
 		return;
@@ -610,9 +1014,9 @@ static void Model_Bayo_LoadTextures(CArrayList<noesisTex_t *> &textures, BYTE *d
 			int *ip = (int  *)(data+hdr.resva+sizeof(int)*i);
 			globalIdx = *ip;
 		}
-		if (hdr.resvb)
+		if (hdr.texInfoOffset)
 		{ //texture info is contiguous in its own section
-			ddsTexHdr_t *thdr = (ddsTexHdr_t  *)(data+hdr.resvb+sizeof(ddsTexHdr_t)*i);
+			ddsTexHdr_t *thdr = (ddsTexHdr_t  *)(data+hdr.texInfoOffset+sizeof(ddsTexHdr_t)*i);
 			tex = *thdr;
 			pix = texData;
 		}
@@ -755,12 +1159,16 @@ static void Model_Bayo_LoadTextures(CArrayList<noesisTex_t *> &textures, BYTE *d
 }
 
 //decode motion index (simpler thanks to Alquazar(zenhax))
+template <bool big>
 static inline short int Model_Bayo_DecodeMotionIndex(const short int *table, const short int boneIndex) {
 	short int index = table[(boneIndex >> 8) & 0xf];
+	if (big) LITTLE_BIG_SWAP(index);
 	if ( index != -1 ) {
 		index = table[((boneIndex >> 4) & 0xf) + index];
+		if (big) LITTLE_BIG_SWAP(index);
 		if ( index != -1 ) {
 			index = table[(boneIndex & 0xf) + index];
+			if (big) LITTLE_BIG_SWAP(index);
 			return index;
 		}
 	}
@@ -853,41 +1261,48 @@ static void Model_Bayo_ApplyMotions(modelMatrix_t * matrixes, float * tmpValues,
 		}
 	}
 }
+template <bool big>
 static inline void Model_Bayo_DecodeInterpolateHeader(float * fvals, bayoInterpolHeader4_t *h) {
 	for(int j = 0; j < 6; j++) {
 		fvals[j] = h->values[j];
+		if (big) LITTLE_BIG_SWAP(fvals[j]);
 	}
 }
 static FloatDecompressor C(6, 9, 47);
+template <bool big>
 static inline void Model_Bayo_DecodeInterpolateHeader(float * fvals, bayoInterpolHeader6_t *h) {
 	for(int j = 0; j < 6; j++) {
-		fvals[j] = C.decompress(h->values[j]);
+		fvals[j] = C.decompress(h->values[j], big);
 	}
 }
+template <bool big>
 static inline void Model_Bayo_DecodeInterpolateHeader(float * fvals, bayoInterpolHeader7_t *h) {
 	for(int j = 0; j < 6; j++) {
-		fvals[j] = C.decompress(h->values[j]);
+		fvals[j] = C.decompress(h->values[j], big);
 	}
 }
-static inline void Model_Bayo_DecodeFrameIndex(short int &firstFrame, short int &lastFrame, short int, bayoInterpolKeyframe4_t *p_v, bayoInterpolKeyframe4_t *v) {
-	firstFrame = p_v->index;
-    lastFrame = v->index;
+template <bool big>
+static inline void Model_Bayo_DecodeFrameIndex(short int &firstFrame, short int &lastFrame, short int, bayoInterpolKeyframe4<big> &p_v, bayoInterpolKeyframe4<big> &v) {
+	firstFrame = p_v.index;
+    lastFrame = v.index;
 }
-static inline void Model_Bayo_DecodeFrameIndex(short int &firstFrame, short int &lastFrame, short int frameCount, bayoInterpolKeyframe6_t *p_v, bayoInterpolKeyframe6_t *v) {
+template <bool big>
+static inline void Model_Bayo_DecodeFrameIndex(short int &firstFrame, short int &lastFrame, short int frameCount, bayoInterpolKeyframe6<big> &p_v, bayoInterpolKeyframe6<big> &v) {
 	firstFrame = frameCount - 1;
-	lastFrame = frameCount - 1 + v->index;
+	lastFrame = frameCount - 1 + v.index;
 }
-static inline void Model_Bayo_DecodeFrameIndex(short int &firstFrame, short int &lastFrame, short int, bayoInterpolKeyframe7_t *p_v, bayoInterpolKeyframe7_t *v) {
-	firstFrame = p_v->index;
-    lastFrame = v->index;
+template <bool big>
+static inline void Model_Bayo_DecodeFrameIndex(short int &firstFrame, short int &lastFrame, short int, bayoInterpolKeyframe7<big> &p_v, bayoInterpolKeyframe7<big> &v) {
+	firstFrame = p_v.index;
+    lastFrame = v.index;
 }
 template <class T>
-static void Model_Bayo_HermitInterpolate(float * tmpValues, float *fvals, const T *p_v, const T *v, short int &frameCount, const short int first_frame, const short int last_frame) {
+static void Model_Bayo_HermitInterpolate(float * tmpValues, float *fvals, const T &p_v, const T &v, short int &frameCount, const short int first_frame, const short int last_frame) {
 	float p0, p1, m0, m1;
-	p0 = fvals[0] + fvals[1] * p_v->coeffs[0];
-	p1 = fvals[0] + fvals[1] * v->coeffs[0];
-	m0 = fvals[4] + fvals[5] * p_v->coeffs[2];
-	m1 = fvals[2] + fvals[3] * v->coeffs[1];
+	p0 = fvals[0] + fvals[1] * p_v.coeffs[0];
+	p1 = fvals[0] + fvals[1] * v.coeffs[0];
+	m0 = fvals[4] + fvals[5] * p_v.coeffs[2];
+	m1 = fvals[2] + fvals[3] * v.coeffs[1];
 
 	for(; frameCount <= last_frame; frameCount++) {
 		float t;
@@ -895,21 +1310,21 @@ static void Model_Bayo_HermitInterpolate(float * tmpValues, float *fvals, const 
 		tmpValues[frameCount] = (2*t*t*t - 3*t*t + 1)*p0 + (t*t*t - 2*t*t + t)*m0 + (-2*t*t*t + 3*t*t)*p1 + (t*t*t - t*t)*m1;
 		DBGALOG("%f, %d, %f\n\t", t, frameCount, tmpValues[frameCount]);
 	}
-	DBGALOG("%3d %5d %5d %5d (%+f %+f %+f)\n\t", v->index, v->coeffs[0], v->coeffs[1], v->coeffs[2],
-			fvals[0] + fvals[1] * v->coeffs[0],
-			fvals[2] + fvals[3] * v->coeffs[1],
-			fvals[4] + fvals[5] * v->coeffs[2]);
+	DBGALOG("%3d %5d %5d %5d (%+f %+f %+f)\n\t", v.index, v.coeffs[0], v.coeffs[1], v.coeffs[2],
+			fvals[0] + fvals[1] * v.coeffs[0],
+			fvals[2] + fvals[3] * v.coeffs[1],
+			fvals[4] + fvals[5] * v.coeffs[2]);
 }
 //interpolate motion
-template <class T1, class T2>
+template <bool big, class T1, class T2, class T3>
 static void Model_Bayo_Interpolate(float * tmpValues, BYTE * data, const short int elemNumber) {
 	short int frameCount = 0;
 	T1 *h = (T1 *)(data);
-	T2 *v = (T2 *)(h+1);
-	T2 *p_v;
+	T2 *v_p = (T2 *)(h+1);
+	T2 *p_v_p;
 
 	float fvals[6];
-	Model_Bayo_DecodeInterpolateHeader(fvals, h);
+	Model_Bayo_DecodeInterpolateHeader<big>(fvals, h);
 	DBGALOG("\t");
 	for(int j = 0; j < 6; j++)
 	{
@@ -922,47 +1337,74 @@ static void Model_Bayo_Interpolate(float * tmpValues, BYTE * data, const short i
 	}
 	DBGALOG(")\n\t");
 
-	DBGALOG("%3d %5d %5d %5d (%+f %+f %+f)\n\t", v->index, v->coeffs[0], v->coeffs[1], v->coeffs[2],
-			fvals[0] + fvals[1] * v->coeffs[0],
-			fvals[2] + fvals[3] * v->coeffs[1],
-			fvals[4] + fvals[5] * v->coeffs[2]);
+	T3 t_v(v_p);
+	DBGALOG("%3d %5d %5d %5d (%+f %+f %+f)\n\t", t_v.index, t_v.coeffs[0], t_v.coeffs[1], t_v.coeffs[2],
+			fvals[0] + fvals[1] * t_v.coeffs[0],
+			fvals[2] + fvals[3] * t_v.coeffs[1],
+			fvals[4] + fvals[5] * t_v.coeffs[2]);
 
-	p_v = v;
-	tmpValues[frameCount] = fvals[0] + fvals[1] * v->coeffs[0];
-	v++;
+	p_v_p = v_p;
+	tmpValues[frameCount] = fvals[0] + fvals[1] * t_v.coeffs[0];
+	v_p++;
 	DBGALOG("%f, %d, %f\n\t", 0.0, frameCount, tmpValues[frameCount]);
 	frameCount++;
 
 	for(int j = 1; j < elemNumber; j++)
 	{
+		T3 p_v(p_v_p);
+		T3 v(v_p);
 		short int first_frame, last_frame;
-		Model_Bayo_DecodeFrameIndex(first_frame, last_frame, frameCount, p_v, v);
+		Model_Bayo_DecodeFrameIndex<big>(first_frame, last_frame, frameCount, p_v, v);
 		Model_Bayo_HermitInterpolate(tmpValues, fvals, p_v, v, frameCount, first_frame, last_frame);
 
-		p_v = v;
-		v++;
+		p_v_p = v_p;
+		v_p++;
 	}
 	DBGALOG("\n");
 }
 //loat motion file
+template <bool big, game_t game>
 static void Model_Bayo_LoadMotions(CArrayList<noesisAnim_t *> &animList, CArrayList<bayoDatFile_t *> &motfiles, modelBone_t *bones, int bone_number, noeRAPI_t *rapi, short int * animBoneTT)
 {
   const int maxCoeffs = 10;
-  FloatDecompressor C(6, 9, 47);
   for(int mi=0; mi < motfiles.Num(); mi++)
   {
 	DBGLOG("Loading %s\n", motfiles[mi]->name);
 
 	BYTE * data     = motfiles[mi]->data;
 	size_t dataSize = motfiles[mi]->dataSize;
-	if (dataSize < sizeof(bayoMOTHdr_t))
-	{
-		continue;
-	}
-	bayoMOTHdr_t hdr = *((bayoMOTHdr_t *)data);
-	if (memcmp(hdr.id, "mot\0", 4))
-	{ //not a valid motion file
-		continue;
+	int unknownA;
+	int frameCount;
+	int ofsMotion;
+	int numEntries;
+	if (game == BAYONETTA2) {
+		if (dataSize < sizeof(bayo2MOTHdr_t))
+		{
+			continue;
+		}
+		bayo2MOTHdr<big> hdr((bayo2MOTHdr_t *)data);
+		if (memcmp(hdr.id, "mot\0", 4))
+		{ //not a valid motion file
+			continue;
+		}
+		unknownA = hdr.unknownA;
+		frameCount = hdr.frameCount;
+		ofsMotion = hdr.ofsMotion;
+		numEntries = hdr.numEntries;
+	} else {
+		if (dataSize < sizeof(bayoMOTHdr_t))
+		{
+			continue;
+		}
+		bayoMOTHdr<big> hdr((bayoMOTHdr_t *)data);
+		if (memcmp(hdr.id, "mot\0", 4))
+		{ //not a valid motion file
+			continue;
+		}
+		unknownA = hdr.unknownA;
+		frameCount = hdr.frameCount;
+		ofsMotion = hdr.ofsMotion;
+		numEntries = hdr.numEntries;
 	}
 
 	char fname[MAX_NOESIS_PATH];
@@ -970,83 +1412,82 @@ static void Model_Bayo_LoadMotions(CArrayList<noesisAnim_t *> &animList, CArrayL
 
 	modelMatrix_t * matrixes;
 	float * tmp_values;
-	Model_Bayo_InitMotions(matrixes, tmp_values, bones, bone_number, hdr.frameCount, rapi);
+	Model_Bayo_InitMotions(matrixes, tmp_values, bones, bone_number, frameCount, rapi);
 
-	bayoMotItem_t * items = (bayoMotItem_t*)(data + hdr.ofsMotion);
-	DBGALOG("unknown flag: 0x%04x, frame count: %d, data offset: 0x%04x, record number: %d\n", hdr.unknownA, hdr.frameCount, hdr.ofsMotion, hdr.numEntries);
-	for(int i=0; i < hdr.numEntries; i++) {
-		bayoMotItem_t *it = &items[i];
-		if( it->boneIndex == 0x7fff || it->boneIndex == -1) {
-			DBGALOG("%5d %3d 0x%02x %3d %3d %+f (0x%08x)\n",it->boneIndex, it->index, it->flag, it->elem_number, it->unknown, it->value.flt, it->value.offset);
+	bayoMotItem_t * items = (bayoMotItem_t*)(data + ofsMotion);
+	DBGALOG("unknown flag: 0x%04x, frame count: %d, data offset: 0x%04x, record number: %d\n", unknownA, frameCount, ofsMotion, numEntries);
+	for(int i=0; i < numEntries; i++) {
+		bayoMotItem<big> it(&items[i]);
+		if (game == BAYONETTA2) data = (BYTE *)&items[i];
+		if( it.boneIndex == 0x7fff || it.boneIndex == -1) {
+			DBGALOG("%5d %3d 0x%02x %3d %3d %+f (0x%08x)\n",it.boneIndex, it.index, it.flag, it.elem_number, it.unknown, it.value.flt, it.value.offset);
 			continue;
-		} else if ( it->boneIndex >= 0xf60 ) {
-			DBGALOG("%5d %3d 0x%02x %3d %3d %+f (0x%08x) special flag 0x2 index\n", it->boneIndex, it->index, it->flag, it->elem_number, it->unknown, it->value.flt, it->value.offset);
+		} else if ( it.boneIndex >= 0xf60 ) {
+			DBGALOG("%5d %3d 0x%02x %3d %3d %+f (0x%08x) special flag 0x2 index\n", it.boneIndex, it.index, it.flag, it.elem_number, it.unknown, it.value.flt, it.value.offset);
 		    continue;
 		}
-		short int boneIndex = Model_Bayo_DecodeMotionIndex(animBoneTT, it->boneIndex);
+		short int boneIndex = Model_Bayo_DecodeMotionIndex<big>(animBoneTT, it.boneIndex);
 		if( boneIndex == 0x0fff ) {
-			DBGALOG("%5d %3d 0x%02x %3d %3d %+f (0x%08x) cannot translate bone\n", it->boneIndex, it->index, it->flag, it->elem_number, it->unknown, it->value.flt, it->value.offset);
+			DBGALOG("%5d %3d 0x%02x %3d %3d %+f (0x%08x) cannot translate bone\n", it.boneIndex, it.index, it.flag, it.elem_number, it.unknown, it.value.flt, it.value.offset);
 			continue;
 		}
 
 		//float tmp_values[65536];
-		DBGALOG("%5d (%5d) %3d 0x%02x %3d %3d", boneIndex, it->boneIndex, it->index, it->flag, it->elem_number, it->unknown);
+		DBGALOG("%5d (%5d) %3d 0x%02x %3d %3d", boneIndex, it.boneIndex, it.index, it.flag, it.elem_number, it.unknown);
+		DBGALOG(" %+f (0x%08x)\n", it.value.flt, it.value.offset);
 		if ( boneIndex >= bone_number ) {
 			DBGALOG(" out of bone bounds\n");
 			continue;
 		}
-		if( it->flag == 1 ) {
-			DBGALOG(" 0x%08x\n", it->value.offset);
-			float *fdata = (float *)(data + it->value.offset);
-			for(int frame_count=0; frame_count < it->elem_number; frame_count++) {
-				tmp_values[frame_count + it->index * hdr.frameCount + boneIndex *  hdr.frameCount * maxCoeffs] = fdata[frame_count];
-				DBGALOG("\t%3d %+f\n", frame_count, fdata[frame_count]);
+		if( it.flag == 1 ) {
+			float *fdata = (float *)(data + it.value.offset);
+			for(int frame_count=0; frame_count < it.elem_number; frame_count++) {
+				float f = fdata[frame_count];
+				if (big) LITTLE_BIG_SWAP(f);
+				tmp_values[frame_count + it.index * frameCount + boneIndex *  frameCount * maxCoeffs] = f;
+				DBGALOG("\t%3d %+f\n", frame_count, f);
 			}
-		} else if( it->flag == 4 ) {
-			DBGALOG(" 0x%08x\n", it->value.offset);
+		} else if( it.flag == 4 ) {
 
-			Model_Bayo_Interpolate<bayoInterpolHeader4_t,bayoInterpolKeyframe4_t>(tmp_values + it->index * hdr.frameCount + boneIndex *  hdr.frameCount * maxCoeffs,
-									data + it->value.offset,
-									it->elem_number);
+			Model_Bayo_Interpolate<big, bayoInterpolHeader4_t, bayoInterpolKeyframe4_t, bayoInterpolKeyframe4<big>>(tmp_values + it.index * frameCount + boneIndex *  frameCount * maxCoeffs,
+									data + it.value.offset,
+									it.elem_number);
 
-		} else if( it->flag == 6 ) {
-			DBGALOG(" 0x%08x\n", it->value.offset);
+		} else if( it.flag == 6 || (game == BAYONETTA2 && it.flag == 7) ) {
 
-			Model_Bayo_Interpolate<bayoInterpolHeader6_t,bayoInterpolKeyframe6_t>(tmp_values + it->index * hdr.frameCount + boneIndex *  hdr.frameCount * maxCoeffs,
-									data + it->value.offset,
-									it->elem_number);
+			Model_Bayo_Interpolate<big, bayoInterpolHeader6_t, bayoInterpolKeyframe6_t, bayoInterpolKeyframe6<big>>(tmp_values + it.index * frameCount + boneIndex *  frameCount * maxCoeffs,
+									data + it.value.offset,
+									it.elem_number);
 
-		} else if( it->flag == 7 ) { //diff from 6 because frame delta would be > 255
-			DBGALOG(" 0x%08x\n", it->value.offset);
+		} else if( it.flag == 7 ) { //diff from 6 because frame delta would be > 255
 
-			Model_Bayo_Interpolate<bayoInterpolHeader7_t,bayoInterpolKeyframe7_t>(tmp_values + it->index * hdr.frameCount + boneIndex *  hdr.frameCount * maxCoeffs,
-									data + it->value.offset,
-									it->elem_number);
+			Model_Bayo_Interpolate<big, bayoInterpolHeader7_t, bayoInterpolKeyframe7_t, bayoInterpolKeyframe7<big>>(tmp_values + it.index * frameCount + boneIndex *  frameCount * maxCoeffs,
+									data + it.value.offset,
+									it.elem_number);
 
-		} else if( it->flag ==  0xff ) {
-			DBGALOG(" %+f (0x%08x)\n", it->value.flt, it->value.offset);
+		} else if( it.flag ==  0xff ) {
 			continue;
-		} else if ( it->flag != 0 ) {
-			DBGALOG(" %+f (0x%08x)\n", it->value.flt, it->value.offset);
+		} else if ( it.flag != 0 ) {
+			continue;
+			DBGALOG("WARNING: Unknown motion flag %02x.\n", it.flag);
 			assert(0);
-			rapi->LogOutput("WARNING: Unknown motion flag %0x02x.\n", it->flag);
+			rapi->LogOutput("WARNING: Unknown motion flag %02x.\n", it.flag);
 		} else {
-			DBGALOG(" %+f\n", it->value.flt);
-			for(int j = 0; j < hdr.frameCount; j++) {
-				tmp_values[j + it->index * hdr.frameCount + boneIndex *  hdr.frameCount * maxCoeffs] = it->value.flt;
+			for(int j = 0; j < frameCount; j++) {
+				tmp_values[j + it.index * frameCount + boneIndex *  frameCount * maxCoeffs] = it.value.flt;
 			}
 		}
 
 	}
 
-	Model_Bayo_ApplyMotions(matrixes, tmp_values, bones, bone_number, hdr.frameCount);
+	Model_Bayo_ApplyMotions(matrixes, tmp_values, bones, bone_number, frameCount);
 
-	noesisAnim_t *anim = rapi->rpgAnimFromBonesAndMatsFinish(bones, bone_number, matrixes, hdr.frameCount, 60);
+	noesisAnim_t *anim = rapi->rpgAnimFromBonesAndMatsFinish(bones, bone_number, matrixes, frameCount, 60);
 	anim->filename = rapi->Noesis_PooledString(fname);
 	anim->flags |= NANIMFLAG_FILENAMETOSEQ;
-	anim->aseq = rapi->Noesis_AnimSequencesAlloc(1, hdr.frameCount);
+	anim->aseq = rapi->Noesis_AnimSequencesAlloc(1, frameCount);
 	anim->aseq->s->startFrame = 0;
-	anim->aseq->s->endFrame = hdr.frameCount - 1;
+	anim->aseq->s->endFrame = frameCount - 1;
 	anim->aseq->s->frameRate = 60;
 	anim->aseq->s->name = rapi->Noesis_PooledString(fname);
 	if (anim)
@@ -1092,8 +1533,8 @@ static void Model_Bayo_GetDATEntries(CArrayList<bayoDatFile_t> &dfiles, BYTE *fi
 		dfiles.Append(df);
 	}
 }
+template <bool big, game_t game>
 static void Model_Bayo_LoadExternalMotions(CArrayList<noesisAnim_t *> &animList, bayoDatFile_t &df, modelBone_t *bones, int bone_number, noeRAPI_t *rapi, short int * animBoneTT){
-	const bool big = false;
 	noeUserPromptParam_t promptParams;
 	char wmbName[MAX_NOESIS_PATH];
 	char motionPrompt[MAX_NOESIS_PATH];
@@ -1115,7 +1556,7 @@ static void Model_Bayo_LoadExternalMotions(CArrayList<noesisAnim_t *> &animList,
 				CArrayList<bayoDatFile_t *> motfiles;
 				Model_Bayo_GetMotionFiles(datfiles, df, rapi, motfiles);
 				if(motfiles.Num() > 0) {
-					Model_Bayo_LoadMotions(animList, motfiles, bones, bone_number, rapi, animBoneTT);
+					Model_Bayo_LoadMotions<big, game>(animList, motfiles, bones, bone_number, rapi, animBoneTT);
 				}
 				motfiles.Clear();
 			}
@@ -1125,37 +1566,42 @@ static void Model_Bayo_LoadExternalMotions(CArrayList<noesisAnim_t *> &animList,
 	}
 }
 //decode bayonetta x10y10z10 normals
-template <bool big>
-static void Model_Bayo_CreateNormals(BYTE *data, float *dsts, int numVerts, int stride, bool eet)
+template <bool big, game_t game>
+static void Model_Bayo_CreateNormal(char *src, float *dst);
+template <>
+static void Model_Bayo_CreateNormal<true, BAYONETTA2>(char *src, float *dst) {
+	DWORD r;
+	memcpy(&r, src, sizeof(r));
+	LITTLE_BIG_SWAP(r);
+	int xBits = 10;
+	int yBits = 10;
+	int zBits = 10;
+	int x = ((r>>0) & ((1<<xBits)-1));
+	int y = ((r>>xBits) & ((1<<yBits)-1));
+	int z = ((r>>(xBits+yBits)) & ((1<<zBits)-1));
+	dst[0] = (float)SignedBits(x, xBits) / (float)((1<<(xBits-1))-1);
+	dst[1] = (float)SignedBits(y, yBits) / (float)((1<<(yBits-1))-1);
+	dst[2] = (float)SignedBits(z, zBits) / (float)((1<<(zBits-1))-1);
+}
+template <>
+static void Model_Bayo_CreateNormal<false, BAYONETTA>(char *src, float *dst) {
+	for (int j = 0; j < 3;  j++) {
+		dst[j] = (float)src[3-j]/(float)127;
+	}
+}
+template <bool big, game_t game>
+static void Model_Bayo_CreateNormals(BYTE *data, float *dsts, int numVerts, int stride)
 {
 	for (int i = 0; i < numVerts; i++)
 	{
 		char *src = (char *)(data + stride*i);
 		float *dst = dsts+i*3;
+		Model_Bayo_CreateNormal<big, game>(src, dst);
+		g_mfn->Math_VecNorm(dst);
 		if(big) {
-			DWORD r;
-			memcpy(&r, src, sizeof(r));
-			LITTLE_BIG_SWAP(r);
-			int xBits = 10;//(eet) ? 11 : 10;
-			int yBits = 10;//(eet) ? 11 : 10;
-			int zBits = 10;
-			int x = ((r>>0) & ((1<<xBits)-1));
-			int y = ((r>>xBits) & ((1<<yBits)-1));
-			int z = ((r>>(xBits+yBits)) & ((1<<zBits)-1));
-			dst[0] = (float)SignedBits(x, xBits) / (float)((1<<(xBits-1))-1);
-			dst[1] = (float)SignedBits(y, yBits) / (float)((1<<(yBits-1))-1);
-			dst[2] = (float)SignedBits(z, zBits) / (float)((1<<(zBits-1))-1);
-			DBGLOG("%f %f %f\n", dst[0], dst[1], dst[2]);
-			g_mfn->Math_VecNorm(dst);
-			DBGLOG("%f %f %f\n", dst[0], dst[1], dst[2]);
 			LITTLE_BIG_SWAP(dst[0]);
 			LITTLE_BIG_SWAP(dst[1]);
 			LITTLE_BIG_SWAP(dst[2]);
-		} else {
-			for (int j = 0; j < 3;  j++) {
-				dst[j] = (float)src[3-j]/(float)127;
-			}
-			g_mfn->Math_VecNorm(dst);
 		}
 	}
 }
@@ -1196,14 +1642,6 @@ modelBone_t *Model_Bayo_CreateBones(bayoWMBHdr<big> &hdr, BYTE *data, noeRAPI_t 
 			LITTLE_BIG_SWAP(pos[1]);
 			LITTLE_BIG_SWAP(pos[2]);
 		}
-		/*
-		modelMatrix_t mat1, mat2, mat3;
-		g_mfn->Math_RotationMatrix(rot[0], 0, &mat1);
-		g_mfn->Math_RotationMatrix(-rot[1], 1, &mat2);
-		g_mfn->Math_MatrixMultiply(&mat2, &mat1, &mat3);
-		g_mfn->Math_RotationMatrix(rot[2], 2, &mat1);
-		g_mfn->Math_MatrixMultiply(&mat3, &mat1, &bone->mat);
-		*/
 		g_mfn->Math_VecCopy(pos, bone->mat.o);
 
 	}
@@ -1359,7 +1797,7 @@ static void Model_Bayo_LoadMaterials(bayoWMBHdr<big> &hdr,
 	}
 }
 //load a single model from a dat set
-template <bool big>
+template <bool big, game_t game>
 static void Model_Bayo_LoadModel(CArrayList<bayoDatFile_t> &dfiles, bayoDatFile_t &df, noeRAPI_t *rapi, CArrayList<noesisModel_t *> &models)
 {
 	DBGLOG("Loading %s\n", df.name);
@@ -1378,6 +1816,7 @@ static void Model_Bayo_LoadModel(CArrayList<bayoDatFile_t> &dfiles, bayoDatFile_
 	DBGLOG("Vanquish: %s\n", isVanqModel ? "true" : "false");
 
 	CArrayList<bayoDatFile_t *> motfiles;
+	CArrayList<bayoDatFile_t *> texFiles;
 	CArrayList<noesisTex_t *> textures;
 	CArrayList<noesisMaterial_t *> matList;
 	CArrayList<noesisMaterial_t *> matListLightMap;
@@ -1386,11 +1825,13 @@ static void Model_Bayo_LoadModel(CArrayList<bayoDatFile_t> &dfiles, bayoDatFile_
 
 	bool hasExMatInfo;
 
-	bayoDatFile_t *texBundle = Model_Bayo_GetTextureBundle(dfiles, df, rapi);
-	if (texBundle)
+	Model_Bayo_GetTextureBundle<game>(texFiles, dfiles, df, rapi);
+	if (texFiles.Num() > 0)
 	{
-		DBGLOG("Found texture bundle %s\n", texBundle->name);
-		Model_Bayo_LoadTextures(textures, texBundle->data, texBundle->dataSize, rapi);
+		for( int i = 0; i < texFiles.Num(); i++) {
+			DBGLOG("Found texture bundle %s\n", texFiles[i]->name);
+		}
+		Model_Bayo_LoadTextures<big,game>(textures, texFiles, rapi);
 	}
 
 	Model_Bayo_LoadMaterials<big>(hdr, textures, hasExMatInfo, matList, matListLightMap, totMatList, data, rapi);
@@ -1404,13 +1845,13 @@ static void Model_Bayo_LoadModel(CArrayList<bayoDatFile_t> &dfiles, bayoDatFile_
 	modelBone_t *bones = Model_Bayo_CreateBones<big>(hdr, data, rapi, numBones, animBoneTT);
 
 	Model_Bayo_GetMotionFiles(dfiles, df, rapi, motfiles);
-	Model_Bayo_LoadMotions(animList, motfiles, bones, numBones, rapi, animBoneTT);
+	Model_Bayo_LoadMotions<big, game>(animList, motfiles, bones, numBones, rapi, animBoneTT);
 
-	Model_Bayo_LoadExternalMotions(animList, df, bones, numBones, rapi, animBoneTT);
+	Model_Bayo_LoadExternalMotions<big, game>(animList, df, bones, numBones, rapi, animBoneTT);
 
 	//decode normals
 	float *normals = (float *)rapi->Noesis_PooledAlloc(sizeof(float)*3*hdr.numVerts);
-	Model_Bayo_CreateNormals<big>(vertData+16, normals, hdr.numVerts, bayoVertSize, isVanqModel);
+	Model_Bayo_CreateNormals<big, game>(vertData+16, normals, hdr.numVerts, bayoVertSize);
 
 	BYTE *meshStart = data + hdr.ofsMeshes;
 	int *meshOfsList = (int *)(data + hdr.ofsMeshOfs);
@@ -1549,6 +1990,7 @@ static void Model_Bayo_LoadModel(CArrayList<bayoDatFile_t> &dfiles, bayoDatFile_
 	animList.Clear();
 	matList.Clear();
 	motfiles.Clear();
+	texFiles.Clear();
 	textures.Clear();
 	matListLightMap.Clear();
 	totMatList.Clear();
@@ -1556,7 +1998,7 @@ static void Model_Bayo_LoadModel(CArrayList<bayoDatFile_t> &dfiles, bayoDatFile_
 
 
 //load it
-template <bool big>
+template <bool big, game_t game>
 noesisModel_t *Model_Bayo_Load(BYTE *fileBuffer, int bufferLen, int &numMdl, noeRAPI_t *rapi)
 {
 	CArrayList<bayoDatFile_t> dfiles;
@@ -1585,7 +2027,7 @@ noesisModel_t *Model_Bayo_Load(BYTE *fileBuffer, int bufferLen, int &numMdl, noe
 		bayoDatFile_t &df = dfiles[i];
 		if (rapi->Noesis_CheckFileExt(df.name, ".wmb"))
 		{ //it's a model
-			Model_Bayo_LoadModel<big>(dfiles, df, rapi, models);
+			Model_Bayo_LoadModel<big, game>(dfiles, df, rapi, models);
 		}
 	}
 	DBGFLUSH();
@@ -1610,7 +2052,7 @@ bool NPAPI_InitLocal(void)
 	{
 		return false;
 	}
-	int fh_b = g_nfn->NPAPI_Register("Bayonetta Big Endian Model", ".dat");
+	int fh_b = g_nfn->NPAPI_Register("Bayonetta 2 Big Endian Model", ".dat");
 	if (fh_b < 0)
 	{
 		return false;
@@ -1619,9 +2061,9 @@ bool NPAPI_InitLocal(void)
 	bayoSetMatTypes();
 	//set the data handlers for this format
 	g_nfn->NPAPI_SetTypeHandler_TypeCheck(fh, Model_Bayo_Check<false>);
-	g_nfn->NPAPI_SetTypeHandler_LoadModel(fh, Model_Bayo_Load<false>);
+	g_nfn->NPAPI_SetTypeHandler_LoadModel(fh, Model_Bayo_Load<false, BAYONETTA>);
 	g_nfn->NPAPI_SetTypeHandler_TypeCheck(fh_b, Model_Bayo_Check<true>);
-	g_nfn->NPAPI_SetTypeHandler_LoadModel(fh_b, Model_Bayo_Load<true>);
+	g_nfn->NPAPI_SetTypeHandler_LoadModel(fh_b, Model_Bayo_Load<true, BAYONETTA2>);
 
 	return true;
 }
