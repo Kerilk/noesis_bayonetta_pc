@@ -40,6 +40,19 @@ typedef struct bayoDat_s
 	int				ofsNames;
 	int				ofsSizes;
 } bayoDat_t;
+
+template <bool big>
+struct bayoDat : public bayoDat_s {
+	bayoDat( bayoDat_t * ptr ): bayoDat_s(*ptr){
+		if (big) {
+			LITTLE_BIG_SWAP(numRes);
+			LITTLE_BIG_SWAP(ofsRes);
+			LITTLE_BIG_SWAP(ofsType);
+			LITTLE_BIG_SWAP(ofsNames);
+			LITTLE_BIG_SWAP(ofsSizes);
+		}
+	}
+};
 typedef struct bayoDatFile_s
 {
 	char				*name;
@@ -139,6 +152,41 @@ typedef struct bayoWMBHdr_s
 	int					ofsUnknownL;		//6C
 	int					exMatInfo[4];		//70
 } bayoWMBHdr_t;
+template <bool big>
+struct bayoWMBHdr : public bayoWMBHdr_s {
+	bayoWMBHdr( bayoWMBHdr_t * ptr ): bayoWMBHdr_s(*ptr){
+		if (big) {
+			LITTLE_BIG_SWAP(*((int *)id));
+			LITTLE_BIG_SWAP(unknownA);
+			LITTLE_BIG_SWAP(unknownB);
+			LITTLE_BIG_SWAP(unknownC);
+			LITTLE_BIG_SWAP(numVerts);
+			LITTLE_BIG_SWAP(unknownD);
+			LITTLE_BIG_SWAP(unknownE);
+			LITTLE_BIG_SWAP(unknownF);
+			LITTLE_BIG_SWAP(ofsVerts);
+			LITTLE_BIG_SWAP(ofsVertExData);
+			for(int i=0; i<4; i++) LITTLE_BIG_SWAP(unknownG[i]);
+			LITTLE_BIG_SWAP(numBones);
+			LITTLE_BIG_SWAP(ofsBoneHie);
+			LITTLE_BIG_SWAP(ofsBoneDataA);
+			LITTLE_BIG_SWAP(ofsBoneDataB);
+			LITTLE_BIG_SWAP(ofsBoneHieB);
+			LITTLE_BIG_SWAP(numMaterials);
+			LITTLE_BIG_SWAP(ofsMaterialsOfs);
+			LITTLE_BIG_SWAP(ofsMaterials);
+			LITTLE_BIG_SWAP(numMeshes);
+			LITTLE_BIG_SWAP(ofsMeshOfs);
+			LITTLE_BIG_SWAP(ofsMeshes);
+			LITTLE_BIG_SWAP(unknownK);
+			LITTLE_BIG_SWAP(unknownL);
+			LITTLE_BIG_SWAP(ofsUnknownJ);
+			LITTLE_BIG_SWAP(ofsUnknownK);
+			LITTLE_BIG_SWAP(ofsUnknownL);
+			for(int i=0; i<4; i++) LITTLE_BIG_SWAP(exMatInfo[i]);
+		}
+	}
+};
 typedef struct wmbMesh_s
 {
 	WORD				id;
@@ -150,9 +198,24 @@ typedef struct wmbMesh_s
 	char				name[32];
 	float				mat[12];
 } wmbMesh_t;
+template <bool big>
+struct wmbMesh : public wmbMesh_s {
+	wmbMesh( wmbMesh_t * ptr ): wmbMesh_s(*ptr) {
+		if (big) {
+			LITTLE_BIG_SWAP(id);
+			LITTLE_BIG_SWAP(numBatch);
+			LITTLE_BIG_SWAP(unknownB);
+			LITTLE_BIG_SWAP(batchOfs);
+			LITTLE_BIG_SWAP(unknownD);
+			for(int i=0; i<4; i++) LITTLE_BIG_SWAP(unknownE[i]);
+			for(int i=0; i<12; i++) LITTLE_BIG_SWAP(mat[i]);
+		}
+	}
+};
 typedef struct wmbBatch_s
 {
-	int					id;
+	WORD				unknownA;
+	WORD				id;
 	WORD				unknownB;
 	WORD				unknownC;
 	BYTE				texID;
@@ -166,6 +229,27 @@ typedef struct wmbBatch_s
 	int					vertOfs;
 	int					unknownI[7];
 } wmbBatch_t;
+template <bool big>
+struct wmbBatch : public wmbBatch_s {
+	wmbBatch( wmbBatch_t * ptr ): wmbBatch_s(*ptr) {
+		if (big) {
+			LITTLE_BIG_SWAP(unknownA);
+			LITTLE_BIG_SWAP(id);
+			LITTLE_BIG_SWAP(unknownB);
+			LITTLE_BIG_SWAP(unknownC);
+			LITTLE_BIG_SWAP(texID);
+			LITTLE_BIG_SWAP(unknownDB);
+			LITTLE_BIG_SWAP(unknownE);
+			LITTLE_BIG_SWAP(vertStart);
+			LITTLE_BIG_SWAP(vertEnd);
+			LITTLE_BIG_SWAP(primType);
+			LITTLE_BIG_SWAP(ofsIndices);
+			LITTLE_BIG_SWAP(numIndices);
+			LITTLE_BIG_SWAP(vertOfs);
+			for(int i=0; i<7; i++) LITTLE_BIG_SWAP(unknownI[i]);
+		}
+	}
+};
 typedef struct bayoTex_s
 {
 	BYTE				tex_idx;
@@ -388,6 +472,7 @@ static void bayoSetMatTypes(void) {
 
 
 //see if something is a valid bayonetta .dat
+template <bool big>
 bool Model_Bayo_Check(BYTE *fileBuffer, int bufferLen, noeRAPI_t *rapi)
 {
 	DBGLOG("----------------------\n");
@@ -395,7 +480,7 @@ bool Model_Bayo_Check(BYTE *fileBuffer, int bufferLen, noeRAPI_t *rapi)
 	{
 		return false;
 	}
-	bayoDat_t dat = *((bayoDat_t *)fileBuffer);
+	bayoDat<big> dat((bayoDat_t *)fileBuffer);
 	if (memcmp(dat.id, "DAT\0", 4))
 	{
 		return false;
@@ -411,6 +496,8 @@ bool Model_Bayo_Check(BYTE *fileBuffer, int bufferLen, noeRAPI_t *rapi)
 
 	BYTE *namesp = fileBuffer+dat.ofsNames;
 	int strSize = *((int *)namesp);
+	if (big) LITTLE_BIG_SWAP(strSize);
+
 	namesp += sizeof(int);
 	if (strSize <= 0 || strSize >= bufferLen || dat.ofsNames+(int)sizeof(int)+(strSize*dat.numRes) > bufferLen)
 	{
@@ -971,8 +1058,42 @@ static void Model_Bayo_LoadMotions(CArrayList<noesisAnim_t *> &animList, CArrayL
   }
 
 }
-static void Model_Bayo_GetDATEntries(CArrayList<bayoDatFile_t> &dfiles, BYTE *fileBuffer, int bufferLen);
+//gather entries from a dat file
+template <bool big>
+static void Model_Bayo_GetDATEntries(CArrayList<bayoDatFile_t> &dfiles, BYTE *fileBuffer, int bufferLen)
+{
+	bayoDat<big> dat((bayoDat_t *)fileBuffer);
+
+	BYTE *namesp = fileBuffer+dat.ofsNames;
+	int strSize = *((int *)namesp);
+	if (big) LITTLE_BIG_SWAP(strSize);
+	namesp += sizeof(int);
+
+	int *ofsp = (int *)(fileBuffer+dat.ofsRes);
+	int *sizep = (int *)(fileBuffer+dat.ofsSizes);
+	DBGLOG("Found %d entries\n", dat.numRes);
+	for (int i = 0; i < dat.numRes; i++)
+	{
+		bayoDatFile_t df;
+		memset(&df, 0, sizeof(df));
+		df.name = (char *)namesp;
+		DBGLOG("\t%s\n", df.name);
+		namesp += strSize;
+
+		df.dataSize = *sizep;
+		if (big) LITTLE_BIG_SWAP(df.dataSize);
+		sizep++;
+
+		int ofs = *ofsp;
+		if (big) LITTLE_BIG_SWAP(ofs);
+		df.data = fileBuffer+ofs;
+		ofsp++;
+
+		dfiles.Append(df);
+	}
+}
 static void Model_Bayo_LoadExternalMotions(CArrayList<noesisAnim_t *> &animList, bayoDatFile_t &df, modelBone_t *bones, int bone_number, noeRAPI_t *rapi, short int * animBoneTT){
+	const bool big = false;
 	noeUserPromptParam_t promptParams;
 	char wmbName[MAX_NOESIS_PATH];
 	char motionPrompt[MAX_NOESIS_PATH];
@@ -989,7 +1110,7 @@ static void Model_Bayo_LoadExternalMotions(CArrayList<noesisAnim_t *> &animList,
 		BYTE* data = rapi->Noesis_LoadPairedFile("Bayonetta PC Model", ".dat", dataLength, NULL);
 		if (data) {
 			CArrayList<bayoDatFile_t> datfiles;
-			Model_Bayo_GetDATEntries(datfiles, data, dataLength);
+			Model_Bayo_GetDATEntries<big>(datfiles, data, dataLength);
 			if(datfiles.Num() > 0) {
 				CArrayList<bayoDatFile_t *> motfiles;
 				Model_Bayo_GetMotionFiles(datfiles, df, rapi, motfiles);
@@ -1004,21 +1125,44 @@ static void Model_Bayo_LoadExternalMotions(CArrayList<noesisAnim_t *> &animList,
 	}
 }
 //decode bayonetta x10y10z10 normals
+template <bool big>
 static void Model_Bayo_CreateNormals(BYTE *data, float *dsts, int numVerts, int stride, bool eet)
 {
 	for (int i = 0; i < numVerts; i++)
 	{
-		char *src = (char *)(data + stride*i + 1);
+		char *src = (char *)(data + stride*i);
 		float *dst = dsts+i*3;
-		for (int j = 0; j < 3;  j++) {
-		  dst[j] = (float)src[2-j]/(float)127;
+		if(big) {
+			DWORD r;
+			memcpy(&r, src, sizeof(r));
+			LITTLE_BIG_SWAP(r);
+			int xBits = 10;//(eet) ? 11 : 10;
+			int yBits = 10;//(eet) ? 11 : 10;
+			int zBits = 10;
+			int x = ((r>>0) & ((1<<xBits)-1));
+			int y = ((r>>xBits) & ((1<<yBits)-1));
+			int z = ((r>>(xBits+yBits)) & ((1<<zBits)-1));
+			dst[0] = (float)SignedBits(x, xBits) / (float)((1<<(xBits-1))-1);
+			dst[1] = (float)SignedBits(y, yBits) / (float)((1<<(yBits-1))-1);
+			dst[2] = (float)SignedBits(z, zBits) / (float)((1<<(zBits-1))-1);
+			DBGLOG("%f %f %f\n", dst[0], dst[1], dst[2]);
+			g_mfn->Math_VecNorm(dst);
+			DBGLOG("%f %f %f\n", dst[0], dst[1], dst[2]);
+			LITTLE_BIG_SWAP(dst[0]);
+			LITTLE_BIG_SWAP(dst[1]);
+			LITTLE_BIG_SWAP(dst[2]);
+		} else {
+			for (int j = 0; j < 3;  j++) {
+				dst[j] = (float)src[3-j]/(float)127;
+			}
+			g_mfn->Math_VecNorm(dst);
 		}
-		g_mfn->Math_VecNorm(dst);
 	}
 }
 
 //convert the bones
-modelBone_t *Model_Bayo_CreateBones(bayoWMBHdr_t &hdr, BYTE *data, noeRAPI_t *rapi, int &numBones, short int * &animBoneTT)
+template <bool big>
+modelBone_t *Model_Bayo_CreateBones(bayoWMBHdr<big> &hdr, BYTE *data, noeRAPI_t *rapi, int &numBones, short int * &animBoneTT)
 {
 	numBones = 0;
 	if (hdr.numBones <= 0 || hdr.ofsBoneHie <= 0 || hdr.ofsBoneDataA <= 0 || hdr.ofsBoneDataB <= 0)
@@ -1038,13 +1182,20 @@ modelBone_t *Model_Bayo_CreateBones(bayoWMBHdr_t &hdr, BYTE *data, noeRAPI_t *ra
 		modelBone_t *bone = bones + i;
 		float *ppos = posList + i*3;
 		short parent = parentList[i];
+		if (big) LITTLE_BIG_SWAP(parent);
 		assert(parent < numBones);
 		bone->index = i;
 		bone->eData.parent = (parent >= 0) ? bones+parent : NULL;
 		sprintf_s(bone->name, 30, "bone%03i", i);
 		bone->mat = g_identityMatrix;
 		float pos[3];
+
 		memcpy(pos, ppos, sizeof(pos));
+		if (big)  {
+			LITTLE_BIG_SWAP(pos[0]);
+			LITTLE_BIG_SWAP(pos[1]);
+			LITTLE_BIG_SWAP(pos[2]);
+		}
 		/*
 		modelMatrix_t mat1, mat2, mat3;
 		g_mfn->Math_RotationMatrix(rot[0], 0, &mat1);
@@ -1065,7 +1216,14 @@ modelBone_t *Model_Bayo_CreateBones(bayoWMBHdr_t &hdr, BYTE *data, noeRAPI_t *ra
 			bones[bi].mat.o[0] - (bones[bi].eData.parent ? bones[bi].eData.parent->mat.o[0] : 0.0),
 			bones[bi].mat.o[1] - (bones[bi].eData.parent ? bones[bi].eData.parent->mat.o[1] : 0.0),
 			bones[bi].mat.o[2] - (bones[bi].eData.parent ? bones[bi].eData.parent->mat.o[2] : 0.0));
-		DBGALOG("\trelative_g: %f, %f, %f\n", relPosList[3 * bi], relPosList[3 * bi + 1], relPosList[3 * bi + 2]);
+		float relPos[3];
+		memcpy(relPos, relPosList + 3*bi, sizeof(relPos));
+		if (big)  {
+			LITTLE_BIG_SWAP(relPos[0]);
+			LITTLE_BIG_SWAP(relPos[1]);
+			LITTLE_BIG_SWAP(relPos[2]);
+		}
+		DBGALOG("\trelative_g: %f, %f, %f\n", relPos[0], relPos[1], relPos[2]);
 	}
 	//bones come pre-transformed
 	//rapi->rpgMultiplyBones(bones, numBones);
@@ -1073,7 +1231,8 @@ modelBone_t *Model_Bayo_CreateBones(bayoWMBHdr_t &hdr, BYTE *data, noeRAPI_t *ra
 }
 
 //load Bayonetta Material
-static void Model_Bayo_LoadMaterials(bayoWMBHdr_t &hdr,
+template <bool big>
+static void Model_Bayo_LoadMaterials(bayoWMBHdr<big> &hdr,
 									 CArrayList<noesisTex_t *> &textures,
 									 bool &hasExMatInfo,
 									 CArrayList<noesisMaterial_t *> &matList,
@@ -1088,6 +1247,7 @@ static void Model_Bayo_LoadMaterials(bayoWMBHdr_t &hdr,
 	if (matIDs)
 	{ //got a global reference list (this seems redundant since it's also provided in the texture bundle)
 		numMatIDs = *matIDs;
+		if (big) LITTLE_BIG_SWAP(numMatIDs);
 		matIDs++;
 	}
 	DBGLOG("Found %d materials\n", hdr.numMaterials);
@@ -1095,6 +1255,7 @@ static void Model_Bayo_LoadMaterials(bayoWMBHdr_t &hdr,
 	{
 		DBGLOG("\t%03d:", i);
 		int matOfs = matOfsList[i];
+		if (big) LITTLE_BIG_SWAP(matOfs);
 		BYTE *matData = data + hdr.ofsMaterials + matOfs;
 		//create a noesis material entry
 		char matName[128];
@@ -1198,6 +1359,7 @@ static void Model_Bayo_LoadMaterials(bayoWMBHdr_t &hdr,
 	}
 }
 //load a single model from a dat set
+template <bool big>
 static void Model_Bayo_LoadModel(CArrayList<bayoDatFile_t> &dfiles, bayoDatFile_t &df, noeRAPI_t *rapi, CArrayList<noesisModel_t *> &models)
 {
 	DBGLOG("Loading %s\n", df.name);
@@ -1207,7 +1369,7 @@ static void Model_Bayo_LoadModel(CArrayList<bayoDatFile_t> &dfiles, bayoDatFile_
 	{
 		return;
 	}
-	bayoWMBHdr_t hdr = *((bayoWMBHdr_t *)data);
+	bayoWMBHdr<big> hdr((bayoWMBHdr_t *)data);
 	if (memcmp(hdr.id, "WMB\0", 4))
 	{ //invalid header
 		return;
@@ -1231,16 +1393,15 @@ static void Model_Bayo_LoadModel(CArrayList<bayoDatFile_t> &dfiles, bayoDatFile_
 		Model_Bayo_LoadTextures(textures, texBundle->data, texBundle->dataSize, rapi);
 	}
 
-	Model_Bayo_LoadMaterials(hdr, textures, hasExMatInfo, matList, matListLightMap, totMatList, data, rapi);
-
+	Model_Bayo_LoadMaterials<big>(hdr, textures, hasExMatInfo, matList, matListLightMap, totMatList, data, rapi);
 	void *pgctx = rapi->rpgCreateContext();
-	rapi->rpgSetEndian(false);
+	rapi->rpgSetEndian(big);
 	BYTE *vertData = data + hdr.ofsVerts;
 	const int bayoVertSize = 32;//(hdr.ofsVerts > 128) ? 48 : 32;
 
 	int numBones;
 	short int * animBoneTT;
-	modelBone_t *bones = Model_Bayo_CreateBones(hdr, data, rapi, numBones, animBoneTT);
+	modelBone_t *bones = Model_Bayo_CreateBones<big>(hdr, data, rapi, numBones, animBoneTT);
 
 	Model_Bayo_GetMotionFiles(dfiles, df, rapi, motfiles);
 	Model_Bayo_LoadMotions(animList, motfiles, bones, numBones, rapi, animBoneTT);
@@ -1249,7 +1410,7 @@ static void Model_Bayo_LoadModel(CArrayList<bayoDatFile_t> &dfiles, bayoDatFile_
 
 	//decode normals
 	float *normals = (float *)rapi->Noesis_PooledAlloc(sizeof(float)*3*hdr.numVerts);
-	Model_Bayo_CreateNormals(vertData+16, normals, hdr.numVerts, bayoVertSize, isVanqModel);
+	Model_Bayo_CreateNormals<big>(vertData+16, normals, hdr.numVerts, bayoVertSize, isVanqModel);
 
 	BYTE *meshStart = data + hdr.ofsMeshes;
 	int *meshOfsList = (int *)(data + hdr.ofsMeshOfs);
@@ -1258,16 +1419,18 @@ static void Model_Bayo_LoadModel(CArrayList<bayoDatFile_t> &dfiles, bayoDatFile_
 	{
 		//if (i != 0) continue;
 		int meshOfs = meshOfsList[i];
-		wmbMesh_t mesh = *((wmbMesh_t *)(meshStart+meshOfs));
+		if (big) LITTLE_BIG_SWAP(meshOfs);
+		wmbMesh<big> mesh((wmbMesh_t *)(meshStart+meshOfs));
 		DBGLOG("\t%3d: id: %d, offset: %x, name: %s\n", i, mesh.id , hdr.ofsMeshes+meshOfs, mesh.name);
 		int *batchOfsList = (int *)(meshStart+meshOfs+mesh.batchOfs);
 		for (int j = 0; j < mesh.numBatch; j++)
 		{
 			DBGLOG("\t\t%3d: ", j);
 			int batchOfs = batchOfsList[j];
+			if (big) LITTLE_BIG_SWAP(batchOfs);
 			BYTE *batchData = (BYTE *)batchOfsList + batchOfs;
-			wmbBatch_t batch = *((wmbBatch_t *)batchData);
-			DBGLOG("%d, %x, %x, %x, %x,", batch.id, batch.unknownB, batch.unknownC, batch.unknownDB, batch.unknownE);
+			wmbBatch<big> batch((wmbBatch_t *)batchData);
+			DBGLOG("%d, %x, %x, %x, %x, ", batch.id, batch.unknownB, batch.unknownC, batch.unknownDB, batch.unknownE);
 			if (batch.unknownE == 0xf20) {
 				DBGLOG("skipped (shadow model)\n");
 				continue; // shadow meshes
@@ -1277,6 +1440,7 @@ static void Model_Bayo_LoadModel(CArrayList<bayoDatFile_t> &dfiles, bayoDatFile_
 				continue;
 			}*/
 			int numBoneRefs = *((int *)(batchData+sizeof(wmbBatch_t)));
+			if (big) LITTLE_BIG_SWAP(numBoneRefs);
 			int *boneRefDst = NULL;
 			if (numBoneRefs > 0 && bones)
 			{ //set up reference map
@@ -1306,11 +1470,11 @@ static void Model_Bayo_LoadModel(CArrayList<bayoDatFile_t> &dfiles, bayoDatFile_
 			char *matName = (texID < matList.Num()) ? matList[texID]->name : NULL;
 			DBGLOG("matName: %s\n", matName);
 			rapi->rpgSetMaterial(matName);
-			if(texID < matList.Num() && matList[texID]->ex->pUvScaleBias) {
+/*			if(texID < matList.Num() && matList[texID]->ex->pUvScaleBias) {
 				rapi->rpgSetUVScaleBias(matList[texID]->ex->pUvScaleBias, matList[texID]->ex->pUvScaleBias + 2);
 			} else {
 				rapi->rpgSetUVScaleBias(NULL, NULL);
-			}
+			}*/
 /*			if(matListLightMap[texID]) {
 				rapi->rpgSetLightmap(matListLightMap[texID]->name);
 				rapi->rpgBindUV2Buffer(vertData+20 + vertOfs*bayoVertSize, RPGEODATA_HALFFLOAT, bayoVertSize);
@@ -1318,7 +1482,7 @@ static void Model_Bayo_LoadModel(CArrayList<bayoDatFile_t> &dfiles, bayoDatFile_
 				rapi->rpgSetLightmap(NULL);
 				rapi->rpgBindUV2Buffer(NULL, RPGEODATA_HALFFLOAT, 0);
 			}*/
-
+			DBGLOG("primType: %d, numIndices: %d\n", batch.primType, batch.numIndices);
 			rpgeoPrimType_e primType = (batch.primType == 4) ? RPGEO_TRIANGLE : RPGEO_TRIANGLE_STRIP;
 			rapi->rpgCommitTriangles(batchData+batch.ofsIndices, RPGEODATA_USHORT, batch.numIndices, primType, true);
 			if (boneRefDst)
@@ -1390,44 +1554,15 @@ static void Model_Bayo_LoadModel(CArrayList<bayoDatFile_t> &dfiles, bayoDatFile_
 	totMatList.Clear();
 }
 
-//gather entries from a dat file
-static void Model_Bayo_GetDATEntries(CArrayList<bayoDatFile_t> &dfiles, BYTE *fileBuffer, int bufferLen)
-{
-	bayoDat_t dat = *((bayoDat_t *)fileBuffer);
-
-	BYTE *namesp = fileBuffer+dat.ofsNames;
-	int strSize = *((int *)namesp);
-	namesp += sizeof(int);
-	int *ofsp = (int *)(fileBuffer+dat.ofsRes);
-	int *sizep = (int *)(fileBuffer+dat.ofsSizes);
-	DBGLOG("Found %d entries\n", dat.numRes);
-	for (int i = 0; i < dat.numRes; i++)
-	{
-		bayoDatFile_t df;
-		memset(&df, 0, sizeof(df));
-		df.name = (char *)namesp;
-		DBGLOG("\t%s\n", df.name);
-		namesp += strSize;
-
-		df.dataSize = *sizep;
-		sizep++;
-
-		int ofs = *ofsp;
-		df.data = fileBuffer+ofs;
-		ofsp++;
-
-		dfiles.Append(df);
-	}
-}
 
 //load it
+template <bool big>
 noesisModel_t *Model_Bayo_Load(BYTE *fileBuffer, int bufferLen, int &numMdl, noeRAPI_t *rapi)
 {
 	CArrayList<bayoDatFile_t> dfiles;
-
 	DBGLOG("Loading model\n");
 	//create a list of resources
-	Model_Bayo_GetDATEntries(dfiles, fileBuffer, bufferLen);
+	Model_Bayo_GetDATEntries<big>(dfiles, fileBuffer, bufferLen);
 	//for vanquish, append any matching dtt files (they're just paired dat files)
 	char *inFile = rapi->Noesis_GetInputName();
 	BYTE *dttFile = NULL;
@@ -1440,10 +1575,9 @@ noesisModel_t *Model_Bayo_Load(BYTE *fileBuffer, int bufferLen, int &numMdl, noe
 		dttFile = (BYTE *)rapi->Noesis_ReadFile(fn, &dttLen);
 		if (dttFile && dttLen > 0)
 		{
-			Model_Bayo_GetDATEntries(dfiles, dttFile, dttLen);
+			Model_Bayo_GetDATEntries<big>(dfiles, dttFile, dttLen);
 		}
 	}
-
 	CArrayList<noesisModel_t *> models;
 	DBGLOG("Have %d files\n", dfiles.Num());
 	for (int i = 0; i < dfiles.Num(); i++)
@@ -1451,7 +1585,7 @@ noesisModel_t *Model_Bayo_Load(BYTE *fileBuffer, int bufferLen, int &numMdl, noe
 		bayoDatFile_t &df = dfiles[i];
 		if (rapi->Noesis_CheckFileExt(df.name, ".wmb"))
 		{ //it's a model
-			Model_Bayo_LoadModel(dfiles, df, rapi, models);
+			Model_Bayo_LoadModel<big>(dfiles, df, rapi, models);
 		}
 	}
 	DBGFLUSH();
@@ -1476,11 +1610,18 @@ bool NPAPI_InitLocal(void)
 	{
 		return false;
 	}
+	int fh_b = g_nfn->NPAPI_Register("Bayonetta Big Endian Model", ".dat");
+	if (fh_b < 0)
+	{
+		return false;
+	}
 	OPENLOG();
 	bayoSetMatTypes();
 	//set the data handlers for this format
-	g_nfn->NPAPI_SetTypeHandler_TypeCheck(fh, Model_Bayo_Check);
-	g_nfn->NPAPI_SetTypeHandler_LoadModel(fh, Model_Bayo_Load);
+	g_nfn->NPAPI_SetTypeHandler_TypeCheck(fh, Model_Bayo_Check<false>);
+	g_nfn->NPAPI_SetTypeHandler_LoadModel(fh, Model_Bayo_Load<false>);
+	g_nfn->NPAPI_SetTypeHandler_TypeCheck(fh_b, Model_Bayo_Check<true>);
+	g_nfn->NPAPI_SetTypeHandler_LoadModel(fh_b, Model_Bayo_Load<true>);
 
 	return true;
 }
