@@ -356,8 +356,9 @@ struct bayoMOTHdr : public bayoMOTHdr_s {
 typedef struct bayo2MOTHdr_s
 {
 	BYTE				id[4];
-	int					unknownA;
-	int					frameCount;
+	int					hash;
+	short int			unknownA;
+	short int			frameCount;
 	int					ofsMotion;
 	int					numEntries;
 } bayo2MOTHdr_t;
@@ -365,6 +366,7 @@ template <bool big>
 struct bayo2MOTHdr : public bayo2MOTHdr_s {
 	bayo2MOTHdr( bayo2MOTHdr_t *ptr ): bayo2MOTHdr_s(*ptr) {
 		if (big) {
+			LITTLE_BIG_SWAP(hash);
 			LITTLE_BIG_SWAP(unknownA);
 			LITTLE_BIG_SWAP(frameCount);
 			LITTLE_BIG_SWAP(ofsMotion);
@@ -458,6 +460,21 @@ typedef struct bayoInterpolKeyframe7_s {
 template <bool big>
 struct bayoInterpolKeyframe7 : public bayoInterpolKeyframe7_s {
 	bayoInterpolKeyframe7( bayoInterpolKeyframe7_t *ptr): bayoInterpolKeyframe7_s(*ptr) {
+		if (big) {
+			LITTLE_BIG_SWAP(index);
+		}
+	}
+};
+typedef struct bayoInterpolHeader8_s {
+	pghalf values[6];
+} bayoInterpolHeader8_t;
+typedef struct bayoInterpolKeyframe8_s {
+	unsigned short int index;
+	BYTE coeffs[3];
+} bayoInterpolKeyframe8_t;
+template <bool big>
+struct bayoInterpolKeyframe8 : public bayoInterpolKeyframe8_s {
+	bayoInterpolKeyframe8( bayoInterpolKeyframe8_t *ptr): bayoInterpolKeyframe8_s(*ptr) {
 		if (big) {
 			LITTLE_BIG_SWAP(index);
 		}
@@ -1300,10 +1317,16 @@ static inline void Model_Bayo_DecodeInterpolateHeader(float * fvals, bayoInterpo
 		fvals[j] = C.decompress(h->values[j], big);
 	}
 }
+template <bool big>
+static inline void Model_Bayo_DecodeInterpolateHeader(float * fvals, bayoInterpolHeader8_t *h) {
+	for(int j = 0; j < 6; j++) {
+		fvals[j] = C.decompress(h->values[j], big);
+	}
+}
 template <bool big, game_e game>
 static inline void Model_Bayo_DecodeFrameIndex(short int &firstFrame, short int &lastFrame, short int, bayoInterpolKeyframe4<big> &p_v, bayoInterpolKeyframe4<big> &v) {
 	firstFrame = p_v.index;
-    lastFrame = v.index;
+	lastFrame = v.index;
 }
 template <bool big, game_e game>
 static inline void Model_Bayo_DecodeFrameIndex(short int &firstFrame, short int &lastFrame, short int frameCount, bayoInterpolKeyframe6<big> &p_v, bayoInterpolKeyframe6<big> &v) {
@@ -1318,7 +1341,12 @@ static inline void Model_Bayo_DecodeFrameIndex(short int &firstFrame, short int 
 template <bool big, game_e game>
 static inline void Model_Bayo_DecodeFrameIndex(short int &firstFrame, short int &lastFrame, short int, bayoInterpolKeyframe7<big> &p_v, bayoInterpolKeyframe7<big> &v) {
 	firstFrame = p_v.index;
-    lastFrame = v.index;
+	lastFrame = v.index;
+}
+template <bool big, game_e game>
+static inline void Model_Bayo_DecodeFrameIndex(short int &firstFrame, short int &lastFrame, short int, bayoInterpolKeyframe8<big> &p_v, bayoInterpolKeyframe8<big> &v) {
+	firstFrame = p_v.index;
+	lastFrame = v.index;
 }
 template <class T>
 static void Model_Bayo_HermitInterpolate(float * tmpValues, float *fvals, const T &p_v, const T &v, short int &frameCount, const short int first_frame, const short int last_frame) {
@@ -1586,12 +1614,18 @@ static void Model_Bayo_LoadMotions(CArrayList<noesisAnim_t *> &animList, CArrayL
 									data + it.value.offset,
 									it.elem_number, frameCount);
 
+		} else if ( it.flag == 8 ) {
+
+			Model_Bayo_Interpolate<big, game, bayoInterpolHeader8_t, bayoInterpolKeyframe8_t, bayoInterpolKeyframe8<big>>(tmp_values + it.index * frameCount + boneIndex *  frameCount * maxCoeffs,
+									data + it.value.offset,
+									it.elem_number, frameCount);
+
 		} else if ( it.flag ==  0xff ) {
 			continue;
 		} else if ( it.flag != 0 ) {
 			DBGLOG("WARNING: Unknown motion flag %02x.\n", it.flag);
-			continue;
 			assert(0);
+			continue;
 			rapi->LogOutput("WARNING: Unknown motion flag %02x.\n", it.flag);
 		} else {
 			for (int j = 0; j < frameCount; j++) {
