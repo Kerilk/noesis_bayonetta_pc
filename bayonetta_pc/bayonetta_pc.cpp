@@ -399,6 +399,25 @@ struct bayoMotItem : public bayoMotItem_s {
 		}
 	}
 };
+typedef struct bayo2InterpolKeyframe4_s {
+	unsigned short int index;
+	unsigned short int dummy;
+	float p;
+	float m0;
+	float m1;
+} bayo2InterpolKeyframe4_t;
+template <bool big>
+struct bayo2InterpolKeyframe4 : public bayo2InterpolKeyframe4_s {
+	bayo2InterpolKeyframe4( bayo2InterpolKeyframe4_t *ptr ): bayo2InterpolKeyframe4_s(*ptr) {
+		if (big) {
+			LITTLE_BIG_SWAP(index);
+			LITTLE_BIG_SWAP(dummy);
+			LITTLE_BIG_SWAP(p);
+			LITTLE_BIG_SWAP(m0);
+			LITTLE_BIG_SWAP(m1);
+		}
+	}
+};
 typedef struct bayoInterpolHeader4_s {
 	float values[6];
 } bayoInterpolHeader4_t;
@@ -1281,17 +1300,22 @@ static inline void Model_Bayo_DecodeInterpolateHeader(float * fvals, bayoInterpo
 		fvals[j] = C.decompress(h->values[j], big);
 	}
 }
-template <bool big>
+template <bool big, game_e game>
 static inline void Model_Bayo_DecodeFrameIndex(short int &firstFrame, short int &lastFrame, short int, bayoInterpolKeyframe4<big> &p_v, bayoInterpolKeyframe4<big> &v) {
 	firstFrame = p_v.index;
     lastFrame = v.index;
 }
-template <bool big>
+template <bool big, game_e game>
 static inline void Model_Bayo_DecodeFrameIndex(short int &firstFrame, short int &lastFrame, short int frameCount, bayoInterpolKeyframe6<big> &p_v, bayoInterpolKeyframe6<big> &v) {
-	firstFrame = frameCount - 1;
-	lastFrame = frameCount - 1 + v.index;
+	if (game == BAYONETTA2) {
+		firstFrame = p_v.index;
+		lastFrame = v.index;
+	}else {
+		firstFrame = frameCount - 1;
+		lastFrame = frameCount - 1 + v.index;
+	}
 }
-template <bool big>
+template <bool big, game_e game>
 static inline void Model_Bayo_DecodeFrameIndex(short int &firstFrame, short int &lastFrame, short int, bayoInterpolKeyframe7<big> &p_v, bayoInterpolKeyframe7<big> &v) {
 	firstFrame = p_v.index;
     lastFrame = v.index;
@@ -1316,9 +1340,9 @@ static void Model_Bayo_HermitInterpolate(float * tmpValues, float *fvals, const 
 			fvals[4] + fvals[5] * v.coeffs[2]);
 }
 //interpolate motion
-template <bool big, class T1, class T2, class T3>
-static void Model_Bayo_Interpolate(float * tmpValues, BYTE * data, const short int elemNumber) {
-	short int frameCount = 0;
+template <bool big, game_e game, class T1, class T2, class T3>
+static void Model_Bayo_Interpolate(float * tmpValues, BYTE * data, const short int elemNumber, short int length) {
+	short int frameCount;
 	T1 *h = (T1 *)(data);
 	T2 *v_p = (T2 *)(h+1);
 	T2 *p_v_p;
@@ -1342,24 +1366,32 @@ static void Model_Bayo_Interpolate(float * tmpValues, BYTE * data, const short i
 			fvals[0] + fvals[1] * t_v.coeffs[0],
 			fvals[2] + fvals[3] * t_v.coeffs[1],
 			fvals[4] + fvals[5] * t_v.coeffs[2]);
+	frameCount = t_v.index;
+	float f = fvals[0] + fvals[1] * t_v.coeffs[0];
+	for (int j = 0; j < frameCount; j++) {
+		tmpValues[j] = f;
+		DBGALOG("%d, %f\n\t", j, f);
+	}
+	tmpValues[frameCount] = f;
+	DBGALOG("%f, %d, %f\n\t", 0.0, frameCount, f);
 
 	p_v_p = v_p;
-	tmpValues[frameCount] = fvals[0] + fvals[1] * t_v.coeffs[0];
 	v_p++;
-	DBGALOG("%f, %d, %f\n\t", 0.0, frameCount, tmpValues[frameCount]);
 	frameCount++;
 
-	for(int j = 1; j < elemNumber; j++)
+	for (int j = 1; j < elemNumber; j++, p_v_p++, v_p++)
 	{
 		T3 p_v(p_v_p);
 		T3 v(v_p);
 		short int first_frame, last_frame;
-		Model_Bayo_DecodeFrameIndex<big>(first_frame, last_frame, frameCount, p_v, v);
+		Model_Bayo_DecodeFrameIndex<big, game>(first_frame, last_frame, frameCount, p_v, v);
 		Model_Bayo_HermitInterpolate(tmpValues, fvals, p_v, v, frameCount, first_frame, last_frame);
-
-		p_v_p = v_p;
-		v_p++;
 	}
+	for (int j = frameCount; j < length; j++) {
+		tmpValues[j] = tmpValues[frameCount-1];
+		DBGALOG("%d, %f\n\t", j, tmpValues[j]);
+	}
+
 	DBGALOG("\n");
 }
 //loat motion file
@@ -1439,7 +1471,7 @@ static void Model_Bayo_LoadMotions(CArrayList<noesisAnim_t *> &animList, CArrayL
 			DBGALOG(" out of bone bounds\n");
 			continue;
 		}
-		if( it.flag == 1 ) {
+		if ( it.flag == 1 ) {
 			float *fdata = (float *)(data + it.value.offset);
 			for(int frame_count=0; frame_count < it.elem_number; frame_count++) {
 				float f = fdata[frame_count];
@@ -1447,33 +1479,122 @@ static void Model_Bayo_LoadMotions(CArrayList<noesisAnim_t *> &animList, CArrayL
 				tmp_values[frame_count + it.index * frameCount + boneIndex *  frameCount * maxCoeffs] = f;
 				DBGALOG("\t%3d %+f\n", frame_count, f);
 			}
-		} else if( it.flag == 4 ) {
+			float v = tmp_values[it.elem_number - 1 + it.index * frameCount + boneIndex *  frameCount * maxCoeffs];
+			for (int j = it.elem_number; j < frameCount; j++) {
+				tmp_values[j + it.index * frameCount + boneIndex *  frameCount * maxCoeffs] = v;
+				DBGALOG("\t%d, %f\n", j, v);
+			}
+		} else if ( it.flag == 2 ) {
+			float *fData = (float *)(data + it.value.offset);
+			short unsigned int *suiData = (short unsigned int *)&fData[2];
+			float fbase = fData[0];
+			float fdelta = fData[1];
+			if (big) LITTLE_BIG_SWAP(fbase);
+			if (big) LITTLE_BIG_SWAP(fdelta);
+			DBGALOG("\t%f %f\n", fbase, fdelta);
+			for(int frame_count=0; frame_count < it.elem_number; frame_count++) {
+				short unsigned int val;
+				float f;
+				val = suiData[frame_count];
+				if (big) LITTLE_BIG_SWAP(val);
+				f = fbase + fdelta*val;
+				DBGALOG("\t%d %d %f\n", frame_count, val, f);
+				tmp_values[frame_count + it.index * frameCount + boneIndex *  frameCount * maxCoeffs] = f;
+			}
+			float v = tmp_values[it.elem_number - 1 + it.index * frameCount + boneIndex *  frameCount * maxCoeffs];
+			for (int j = it.elem_number; j < frameCount; j++) {
+				tmp_values[j + it.index * frameCount + boneIndex *  frameCount * maxCoeffs] = v;
+				DBGALOG("\t%d, %f\n", j, v);
+			}
+		} else if ( it.flag == 3 ) {
+			short unsigned int *suiData = (short unsigned int *)(data + it.value.offset);
+			BYTE * bData = (BYTE *)&suiData[2];
+			float fbase = C.decompress(suiData[0], big);
+			float fdelta = C.decompress(suiData[1], big);
+			DBGALOG("\t%f %f\n", fbase, fdelta);
+			for(int frame_count=0; frame_count < it.elem_number; frame_count++) {
+				BYTE val = bData[frame_count];
+				float f = fbase + fdelta*val;
+				DBGALOG("\t%d %d %f\n", frame_count, val, f);
+				tmp_values[frame_count + it.index * frameCount + boneIndex *  frameCount * maxCoeffs] = f;
+			}
+			float v = tmp_values[it.elem_number - 1 + it.index * frameCount + boneIndex *  frameCount * maxCoeffs];
+			for (int j = it.elem_number; j < frameCount; j++) {
+				tmp_values[j + it.index * frameCount + boneIndex *  frameCount * maxCoeffs] = v;
+				DBGALOG("\t%d, %f\n", j, v);
+			}
+		} else if ( game == BAYONETTA2 && it.flag == 4 ) {
+			bayo2InterpolKeyframe4_t *v_p = (bayo2InterpolKeyframe4_t *)(data + it.value.offset);
+			bayo2InterpolKeyframe4_t *p_v_p;
+			bayo2InterpolKeyframe4<big> t_v(v_p);
+			int frame_count = t_v.index;
 
-			Model_Bayo_Interpolate<big, bayoInterpolHeader4_t, bayoInterpolKeyframe4_t, bayoInterpolKeyframe4<big>>(tmp_values + it.index * frameCount + boneIndex *  frameCount * maxCoeffs,
+			DBGALOG("\t%d %f (%f %f)\n", t_v.index, t_v.p, t_v.m0, t_v.m1);
+			for (int j = 0; j < frame_count; j++) {
+				tmp_values[j + it.index * frameCount + boneIndex *  frameCount * maxCoeffs] = t_v.p;
+				DBGALOG("\t%d, %f\n", j, t_v.p);
+			}
+			tmp_values[frame_count + it.index * frameCount + boneIndex *  frameCount * maxCoeffs] = t_v.p;
+			DBGALOG("\t%f, %d, %f\n", 0.0, frame_count, t_v.p);
+			frame_count++;
+			p_v_p = v_p;
+			v_p++;
+			for(int j = 1; j < it.elem_number; j++, p_v_p++, v_p++)	{
+				bayo2InterpolKeyframe4<big> v(v_p);
+				bayo2InterpolKeyframe4<big> p_v(p_v_p);
+				float p0, p1, m0, m1;
+				p0 = p_v.p;
+				m0 = p_v.m1;
+				p1 = v.p;
+				m1 = v.m0;
+				for(; frame_count <= v.index; frame_count++) {
+					float t;
+					float f;
+					t = (float)(frame_count - p_v.index)/(v.index - p_v.index);
+		            f = (2*t*t*t - 3*t*t + 1)*p0 + (t*t*t - 2*t*t + t)*m0 + (-2*t*t*t + 3*t*t)*p1 + (t*t*t - t*t)*m1;
+					tmp_values[frame_count + it.index * frameCount + boneIndex *  frameCount * maxCoeffs] = f;
+					DBGALOG("\t%f, %d, %f\n", 0.0, frame_count, f);
+				}
+				DBGALOG("\t%d %f (%f %f)\n", v.index, v.p, v.m0, v.m1);
+			}
+			float v = tmp_values[frame_count - 1 + it.index * frameCount + boneIndex *  frameCount * maxCoeffs];
+			for (int j = frame_count; j < frameCount; j++) {
+				tmp_values[j + it.index * frameCount + boneIndex *  frameCount * maxCoeffs] = v;
+				DBGALOG("\t%d, %f\n", j, v);
+			}
+			DBGALOG("\n");
+		} else if ( it.flag == 4 || (game == BAYONETTA2 && it.flag == 5) ) {
+
+			Model_Bayo_Interpolate<big, game, bayoInterpolHeader4_t, bayoInterpolKeyframe4_t, bayoInterpolKeyframe4<big>>(tmp_values + it.index * frameCount + boneIndex *  frameCount * maxCoeffs,
 									data + it.value.offset,
-									it.elem_number);
+									it.elem_number, frameCount);
+		} else if ( game == BAYONETTA2 && it.flag == 6 ) {
 
-		} else if( it.flag == 6 || (game == BAYONETTA2 && it.flag == 7) ) {
-
-			Model_Bayo_Interpolate<big, bayoInterpolHeader6_t, bayoInterpolKeyframe6_t, bayoInterpolKeyframe6<big>>(tmp_values + it.index * frameCount + boneIndex *  frameCount * maxCoeffs,
+			Model_Bayo_Interpolate<big, BAYONETTA2, bayoInterpolHeader6_t, bayoInterpolKeyframe6_t, bayoInterpolKeyframe6<big>>(tmp_values + it.index * frameCount + boneIndex *  frameCount * maxCoeffs,
 									data + it.value.offset,
-									it.elem_number);
+									it.elem_number, frameCount);
 
-		} else if( it.flag == 7 ) { //diff from 6 because frame delta would be > 255
+		} else if ( it.flag == 6 || (game == BAYONETTA2 && it.flag == 7) ) {
 
-			Model_Bayo_Interpolate<big, bayoInterpolHeader7_t, bayoInterpolKeyframe7_t, bayoInterpolKeyframe7<big>>(tmp_values + it.index * frameCount + boneIndex *  frameCount * maxCoeffs,
+			Model_Bayo_Interpolate<big, BAYONETTA, bayoInterpolHeader6_t, bayoInterpolKeyframe6_t, bayoInterpolKeyframe6<big>>(tmp_values + it.index * frameCount + boneIndex *  frameCount * maxCoeffs,
 									data + it.value.offset,
-									it.elem_number);
+									it.elem_number, frameCount);
 
-		} else if( it.flag ==  0xff ) {
+		} else if ( it.flag == 7 ) { //diff from 6 because frame delta would be > 255
+
+			Model_Bayo_Interpolate<big, game, bayoInterpolHeader7_t, bayoInterpolKeyframe7_t, bayoInterpolKeyframe7<big>>(tmp_values + it.index * frameCount + boneIndex *  frameCount * maxCoeffs,
+									data + it.value.offset,
+									it.elem_number, frameCount);
+
+		} else if ( it.flag ==  0xff ) {
 			continue;
 		} else if ( it.flag != 0 ) {
+			DBGLOG("WARNING: Unknown motion flag %02x.\n", it.flag);
 			continue;
-			DBGALOG("WARNING: Unknown motion flag %02x.\n", it.flag);
 			assert(0);
 			rapi->LogOutput("WARNING: Unknown motion flag %02x.\n", it.flag);
 		} else {
-			for(int j = 0; j < frameCount; j++) {
+			for (int j = 0; j < frameCount; j++) {
 				tmp_values[j + it.index * frameCount + boneIndex *  frameCount * maxCoeffs] = it.value.flt;
 			}
 		}
@@ -1483,6 +1604,7 @@ static void Model_Bayo_LoadMotions(CArrayList<noesisAnim_t *> &animList, CArrayL
 	Model_Bayo_ApplyMotions(matrixes, tmp_values, bones, bone_number, frameCount);
 
 	noesisAnim_t *anim = rapi->rpgAnimFromBonesAndMatsFinish(bones, bone_number, matrixes, frameCount, 60);
+
 	anim->filename = rapi->Noesis_PooledString(fname);
 	anim->flags |= NANIMFLAG_FILENAMETOSEQ;
 	anim->aseq = rapi->Noesis_AnimSequencesAlloc(1, frameCount);
