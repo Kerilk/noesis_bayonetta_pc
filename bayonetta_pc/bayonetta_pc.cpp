@@ -73,7 +73,7 @@ typedef struct bayoWTBHdr_s
 	int					ofsTexOfs;
 	int					ofsTexSizes;
 	int					ofsTexFlags;
-	int					resva;
+	int					texIdxOffset;
 	int					texInfoOffset;
 } bayoWTBHdr_t;
 template <bool big>
@@ -86,7 +86,7 @@ struct bayoWTBHdr : public bayoWTBHdr_s {
 			LITTLE_BIG_SWAP(ofsTexOfs);
 			LITTLE_BIG_SWAP(ofsTexSizes);
 			LITTLE_BIG_SWAP(ofsTexFlags);
-			LITTLE_BIG_SWAP(resva);
+			LITTLE_BIG_SWAP(texIdxOffset);
 			LITTLE_BIG_SWAP(texInfoOffset);
 		}
 	}
@@ -807,21 +807,100 @@ static void Model_Bayo_LoadTextures<true, BAYONETTA2>(CArrayList<noesisTex_t *> 
 	int *tsizes = (int *)(data+hdr.ofsTexSizes);
 	for (int i = 0; i < hdr.numTex; i++)
 	{
+		int globalIdx;
 		char fname[8192];
+		char fnamegtx[8192];
+		char fnamedds[8192];
+		char cmd[8192];
 		rapi->Noesis_GetDirForFilePath(fname, rapi->Noesis_GetOutputName());
+
 		char nameStr[MAX_NOESIS_PATH];
 		sprintf_s(nameStr, MAX_NOESIS_PATH, ".\\%sbayotex%03i", rapi->Noesis_GetOption("texpre"), i);
 		strcat_s(fname, MAX_NOESIS_PATH, nameStr);
+		sprintf_s(fnamegtx, MAX_NOESIS_PATH, "%s.gtx", fname);
+		sprintf_s(fnamedds, MAX_NOESIS_PATH, "%s.dds", fname);
 
 		GX2Hdr<big> texHdr((GX2Hdr_t *)(data + hdr.texInfoOffset + i*0xc0));
-		DBGLOG("%d: dim: %d, width %d, height %d, depth %d, numMimap: %d, format: %x\n", i, texHdr.dimension, texHdr.width, texHdr.height, texHdr.depth, texHdr.numMipmaps, texHdr.format);
-		DBGLOG("\tusage: %x, length: %d, mipmapDataLength: %d, tileMode: %x\n", texHdr.usage, texHdr.dataLength, texHdr.mipmapsDataLength, texHdr.tileMode);
-		DBGLOG("\tswizzle: %x, alignment %d, pitch %d, first mipmap: %d\n", texHdr.swizzleValue, texHdr.alignment, texHdr.pitch, texHdr.firstMipmap);
-		DBGLOG("\tcomponents: %d, %d, %d, %d\n", texHdr.component[0], texHdr.component[1], texHdr.component[2], texHdr.component[3]);
+		//DBGLOG("%d: dim: %d, width %d, height %d, depth %d, numMimap: %d, format: %x\n", i, texHdr.dimension, texHdr.width, texHdr.height, texHdr.depth, texHdr.numMipmaps, texHdr.format);
+		//DBGLOG("\tusage: %x, length: %d, mipmapDataLength: %d, tileMode: %x\n", texHdr.usage, texHdr.dataLength, texHdr.mipmapsDataLength, texHdr.tileMode);
+		//DBGLOG("\tswizzle: %x, alignment %d, pitch %d, first mipmap: %d\n", texHdr.swizzleValue, texHdr.alignment, texHdr.pitch, texHdr.firstMipmap);
+		//DBGLOG("\tcomponents: %d, %d, %d, %d\n", texHdr.component[0], texHdr.component[1], texHdr.component[2], texHdr.component[3]);
+
+		if (hdr.texIdxOffset)
+		{
+			int *ip = (int  *)(data+hdr.texIdxOffset+sizeof(int)*i);
+			globalIdx = *ip;
+		}
+		DBGLOG("%s: 0x%0x\n", fname, globalIdx);
 		//GX2_SURFACE_FORMAT_T_BC1_UNORM = 0x31
 		//GX2_SURFACE_FORMAT_T_BC3_UNORM = 0x33
+		FILE  * fgtx = fopen(fnamegtx, "wb");
+		// gtx header (http://mk8.tockdom.com/wiki/GTX%5CGSH_(File_Format))
+		fwrite("\x47\x66\x78\x32\x00\x00\x00\x20\x00\x00\x00\x07\x00\x00\x00\x01\x00\x00\x00\x02\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00", 1, 0x20, fgtx);
+		// block header (GX2 surface)
+		fwrite("\x42\x4C\x4B\x7B\x00\x00\x00\x20\x00\x00\x00\x01\x00\x00\x00\x00\x00\x00\x00\x0B\x00\x00\x00\x9C\x00\x00\x00\x00\x00\x00\x00\x00", 1, 0x20, fgtx);
+		// write GX2 surface
+		fwrite(data + hdr.texInfoOffset + i*0xc0, 1, 0x9c, fgtx);
+		// block header (data)
+		fwrite("\x42\x4C\x4B\x7B\x00\x00\x00\x20\x00\x00\x00\x01\x00\x00\x00\x00\x00\x00\x00\x0C\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00", 1, 0x20, fgtx);
+		// write pixel data
+		int tof = tofs[i];
+		LITTLE_BIG_SWAP(tof);
+		fwrite(data2 + tof, 1, texHdr.dataLength, fgtx);
+		// write ending header
+		fwrite("\x42\x4C\x4B\x7B\x00\x00\x00\x20\x00\x00\x00\x01\x00\x00\x00\x00\x00\x00\x00\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00", 1, 0x20, fgtx);
+
+		// write file size
+		DWORD size = texHdr.dataLength;
+		if (big) LITTLE_BIG_SWAP(size);
+		fseek(fgtx, 0xf0, SEEK_SET);
+		fwrite(&size, 4, 1,  fgtx);
+
+		// set mipmap number to 1
+		fseek(fgtx, 0x50, SEEK_SET);
+		size = 0x1;
+		LITTLE_BIG_SWAP(size);
+		fwrite(&size, 4, 1,  fgtx);
+		fclose(fgtx);
+		sprintf_s(cmd, 8192, "TexConv2.exe -i \"%s\" -o \"%s\"", fnamegtx, fnamedds);
+
+		STARTUPINFOW si;
+		PROCESS_INFORMATION pi;
+		ZeroMemory(&si, sizeof(si));
+		si.cb = sizeof(si);
+		ZeroMemory(&pi, sizeof(pi));
+		wchar_t wcmd[8192];
+		mbstowcs(wcmd, cmd, strlen(cmd)+1);
+
+		if (CreateProcess(L"Texconv2.exe", wcmd, NULL, NULL, FALSE, CREATE_NO_WINDOW, NULL, NULL, &si, &pi))
+		{
+			WaitForSingleObject(pi.hProcess, INFINITE);
+			CloseHandle(pi.hProcess);
+			CloseHandle(pi.hThread);
+		}
+		//system(cmd);
+		noesisTex_t	*nt = rapi->Noesis_LoadExternalTex(fnamedds);
+		if (nt) {
+			nt->filename = rapi->Noesis_PooledString(fname);
+			textures.Append(nt);
+		} else {
+			DBGLOG("Could not load texture %s\n", fnamedds);
+			nt = rapi->Noesis_AllocPlaceholderTex(fname, 32, 32, false);
+			textures.Append(nt);
+		}
+		remove(fnamedds);
+		remove(fnamegtx);
+		nt->globalIdx = globalIdx;
 
 	}
+	//insert a flat normal map placeholder
+	char fname[MAX_NOESIS_PATH];
+	rapi->Noesis_GetDirForFilePath(fname, rapi->Noesis_GetOutputName());
+	char nameStr[MAX_NOESIS_PATH];
+	sprintf_s(nameStr, MAX_NOESIS_PATH, ".\\%sbayoflatnormal", rapi->Noesis_GetOption("texpre"));
+	strcat_s(fname, MAX_NOESIS_PATH, nameStr);
+	noesisTex_t *nt = rapi->Noesis_AllocPlaceholderTex(fname, 32, 32, true);
+	textures.Append(nt);
 }
 template <>
 static void Model_Bayo_LoadTextures<true, BAYONETTA>(CArrayList<noesisTex_t *> &textures, CArrayList<bayoDatFile_t *> &texFiles, noeRAPI_t *rapi)
@@ -865,10 +944,11 @@ static void Model_Bayo_LoadTextures<true, BAYONETTA>(CArrayList<noesisTex_t *> &
 		BYTE *pix;
 		int globalIdx = -1;
 		wtbTexHdr_t tex;
-		if (hdr.resva)
+		if (hdr.texIdxOffset)
 		{ //global id's (probably generated as checksums)
-			int *ip = (int  *)(data+hdr.resva+sizeof(int)*i);
+			int *ip = (int  *)(data+hdr.texIdxOffset+sizeof(int)*i);
 			globalIdx = *ip;
+			LITTLE_BIG_SWAP(globalIdx);
 		}
 		if (hdr.texInfoOffset)
 		{ //texture info is contiguous in its own section
@@ -1045,9 +1125,9 @@ static void Model_Bayo_LoadTextures<false, BAYONETTA>(CArrayList<noesisTex_t *> 
 		BYTE *pix;
 		int globalIdx = -1;
 		ddsTexHdr_t tex;
-		if (hdr.resva)
+		if (hdr.texIdxOffset)
 		{ //global id's (probably generated as checksums)
-			int *ip = (int  *)(data+hdr.resva+sizeof(int)*i);
+			int *ip = (int  *)(data+hdr.texIdxOffset+sizeof(int)*i);
 			globalIdx = *ip;
 		}
 		if (hdr.texInfoOffset)
@@ -1701,6 +1781,8 @@ static void Model_Bayo_LoadExternalMotions(CArrayList<noesisAnim_t *> &animList,
 	promptParams.defaultValue = "Just click!";
 	promptParams.valType = NOEUSERVAL_NONE;
 	promptParams.valHandler = NULL;
+	wchar_t noepath[MAX_NOESIS_PATH];
+	GetCurrentDirectory(MAX_NOESIS_PATH, noepath);
 
 	while( g_nfn->NPAPI_UserPrompt(&promptParams) ) {
 		int dataLength;
@@ -1720,6 +1802,7 @@ static void Model_Bayo_LoadExternalMotions(CArrayList<noesisAnim_t *> &animList,
 		}
 		rapi->Noesis_UnpooledFree(data);
 	}
+	SetCurrentDirectory(noepath);
 }
 //decode bayonetta x10y10z10 normals
 template <bool big, game_t game>
@@ -1862,20 +1945,21 @@ static void Model_Bayo_LoadMaterials(bayoWMBHdr<big> &hdr,
 		if (hasExMatInfo && numMatIDs > 0)
 		{ //search by global index values
 			DBGLOG("vanquish style\n");
+			nmat->noDefaultBlend = true;
 			nmat->normalTexIdx = (textures.Num() > 0) ? textures.Num()-1 : -1; //default to flat normal
-
 			char *shaderName = (char *)(data + hdr.exMatInfo[0] + 16*i);
-			if (_strnicmp(shaderName, "har", 3) == 0)
+			if (_strnicmp(shaderName, "har", 3) == 0 || _strnicmp(shaderName, "gla", 3) == 0 || _strnicmp(shaderName, "cnm", 3) == 0 || _strnicmp(shaderName, "alp", 3) == 0)
 			{ //blend hair
 				nmat->noDefaultBlend = false;
 			}
-			bool isSkin = (_strnicmp(shaderName, "skn00", 5) == 0);
+			bool isSkin = (_strnicmp(shaderName, "skn0", 4) == 0);
 			bool isPHG = (_strnicmp(shaderName, "phg05", 5) == 0);
 			bool isLBT = (_strnicmp(shaderName, "lbt00", 5) == 0);
 			bool raSwap = (_strnicmp(shaderName, "max32", 5) == 0); //hacky way to see if the normal needs red and alpha swapped, probably not reliable
 			int difTexId = *((int *)(matData + 4));
-			int nrmOfs = (isSkin || isPHG || isLBT) ? 8 : 16;
+			int nrmOfs = (isPHG || isLBT) ? 8 : 16;
 			int nrmTexId = *((int *)(matData + nrmOfs)); //this is kinda happenstance, i think the only right way to know what to do is to check the pixel shader
+			DBGLOG("\t\tshader: %s, diff: 0x%0x, nrm: 0x%0x\n", shaderName, difTexId, nrmTexId);
 			for (int j = 0; j < textures.Num(); j++)
 			{
 				noesisTex_t *tex = textures[j];
