@@ -568,6 +568,10 @@ public:
 			exponent += biasF - biasH;
 			exponent <<= significandFBits;
 			v.si |= exponent;
+		} else if ( significand ) { //denorm
+			Bits magic;
+			magic.ui = (biasF - biasH + biasF) << significandFBits;
+			v.f *= magic.f;
 		}
 		return v.f;
 	}
