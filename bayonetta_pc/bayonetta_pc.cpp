@@ -91,6 +91,34 @@ struct bayoWTBHdr : public bayoWTBHdr_s {
 		}
 	}
 };
+typedef struct bayoWTAHdr_s
+{
+	BYTE				id[4];
+	int					unknown;
+	int					numTex;
+	int					ofsTexOfs;
+	int					ofsTexSizes;
+	int					ofsTexFlags;
+	int					texIdxOffset;
+	int					texInfoOffset;
+	int					ofsMipmapOfs;
+} bayoWTAHdr_t;
+template <bool big>
+struct bayoWTAHdr : public bayoWTAHdr_s {
+	bayoWTAHdr( bayoWTAHdr_t *ptr ): bayoWTAHdr_s(*ptr) {
+		if (big) {
+			LITTLE_BIG_SWAP(*((int *)id));
+			LITTLE_BIG_SWAP(unknown);
+			LITTLE_BIG_SWAP(numTex);
+			LITTLE_BIG_SWAP(ofsTexOfs);
+			LITTLE_BIG_SWAP(ofsTexSizes);
+			LITTLE_BIG_SWAP(ofsTexFlags);
+			LITTLE_BIG_SWAP(texIdxOffset);
+			LITTLE_BIG_SWAP(texInfoOffset);
+			LITTLE_BIG_SWAP(ofsMipmapOfs);
+		}
+	}
+};
 // Texture is now DDS
 typedef struct ddsPixelFormat_s
 {
@@ -792,11 +820,11 @@ static void Model_Bayo_LoadTextures<true, BAYONETTA2>(CArrayList<noesisTex_t *> 
 	int dataSize2 = texFiles[1]->dataSize;
 	BYTE * data2 = texFiles[1]->data;
 
-	if (dataSize < sizeof(bayoWTBHdr_t))
+	if (dataSize < sizeof(bayoWTAHdr_t))
 	{
 		return;
 	}
-	bayoWTBHdr<true> hdr((bayoWTBHdr_t *)data);
+	bayoWTAHdr<true> hdr((bayoWTAHdr_t *)data);
 	if (memcmp(hdr.id, "WTB\0", 4))
 	{ //not a valid texture bundle
 		return;
@@ -809,6 +837,7 @@ static void Model_Bayo_LoadTextures<true, BAYONETTA2>(CArrayList<noesisTex_t *> 
 	DBGLOG("found valid texture header file, containing %d textures, headers offset: %x\n", hdr.numTex, hdr.texInfoOffset);
 	int *tofs = (int *)(data+hdr.ofsTexOfs);
 	int *tsizes = (int *)(data+hdr.ofsTexSizes);
+	int *mofs = (int *)(data+hdr.ofsMipmapOfs);
 	for (int i = 0; i < hdr.numTex; i++)
 	{
 		int globalIdx;
@@ -846,25 +875,30 @@ static void Model_Bayo_LoadTextures<true, BAYONETTA2>(CArrayList<noesisTex_t *> 
 		// write GX2 surface
 		fwrite(data + hdr.texInfoOffset + i*0xc0, 1, 0x9c, fgtx);
 		// block header (data)
-		fwrite("\x42\x4C\x4B\x7B\x00\x00\x00\x20\x00\x00\x00\x01\x00\x00\x00\x00\x00\x00\x00\x0C\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00", 1, 0x20, fgtx);
+		fwrite("\x42\x4C\x4B\x7B\x00\x00\x00\x20\x00\x00\x00\x01\x00\x00\x00\x00\x00\x00\x00\x0C", 1, 0x14, fgtx);
+		DWORD size = texHdr.dataLength;
+		if (big) LITTLE_BIG_SWAP(size);
+		fwrite(&size, 4, 1,  fgtx);
+		fwrite("\x00\x00\x00\x00\x00\x00\x00\x00", 1, 0x8, fgtx);
 		// write pixel data
 		int tof = tofs[i];
 		LITTLE_BIG_SWAP(tof);
 		fwrite(data2 + tof, 1, texHdr.dataLength, fgtx);
+		if ( texHdr.numMipmaps > 1 ) {
+			// block header (mipmap data)
+			fwrite("\x42\x4C\x4B\x7B\x00\x00\x00\x20\x00\x00\x00\x01\x00\x00\x00\x00\x00\x00\x00\x0D", 1, 0x14, fgtx);
+			size = texHdr.mipmapsDataLength;
+			if (big) LITTLE_BIG_SWAP(size);
+			fwrite(&size, 4, 1,  fgtx);
+			fwrite("\x00\x00\x00\x00\x00\x00\x00\x00", 1, 0x8, fgtx);
+			// write mipmap data
+			int mof = mofs[i];
+			LITTLE_BIG_SWAP(mof);
+			fwrite(data2 + mof, 1, texHdr.mipmapsDataLength, fgtx);
+		}
 		// write ending header
 		fwrite("\x42\x4C\x4B\x7B\x00\x00\x00\x20\x00\x00\x00\x01\x00\x00\x00\x00\x00\x00\x00\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00", 1, 0x20, fgtx);
 
-		// write file size
-		DWORD size = texHdr.dataLength;
-		if (big) LITTLE_BIG_SWAP(size);
-		fseek(fgtx, 0xf0, SEEK_SET);
-		fwrite(&size, 4, 1,  fgtx);
-
-		// set mipmap number to 1
-		fseek(fgtx, 0x50, SEEK_SET);
-		size = 0x1;
-		LITTLE_BIG_SWAP(size);
-		fwrite(&size, 4, 1,  fgtx);
 		fclose(fgtx);
 		sprintf_s(cmd, 8192, "TexConv2.exe -i \"%s\" -o \"%s\"", fnamegtx, fnamedds);
 
