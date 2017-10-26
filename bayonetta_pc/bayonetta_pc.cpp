@@ -362,6 +362,18 @@ typedef struct wmbMat_s
 	WORD				unknownB;
 	bayoTex_t			texs[5];
 } wmbMat_t;
+template <bool big>
+struct wmbMat : public wmbMat_s {
+	wmbMat( wmbMat_t *ptr ): wmbMat_s(*ptr) {
+		if (big) {
+			LITTLE_BIG_SWAP(matFlags);
+			LITTLE_BIG_SWAP(unknownB);
+			for( int i = 0; i < 5; i++ ) {
+				LITTLE_BIG_SWAP(texs[i]);
+			}
+		}
+	}
+};
 typedef struct bayoMOTHdr_s
 {
 	BYTE				id[4];
@@ -683,7 +695,7 @@ static void bayoSetMatTypes(void) {
 
 
 //see if something is a valid bayonetta .dat
-template <bool big>
+template <bool big, game_e game>
 bool Model_Bayo_Check(BYTE *fileBuffer, int bufferLen, noeRAPI_t *rapi)
 {
 	DBGLOG("----------------------\n");
@@ -728,6 +740,16 @@ bool Model_Bayo_Check(BYTE *fileBuffer, int bufferLen, noeRAPI_t *rapi)
 		if (rapi->Noesis_CheckFileExt(name, ".wmb"))
 		{
 			numWMB++;
+		}
+		if (game == BAYONETTA2 && rapi->Noesis_CheckFileExt(name, ".wtb"))
+		{
+			DBGLOG("Found Bayonetta File!");
+			return false;
+		}
+		if (game == BAYONETTA && (rapi->Noesis_CheckFileExt(name, ".wta") || rapi->Noesis_CheckFileExt(name, ".wtp")))
+		{
+			DBGLOG("Found Bayonetta 2 File!");
+			return false;
 		}
 		//todo - figure out and add support for animation data
 		/*
@@ -943,6 +965,102 @@ static void Model_Bayo_LoadTextures<true, BAYONETTA2>(CArrayList<noesisTex_t *> 
 template <>
 static void Model_Bayo_LoadTextures<true, BAYONETTA>(CArrayList<noesisTex_t *> &textures, CArrayList<bayoDatFile_t *> &texFiles, noeRAPI_t *rapi)
 {
+	const bool big = true;
+	int dataSize = texFiles[0]->dataSize;
+	BYTE * data = texFiles[0]->data;
+
+	if (dataSize < sizeof(bayoWTBHdr_t))
+	{
+		return;
+	}
+	bayoWTBHdr<true> hdr((bayoWTBHdr_t *)data);
+	if (memcmp(hdr.id, "WTB\0", 4))
+	{ //not a valid texture bundle
+		return;
+	}
+	if (hdr.numTex <= 0 || hdr.ofsTexOfs <= 0 || hdr.ofsTexOfs >= dataSize ||
+		hdr.ofsTexSizes <= 0 || hdr.ofsTexSizes >= dataSize)
+	{
+		return;
+	}
+	DBGLOG("found valid texture header file, containing %d textures\n", hdr.numTex);
+	int *tofs = (int *)(data+hdr.ofsTexOfs);
+	int *tsizes = (int *)(data+hdr.ofsTexSizes);
+	for (int i = 0; i < hdr.numTex; i++)
+	{
+		int globalIdx = 0;
+		char fname[8192];
+		char fnamegtx[8192];
+		char fnamedds[8192];
+		char cmd[8192];
+		rapi->Noesis_GetDirForFilePath(fname, rapi->Noesis_GetOutputName());
+
+		char nameStr[MAX_NOESIS_PATH];
+		sprintf_s(nameStr, MAX_NOESIS_PATH, ".\\%sbayotex%03i", rapi->Noesis_GetOption("texpre"), i);
+		strcat_s(fname, MAX_NOESIS_PATH, nameStr);
+		sprintf_s(fnamegtx, MAX_NOESIS_PATH, "%s.gtx", fname);
+		sprintf_s(fnamedds, MAX_NOESIS_PATH, "%s.dds", fname);
+
+		if (hdr.texIdxOffset)
+		{
+			int *ip = (int  *)(data+hdr.texIdxOffset+sizeof(int)*i);
+			globalIdx = *ip;
+		}
+		DBGLOG("%s: 0x%0x\n", fname, globalIdx);
+		//GX2_SURFACE_FORMAT_T_BC1_UNORM = 0x31
+		//GX2_SURFACE_FORMAT_T_BC3_UNORM = 0x33
+		FILE  * fgtx = fopen(fnamegtx, "wb");
+		int tof = tofs[i];
+		int tsize = tsizes[i];
+		LITTLE_BIG_SWAP(tof);
+		LITTLE_BIG_SWAP(tsize);
+		fwrite(data + tof, 1, tsize, fgtx);
+		fclose(fgtx);
+
+		sprintf_s(cmd, 8192, "TexConv2.exe -i \"%s\" -o \"%s\"", fnamegtx, fnamedds);
+
+		STARTUPINFOW si;
+		PROCESS_INFORMATION pi;
+		ZeroMemory(&si, sizeof(si));
+		si.cb = sizeof(si);
+		ZeroMemory(&pi, sizeof(pi));
+		wchar_t wcmd[8192];
+		mbstowcs(wcmd, cmd, strlen(cmd)+1);
+
+		if (CreateProcess(L"Texconv2.exe", wcmd, NULL, NULL, FALSE, CREATE_NO_WINDOW, NULL, NULL, &si, &pi))
+		{
+			WaitForSingleObject(pi.hProcess, INFINITE);
+			CloseHandle(pi.hProcess);
+			CloseHandle(pi.hThread);
+		}
+		//system(cmd);
+		noesisTex_t	*nt = rapi->Noesis_LoadExternalTex(fnamedds);
+		if (nt) {
+			nt->filename = rapi->Noesis_PooledString(fname);
+			textures.Append(nt);
+		} else {
+			DBGLOG("Could not load texture %s\n", fnamedds);
+			nt = rapi->Noesis_AllocPlaceholderTex(fname, 32, 32, false);
+			textures.Append(nt);
+		}
+		remove(fnamedds);
+		remove(fnamegtx);
+		nt->globalIdx = globalIdx;
+
+	}
+	//insert a flat normal map placeholder
+	char fname[MAX_NOESIS_PATH];
+	rapi->Noesis_GetDirForFilePath(fname, rapi->Noesis_GetOutputName());
+	char nameStr[MAX_NOESIS_PATH];
+	sprintf_s(nameStr, MAX_NOESIS_PATH, ".\\%sbayoflatnormal", rapi->Noesis_GetOption("texpre"));
+	strcat_s(fname, MAX_NOESIS_PATH, nameStr);
+	noesisTex_t *nt = rapi->Noesis_AllocPlaceholderTex(fname, 32, 32, true);
+	textures.Append(nt);
+}
+/*
+template <>
+static void Model_Bayo_LoadTextures<true, BAYONETTA>(CArrayList<noesisTex_t *> &textures, CArrayList<bayoDatFile_t *> &texFiles, noeRAPI_t *rapi)
+{
 	int dataSize = texFiles[0]->dataSize;
 	BYTE * data = texFiles[0]->data;
 	if (dataSize < sizeof(bayoWTBHdr_t))
@@ -1121,7 +1239,7 @@ static void Model_Bayo_LoadTextures<true, BAYONETTA>(CArrayList<noesisTex_t *> &
 	strcat_s(fname, MAX_NOESIS_PATH, nameStr);
 	noesisTex_t *nt = rapi->Noesis_AllocPlaceholderTex(fname, 32, 32, true);
 	textures.Append(nt);
-}
+}*/
 template <>
 static void Model_Bayo_LoadTextures<false, BAYONETTA>(CArrayList<noesisTex_t *> &textures, CArrayList<bayoDatFile_t *> &texFiles, noeRAPI_t *rapi)
 {
@@ -1861,6 +1979,10 @@ static void Model_Bayo_CreateNormal<true, BAYONETTA2>(char *src, float *dst) {
 	dst[2] = (float)SignedBits(z, zBits) / (float)((1<<(zBits-1))-1);
 }
 template <>
+static void Model_Bayo_CreateNormal<true, BAYONETTA>(char *src, float *dst) {
+	return Model_Bayo_CreateNormal<true, BAYONETTA2>(src, dst);
+}
+template <>
 static void Model_Bayo_CreateNormal<false, BAYONETTA>(char *src, float *dst) {
 	for (int j = 0; j < 3;  j++) {
 		dst[j] = (float)src[3-j]/(float)127;
@@ -2017,7 +2139,7 @@ static void Model_Bayo_LoadMaterials(bayoWMBHdr<big> &hdr,
 		}
 		else
 		{ //bayonetta-style
-			wmbMat_t mat = *((wmbMat_t *)matData);
+			wmbMat<big> mat((wmbMat_t *)matData);
 
 			if( !bayoMatTypes[mat.matFlags].known ) {
 				DBGLOG(" unknown material id: %4x, %4x", mat.matFlags, mat.unknownB);
@@ -2330,7 +2452,12 @@ bool NPAPI_InitLocal(void)
 	{
 		return false;
 	}
-	int fh_b = g_nfn->NPAPI_Register("Bayonetta 2 Big Endian Model", ".dat");
+	int fh_b2 = g_nfn->NPAPI_Register("Bayonetta 2 Big Endian Model", ".dat");
+	if (fh_b2 < 0)
+	{
+		return false;
+	}
+	int fh_b = g_nfn->NPAPI_Register("Bayonetta Big Endian Model (WiiU)", ".dat");
 	if (fh_b < 0)
 	{
 		return false;
@@ -2338,10 +2465,12 @@ bool NPAPI_InitLocal(void)
 	OPENLOG();
 	bayoSetMatTypes();
 	//set the data handlers for this format
-	g_nfn->NPAPI_SetTypeHandler_TypeCheck(fh, Model_Bayo_Check<false>);
+	g_nfn->NPAPI_SetTypeHandler_TypeCheck(fh, Model_Bayo_Check<false, BAYONETTA>);
 	g_nfn->NPAPI_SetTypeHandler_LoadModel(fh, Model_Bayo_Load<false, BAYONETTA>);
-	g_nfn->NPAPI_SetTypeHandler_TypeCheck(fh_b, Model_Bayo_Check<true>);
-	g_nfn->NPAPI_SetTypeHandler_LoadModel(fh_b, Model_Bayo_Load<true, BAYONETTA2>);
+	g_nfn->NPAPI_SetTypeHandler_TypeCheck(fh_b2, Model_Bayo_Check<true, BAYONETTA2>);
+	g_nfn->NPAPI_SetTypeHandler_LoadModel(fh_b2, Model_Bayo_Load<true, BAYONETTA2>);
+	g_nfn->NPAPI_SetTypeHandler_TypeCheck(fh_b, Model_Bayo_Check<true, BAYONETTA>);
+	g_nfn->NPAPI_SetTypeHandler_LoadModel(fh_b, Model_Bayo_Load<true, BAYONETTA>);
 
 	return true;
 }
