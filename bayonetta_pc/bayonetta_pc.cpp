@@ -320,7 +320,8 @@ typedef struct wmbBatch_s
 	WORD				unknownC;
 	BYTE				texID;
 	BYTE				unknownDB;
-	WORD				unknownE;
+	BYTE				unknownE1;
+	BYTE				unknownE2;
 	int					vertStart;
 	int					vertEnd;
 	int					primType;
@@ -339,7 +340,8 @@ struct wmbBatch : public wmbBatch_s {
 			LITTLE_BIG_SWAP(unknownC);
 			LITTLE_BIG_SWAP(texID);
 			LITTLE_BIG_SWAP(unknownDB);
-			LITTLE_BIG_SWAP(unknownE);
+			LITTLE_BIG_SWAP(unknownE1);
+			LITTLE_BIG_SWAP(unknownE2);
 			LITTLE_BIG_SWAP(vertStart);
 			LITTLE_BIG_SWAP(vertEnd);
 			LITTLE_BIG_SWAP(primType);
@@ -2266,19 +2268,23 @@ static void Model_Bayo_LoadModel(CArrayList<bayoDatFile_t> &dfiles, bayoDatFile_
 		int *batchOfsList = (int *)(meshStart+meshOfs+mesh.batchOfs);
 		for (int j = 0; j < mesh.numBatch; j++)
 		{
+			char batch_name[256];
 			DBGLOG("\t\t%3d: ", j);
 			int batchOfs = batchOfsList[j];
 			if (big) LITTLE_BIG_SWAP(batchOfs);
 			BYTE *batchData = (BYTE *)batchOfsList + batchOfs;
 			wmbBatch<big> batch((wmbBatch_t *)batchData);
-			DBGLOG("%d, %x, %x, %x, %x, ", batch.id, batch.unknownB, batch.unknownC, batch.unknownDB, batch.unknownE);
-			if (batch.unknownE == 0xf20) {
+			DBGLOG("%d, %x, %x, %x, %x, %x, ", batch.id, batch.unknownB, batch.unknownC, batch.unknownDB, batch.unknownE1, batch.unknownE2);
+			if ((game == BAYONETTA && batch.unknownE1 == 0x20 && batch.unknownE2 == 0x0f) || (game == BAYONETTA2 && batch.unknownE1 == 0x30)) {
+				sprintf_s(batch_name, 256, "%02d(%s)_%02d_s", i, mesh.name, j);
+			}
+			else {
+				sprintf_s(batch_name, 256, "%02d(%s)_%02d", i, mesh.name, j);
+			}
+			rapi->rpgSetName(rapi->Noesis_PooledString(batch_name));
+			/*if (batch.unknownE == 0xf20) {
 				DBGLOG("skipped (shadow model)\n");
 				continue; // shadow meshes
-			}
-			/*if (batch.unknownB != 0x8001) {
-				DBGLOG("skipped\n");
-				continue;
 			}*/
 			int numBoneRefs = *((int *)(batchData+sizeof(wmbBatch_t)));
 			if (big) LITTLE_BIG_SWAP(numBoneRefs);
