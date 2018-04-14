@@ -1,12 +1,12 @@
 //this is kind of a poor example for plugins, since the format's not totally known and the code is WIP.
 //but it does showcase some interesting usages.
 
-
 #include "stdafx.h"
 #undef max
 #undef min
 #include "half.hpp"
 using half_float::half;
+#include <map>
 
 const char *g_pPluginName = "bayonetta_pc";
 const char *g_pPluginDesc = "Bayonetta PC model handler, by Dick, Kerilk.";
@@ -2020,6 +2020,13 @@ modelBone_t *Model_Bayo_CreateBones(bayoWMBHdr<big> &hdr, BYTE *data, noeRAPI_t 
 	float *posList = (float *)(data+hdr.ofsBoneDataB);
 	float *relPosList = (float *)(data+hdr.ofsBoneDataA); //actually relative positions
 	animBoneTT = (short int *)(data+hdr.ofsBoneHieB);
+	std::map<short int, short int> boneMap;
+	for (short int i = 0; i < 0x1000; i++) {
+		short int decoded_index = Model_Bayo_DecodeMotionIndex<big>(animBoneTT, i);
+		if (decoded_index != 0x0fff) {
+			boneMap.insert(std::pair <short int, short int>(decoded_index, i));
+		}
+	}
 
 	numBones = hdr.numBones;
 	DBGLOG("Found %d bones\n", numBones);
@@ -2033,7 +2040,7 @@ modelBone_t *Model_Bayo_CreateBones(bayoWMBHdr<big> &hdr, BYTE *data, noeRAPI_t 
 		assert(parent < numBones);
 		bone->index = i;
 		bone->eData.parent = (parent >= 0) ? bones+parent : NULL;
-		sprintf_s(bone->name, 30, "bone%03i", i);
+		sprintf_s(bone->name, 30, "bone%03i", boneMap.at((short int)i));
 		bone->mat = g_identityMatrix;
 		float pos[3];
 
