@@ -2007,6 +2007,25 @@ static void Model_Bayo_CreateNormals(BYTE *data, float *dsts, int numVerts, int 
 	}
 }
 
+template <bool big, game_t game>
+static void Model_Bayo_CreateTangents(BYTE *data, float *dsts, int numVerts, int stride)
+{
+	for (int i = 0; i < numVerts; i++)
+	{
+		uint32_t src = *((uint32_t *)(data + stride * i));
+		float *dst = dsts + i * 4;
+		for (int j = 0; j < 4; j++) {
+			dst[j] = ((float)((src >> (8*i)) & 0xff) - (float)127) / (float)127;
+		}
+		g_mfn->Math_VecNorm(dst);
+		if (big) {
+			for (int j = 0; j < 4; j++) {
+				LITTLE_BIG_SWAP(dst[j]);
+			}
+		}
+	}
+}
+
 //convert the bones
 template <bool big>
 modelBone_t *Model_Bayo_CreateBones(bayoWMBHdr<big> &hdr, BYTE *data, noeRAPI_t *rapi, int &numBones, short int * &animBoneTT)
@@ -2259,8 +2278,10 @@ static void Model_Bayo_LoadModel(CArrayList<bayoDatFile_t> &dfiles, bayoDatFile_
 	Model_Bayo_LoadExternalMotions<big, game>(animList, df, bones, numBones, rapi, animBoneTT);
 
 	//decode normals
-	float *normals = (float *)rapi->Noesis_PooledAlloc(sizeof(float)*3*hdr.numVerts);
-	Model_Bayo_CreateNormals<big, game>(vertData+16, normals, hdr.numVerts, bayoVertSize);
+	float *normals = (float *)rapi->Noesis_PooledAlloc(sizeof(float) * 3 * hdr.numVerts);
+	Model_Bayo_CreateNormals<big, game>(vertData + 16, normals, hdr.numVerts, bayoVertSize);
+	float *tangents = (float *)rapi->Noesis_PooledAlloc(sizeof(float) * 4 * hdr.numVerts);
+	Model_Bayo_CreateTangents<big, game>(vertData + 20, tangents, hdr.numVerts, bayoVertSize);
 
 	BYTE *meshStart = data + hdr.ofsMeshes;
 	int *meshOfsList = (int *)(data + hdr.ofsMeshOfs);
@@ -2312,6 +2333,8 @@ static void Model_Bayo_LoadModel(CArrayList<bayoDatFile_t> &dfiles, bayoDatFile_
 			rapi->rpgBindPositionBuffer(vertData + vertOfs*bayoVertSize, RPGEODATA_FLOAT, bayoVertSize);
 			//bind normals
 			rapi->rpgBindNormalBuffer(normals + vertOfs*3, RPGEODATA_FLOAT, sizeof(float)*3);
+			//bind tangents
+			rapi->rpgBindTangentBuffer(tangents + vertOfs * 4, RPGEODATA_FLOAT, sizeof(float) * 4);
 			//bind uv's
 			rapi->rpgBindUV1Buffer(vertData+12 + vertOfs*bayoVertSize, RPGEODATA_HALFFLOAT, bayoVertSize);
 			if (bones)
