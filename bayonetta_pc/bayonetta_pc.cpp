@@ -376,6 +376,28 @@ struct wmbMat : public wmbMat_s {
 		}
 	}
 };
+typedef struct bayo2EXPHdr_s
+{
+	BYTE				id[4];
+	int					version;
+	unsigned int		offsetRecords;
+	int					numRecords;
+	unsigned int		offsetInterpolationData;
+	int					numtInterpolationData;
+} bayo2EXPHdr_t;
+template <bool big>
+struct bayo2EXPHdr : public bayo2EXPHdr_s
+{
+	bayo2EXPHdr(bayo2EXPHdr_t *ptr) : bayo2EXPHdr_s(*ptr) {
+		if (big) {
+			LITTLE_BIG_SWAP(version);
+			LITTLE_BIG_SWAP(offsetRecords);
+			LITTLE_BIG_SWAP(numRecords);
+			LITTLE_BIG_SWAP(offsetInterpolationData);
+			LITTLE_BIG_SWAP(numtInterpolationData);
+		}
+	}
+};
 typedef struct bayoEXPHdr_s
 {
 	BYTE				id[4];
@@ -394,6 +416,28 @@ struct bayoEXPHdr : public bayoEXPHdr_s
 		}
 	}
 };
+typedef struct bayo2EXPRecord_s
+{
+	short int			boneIndex;
+	char				animationTrack;
+	char				unknownA;
+	short int			valueCount;
+	short int			unknwonB;
+	unsigned int		offset;
+} bayo2EXPRecord_t;
+template <bool big>
+struct bayo2EXPRecord : public bayo2EXPRecord_s
+{
+	bayo2EXPRecord(bayo2EXPRecord_t *ptr) : bayo2EXPRecord_s(*ptr) {
+		if (big) {
+			LITTLE_BIG_SWAP(boneIndex);
+			LITTLE_BIG_SWAP(valueCount);
+			LITTLE_BIG_SWAP(unknwonB);
+			LITTLE_BIG_SWAP(offset);
+		}
+	}
+};
+
 typedef struct bayoEXPRecord_s
 {
 	short int			unknownA;
@@ -417,6 +461,55 @@ struct bayoEXPRecord : public bayoEXPRecord_s
 			LITTLE_BIG_SWAP(offset);
 			LITTLE_BIG_SWAP(unknownE);
 		}
+	}
+};
+typedef struct bayo2EXPValue_s
+{
+	char			type;
+	char			animationTrack;
+	short int		boneIndex;
+	float			value;
+} bayo2EXPValue_t;
+template <bool big>
+struct bayo2EXPValue : public bayo2EXPValue_s
+{
+	bayo2EXPValue(bayo2EXPValue_t * ptr) : bayo2EXPValue_s(*ptr) {
+		if (big) {
+			LITTLE_BIG_SWAP(boneIndex);
+			LITTLE_BIG_SWAP(value);
+		}
+	}
+};
+typedef struct bayo2EXPInterpolationData_s
+{
+	int				numPoints;
+	int				unknownA;
+	unsigned int	offset;
+} bayo2EXPInterpolationData_t;
+template <bool big>
+struct bayo2EXPInterpolationData : public bayo2EXPInterpolationData_s
+{
+	bayo2EXPInterpolationData(bayo2EXPInterpolationData_t * ptr) : bayo2EXPInterpolationData_s(*ptr) {
+		LITTLE_BIG_SWAP(numPoints);
+		LITTLE_BIG_SWAP(unknownA);
+		LITTLE_BIG_SWAP(offset);
+	}
+};
+typedef struct bayo2EXPInterpolationPoints_s
+{
+	float v;
+	float p;
+	float m0;
+	float m1;
+} bayo2EXPInterpolationPoints_t;
+template <bool big>
+struct bayo2EXPInterpolationPoints : public bayo2EXPInterpolationPoints_s
+{
+	bayo2EXPInterpolationPoints(bayo2EXPInterpolationPoints_t *ptr) : bayo2EXPInterpolationPoints_s(*ptr) {
+		LITTLE_BIG_SWAP(v);
+		LITTLE_BIG_SWAP(p);
+		LITTLE_BIG_SWAP(m0);
+		LITTLE_BIG_SWAP(m1);
 	}
 };
 typedef struct bayoEXPCoef_s
@@ -1600,7 +1693,7 @@ static void Model_Bayo_InitMotions(modelMatrix_t * &matrixes, float * &tmpValues
 }
 //apply constrained bone motions
 template <bool big>
-static void Model_Bayo_ApplyEXP(CArrayList<bayoDatFile_t *> & expfile, float * tmpValues, const int bone_number, const short int frameCount, short int * animBoneTT) {
+static void Model_Bayo1_ApplyEXP(CArrayList<bayoDatFile_t *> & expfile, float * tmpValues, const int bone_number, const short int frameCount, short int * animBoneTT) {
 	static int maxCoeffs = 10;
 	if (expfile.Num() > 0) {
 		DBGLOG("\tapplying: %s\n", expfile[0]->name);
@@ -1612,17 +1705,15 @@ static void Model_Bayo_ApplyEXP(CArrayList<bayoDatFile_t *> & expfile, float * t
 		}
 		bayoEXPHdr<big> hdr((bayoEXPHdr_t *)data);
 		for (unsigned int i = 0; i < hdr.numRecords; i++) {
-			short int targetBone;
-			short int sourceBone;
-			char targetTrack;
-			char sourceTrack;
 			bayoEXPRecord<big> record((bayoEXPRecord_t *)(data + hdr.offsetRecords + i * sizeof(bayoEXPRecord_t)));
+			short int targetBone = Model_Bayo_DecodeMotionIndex<big>(animBoneTT, record.boneIndex);
+			char targetTrack = record.animationTrack;
+			short int sourceBone;
+			char sourceTrack;
 			DBGLOG("\t\trecord type: %d\n", record.entryType);
 			if (record.entryType == 1) {
 				bayoEXPEntry1<big> entry1((bayoEXPEntry1_t *)(data + record.offset));
-				targetBone = Model_Bayo_DecodeMotionIndex<big>(animBoneTT, record.boneIndex);
 				sourceBone = Model_Bayo_DecodeMotionIndex<big>(animBoneTT, entry1.boneIndex);
-				targetTrack = record.animationTrack;
 				sourceTrack = entry1.animationTrack;
 				DBGLOG("\t\ttrgtBone: %d, trgtTrack: %d, srcBone: %d, srcTrack: %d\n", targetBone, targetTrack, sourceBone, sourceTrack);
 				for (int fi = 0; fi < frameCount; fi++) {
@@ -1631,9 +1722,7 @@ static void Model_Bayo_ApplyEXP(CArrayList<bayoDatFile_t *> & expfile, float * t
 			}
 			else if (record.entryType == 2) {
 				bayoEXPEntry2<big> entry2((bayoEXPEntry2_t *)(data + record.offset));
-				targetBone = Model_Bayo_DecodeMotionIndex<big>(animBoneTT, record.boneIndex);
 				sourceBone = Model_Bayo_DecodeMotionIndex<big>(animBoneTT, entry2.boneIndex);
-				targetTrack = record.animationTrack;
 				sourceTrack = entry2.animationTrack;
 				DBGLOG("\t\ttrgtBone: %d, trgtTrack: %d, srcBone: %d, srcTrack: %d, flag: %x, value: %f\n", targetBone, targetTrack, sourceBone, sourceTrack, entry2.coefficient.flag, entry2.coefficient.value);
 				for (int fi = 0; fi < frameCount; fi++) {
@@ -1647,9 +1736,7 @@ static void Model_Bayo_ApplyEXP(CArrayList<bayoDatFile_t *> & expfile, float * t
 			}
 			else if (record.entryType == 3) {
 				bayoEXPEntry3<big> entry3((bayoEXPEntry3_t *)(data + record.offset));
-				targetBone = Model_Bayo_DecodeMotionIndex<big>(animBoneTT, record.boneIndex);
 				sourceBone = Model_Bayo_DecodeMotionIndex<big>(animBoneTT, entry3.boneIndex);
-				targetTrack = record.animationTrack;
 				sourceTrack = entry3.animationTrack;
 				DBGLOG("\t\ttrgtBone: %d, trgtTrack: %d, srcBone: %d, srcTrack: %d, flag1: %x, value1: %f, flag2: %x, value2: %f\n", targetBone, targetTrack, sourceBone, sourceTrack, entry3.coefficients[0].flag, entry3.coefficients[0].value, entry3.coefficients[1].flag, entry3.coefficients[1].value);
 				for (int fi = 0; fi < frameCount; fi++) {
@@ -1657,7 +1744,7 @@ static void Model_Bayo_ApplyEXP(CArrayList<bayoDatFile_t *> & expfile, float * t
 						tmpValues[fi + targetTrack * frameCount + targetBone * frameCount * maxCoeffs] = entry3.coefficients[0].value * tmpValues[fi + sourceTrack * frameCount + sourceBone * frameCount * maxCoeffs];
 					}
 					else if (entry3.coefficients[0].flag == 0x20004) { //dubious
-						tmpValues[fi + targetTrack * frameCount + targetBone * frameCount * maxCoeffs] = entry3.coefficients[0].value * tmpValues[fi + sourceTrack * frameCount + sourceBone * frameCount * maxCoeffs];
+						tmpValues[fi + targetTrack * frameCount + targetBone * frameCount * maxCoeffs] = abs(entry3.coefficients[0].value) * tmpValues[fi + sourceTrack * frameCount + sourceBone * frameCount * maxCoeffs];
 					}
 					else if (entry3.coefficients[0].flag == 0x1) {
 						tmpValues[fi + targetTrack * frameCount + targetBone * frameCount * maxCoeffs] = entry3.coefficients[0].value + tmpValues[fi + sourceTrack * frameCount + sourceBone * frameCount * maxCoeffs];
@@ -1671,6 +1758,123 @@ static void Model_Bayo_ApplyEXP(CArrayList<bayoDatFile_t *> & expfile, float * t
 				}
 			}
 		}
+	}
+}
+template <bool big>
+static float Model_Bayo2_DecodeEXP_Value( float * tmpValues, const int bone_number, const short int frameCount, short int * animBoneTT, BYTE *interpol, BYTE *&values, int &valueCount, int frame) {
+	DBGLOG("\t\tDecoding, remaining: %d\n", valueCount);
+	static int maxCoeffs = 10;
+	std::stack<float> s;
+	char o = -1;
+	while( valueCount > 0 ) {
+		if (o != -1 && s.size() >= 2) {
+			float v2 = s.top();
+			s.pop();
+			float v1 = s.top();
+			s.pop();
+			if (o == '+') {
+				v1 += v2;
+			}
+			else if (o == '*') {
+				v1 *= v2;
+			}
+			s.push(v1);
+			o = -1;
+		}
+		bayo2EXPValue<big> v((bayo2EXPValue_t *) values);
+		values += sizeof(bayo2EXPValue_t);
+		valueCount -= 1;
+		switch (v.type) {
+		case 0: //terminator
+			DBGLOG("\t\t\tTerminator\n");
+			return s.top();
+			break;
+		case 1: //Parenthesis
+			DBGLOG("\t\t\tOpening Paren\n");
+			s.push( Model_Bayo2_DecodeEXP_Value<big>(tmpValues, bone_number, frameCount, animBoneTT, interpol, values, valueCount, frame) );
+			break;
+		case 2: //Closing Parenthesis
+			DBGLOG("\t\t\tClosing Paren\n");
+			return s.top();
+			break;
+		case 3: //Animation track
+			DBGLOG("\t\t\tAnimation, bone: %d, track: %d", Model_Bayo_DecodeMotionIndex<big>(animBoneTT, v.boneIndex), v.animationTrack);
+			s.push(tmpValues[frame + v.animationTrack * frameCount + Model_Bayo_DecodeMotionIndex<big>(animBoneTT, v.boneIndex) * frameCount * maxCoeffs]);
+			DBGLOG(", val: %f\n", s.top());
+			break;
+		case 4: //Immediate
+			DBGLOG("\t\t\tImmediate: %f\n", v.value);
+			s.push(v.value);
+			break;
+		case 5: // Arithmetic
+			if (v.boneIndex == 0) {
+				o = '+';
+			}
+			else if (v.boneIndex == 2) {
+				o = '*';
+			}
+			DBGLOG("\t\t\tArithmetic: %c\n", o);
+			break;
+		case 6: // Function call
+			DBGLOG("\t\t\tFunction: abs\n");
+			s.push( abs( Model_Bayo2_DecodeEXP_Value<big>(tmpValues, bone_number, frameCount, animBoneTT, interpol, values, valueCount, frame) ) );
+			break;
+		case 7: // End function call
+			DBGLOG("\t\t\tEnd Function\n");
+			return s.top();
+			break;
+		case 8: // interpolate
+			DBGLOG("Interpolate\n");
+			s.push(0.0);
+			break;
+		}
+
+	}
+	return s.top();
+}
+template <bool big>
+static void Model_Bayo2_ApplyEXP(CArrayList<bayoDatFile_t *> & expfile, float * tmpValues, const int bone_number, const short int frameCount, short int * animBoneTT) {
+	static int maxCoeffs = 10;
+	if (expfile.Num() > 0) {
+		DBGLOG("\tapplying: %s\n", expfile[0]->name);
+		BYTE *data = expfile[0]->data;
+		size_t dataSize = expfile[0]->dataSize;
+		if (dataSize < sizeof(bayo2EXPHdr_t))
+		{
+			return;
+		}
+		bayo2EXPHdr<big> hdr((bayo2EXPHdr_t *)data);
+		BYTE *interpol = data + hdr.offsetInterpolationData;
+		for (int i = 0; i < hdr.numRecords; i++) {
+			bayo2EXPRecord<big> record((bayo2EXPRecord_t *)(data + hdr.offsetRecords + i * sizeof(bayo2EXPRecord_t)));
+			short int targetBone = Model_Bayo_DecodeMotionIndex<big>(animBoneTT, record.boneIndex);
+			char targetTrack = record.animationTrack;
+			DBGLOG("\t\tfound bone: %d, track: %d, numValues: %d\n", targetBone, targetTrack, record.valueCount);
+			for (int fi = 0; fi < frameCount; fi++) {
+				BYTE *vals = data + hdr.offsetRecords + i * sizeof(bayo2EXPRecord_t) + record.offset;
+				int count = record.valueCount;
+				float value = Model_Bayo2_DecodeEXP_Value<big>(
+					tmpValues,
+					bone_number,
+					frameCount,
+					animBoneTT,
+					interpol,
+					vals,
+					count,
+					fi);
+				DBGLOG("\t\t%f\n", value);
+				tmpValues[fi + targetTrack * frameCount + targetBone * frameCount * maxCoeffs] = value;
+			}
+		}
+	}
+}
+template <bool big, game_t game>
+inline static void Model_Bayo_ApplyEXP(CArrayList<bayoDatFile_t *> & expfile, float * tmpValues, const int bone_number, const short int frameCount, short int * animBoneTT) {
+	if (game == BAYONETTA) {
+		Model_Bayo1_ApplyEXP<big>(expfile, tmpValues, bone_number, frameCount, animBoneTT);
+	}
+	else if (game == BAYONETTA2) {
+		Model_Bayo2_ApplyEXP<big>(expfile, tmpValues, bone_number, frameCount, animBoneTT);
 	}
 }
 //apply rotate/translate to model matrix
@@ -2079,9 +2283,7 @@ static void Model_Bayo_LoadMotions(CArrayList<noesisAnim_t *> &animList, CArrayL
 	}
 
 
-	if (game == BAYONETTA) {
-		Model_Bayo_ApplyEXP<big>(expfile, tmp_values, bone_number, frameCount, animBoneTT);
-	}
+	Model_Bayo_ApplyEXP<big, game>(expfile, tmp_values, bone_number, frameCount, animBoneTT);
 
 	Model_Bayo_ApplyMotions(matrixes, tmp_values, bones, bone_number, frameCount);
 
