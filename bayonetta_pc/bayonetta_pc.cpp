@@ -1729,6 +1729,9 @@ static void Model_Bayo1_ApplyEXP(CArrayList<bayoDatFile_t *> & expfile, float * 
 					if (entry2.coefficient.flag == 0x4) {
 						tmpValues[fi + targetTrack * frameCount + targetBone * frameCount * maxCoeffs] = entry2.coefficient.value * tmpValues[fi + sourceTrack * frameCount + sourceBone * frameCount * maxCoeffs];
 					}
+					else if (entry2.coefficient.flag == 0x20004) {
+						tmpValues[fi + targetTrack * frameCount + targetBone * frameCount * maxCoeffs] = entry2.coefficient.value * abs(tmpValues[fi + sourceTrack * frameCount + sourceBone * frameCount * maxCoeffs]);
+					}
 					else if (entry2.coefficient.flag == 0x1) {
 						tmpValues[fi + targetTrack * frameCount + targetBone * frameCount * maxCoeffs] = entry2.coefficient.value + tmpValues[fi + sourceTrack * frameCount + sourceBone * frameCount * maxCoeffs];
 					}
@@ -1744,7 +1747,7 @@ static void Model_Bayo1_ApplyEXP(CArrayList<bayoDatFile_t *> & expfile, float * 
 						tmpValues[fi + targetTrack * frameCount + targetBone * frameCount * maxCoeffs] = entry3.coefficients[0].value * tmpValues[fi + sourceTrack * frameCount + sourceBone * frameCount * maxCoeffs];
 					}
 					else if (entry3.coefficients[0].flag == 0x20004) { //dubious
-						tmpValues[fi + targetTrack * frameCount + targetBone * frameCount * maxCoeffs] = abs(entry3.coefficients[0].value) * tmpValues[fi + sourceTrack * frameCount + sourceBone * frameCount * maxCoeffs];
+						tmpValues[fi + targetTrack * frameCount + targetBone * frameCount * maxCoeffs] = entry3.coefficients[0].value * abs(tmpValues[fi + sourceTrack * frameCount + sourceBone * frameCount * maxCoeffs]);
 					}
 					else if (entry3.coefficients[0].flag == 0x1) {
 						tmpValues[fi + targetTrack * frameCount + targetBone * frameCount * maxCoeffs] = entry3.coefficients[0].value + tmpValues[fi + sourceTrack * frameCount + sourceBone * frameCount * maxCoeffs];
