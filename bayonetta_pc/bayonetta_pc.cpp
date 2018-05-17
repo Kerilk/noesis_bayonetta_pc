@@ -1765,7 +1765,7 @@ static void Model_Bayo1_ApplyEXP(CArrayList<bayoDatFile_t *> & expfile, float * 
 }
 template <bool big>
 static float Model_Bayo2_DecodeEXP_Value( float * tmpValues, const int bone_number, const short int frameCount, short int * animBoneTT, BYTE *interpol, BYTE *&values, int &valueCount, int frame) {
-	DBGLOG("\t\tDecoding, remaining: %d\n", valueCount);
+	//DBGLOG("\t\tDecoding, remaining: %d\n\t\t\t", valueCount);
 	static int maxCoeffs = 10;
 	std::stack<float> s;
 	char o = -1;
@@ -1789,24 +1789,23 @@ static float Model_Bayo2_DecodeEXP_Value( float * tmpValues, const int bone_numb
 		valueCount -= 1;
 		switch (v.type) {
 		case 0: //terminator
-			DBGLOG("\t\t\tTerminator\n");
+			DBGLOG(" = ");
 			return s.top();
 			break;
 		case 1: //Parenthesis
-			DBGLOG("\t\t\tOpening Paren\n");
+			DBGLOG("( ");
 			s.push( Model_Bayo2_DecodeEXP_Value<big>(tmpValues, bone_number, frameCount, animBoneTT, interpol, values, valueCount, frame) );
 			break;
 		case 2: //Closing Parenthesis
-			DBGLOG("\t\t\tClosing Paren\n");
+			DBGLOG(") ");
 			return s.top();
 			break;
 		case 3: //Animation track
-			DBGLOG("\t\t\tAnimation, bone: %d, track: %d", Model_Bayo_DecodeMotionIndex<big>(animBoneTT, v.boneIndex), v.animationTrack);
 			s.push(tmpValues[frame + v.animationTrack * frameCount + Model_Bayo_DecodeMotionIndex<big>(animBoneTT, v.boneIndex) * frameCount * maxCoeffs]);
-			DBGLOG(", val: %f\n", s.top());
+			DBGLOG("[%d:%d](%f)", Model_Bayo_DecodeMotionIndex<big>(animBoneTT, v.boneIndex), v.animationTrack, s.top());
 			break;
 		case 4: //Immediate
-			DBGLOG("\t\t\tImmediate: %f\n", v.value);
+			DBGLOG("%f ", v.value);
 			s.push(v.value);
 			break;
 		case 5: // Arithmetic
@@ -1816,18 +1815,18 @@ static float Model_Bayo2_DecodeEXP_Value( float * tmpValues, const int bone_numb
 			else if (v.boneIndex == 2) {
 				o = '*';
 			}
-			DBGLOG("\t\t\tArithmetic: %c\n", o);
+			DBGLOG("%c ", o);
 			break;
 		case 6: // Function call
-			DBGLOG("\t\t\tFunction: abs\n");
+			DBGLOG("abs( ");
 			s.push( abs( Model_Bayo2_DecodeEXP_Value<big>(tmpValues, bone_number, frameCount, animBoneTT, interpol, values, valueCount, frame) ) );
 			break;
 		case 7: // End function call
-			DBGLOG("\t\t\tEnd Function\n");
+			DBGLOG(") ");
 			return s.top();
 			break;
 		case 8: // interpolate
-			DBGLOG("Interpolate\n");
+			DBGLOG("Interpolate( ");
 			s.push(0.0);
 			break;
 		}
@@ -1865,7 +1864,7 @@ static void Model_Bayo2_ApplyEXP(CArrayList<bayoDatFile_t *> & expfile, float * 
 					vals,
 					count,
 					fi);
-				DBGLOG("\t\t%f\n", value);
+				DBGLOG("%f\n", value);
 				tmpValues[fi + targetTrack * frameCount + targetBone * frameCount * maxCoeffs] = value;
 			}
 		}
