@@ -1018,10 +1018,17 @@ static void Model_Bayo_GetTextureBundle<BAYONETTA2>(CArrayList<bayoDatFile_t *> 
 	}
 }
 // get motion files
-static void Model_Bayo_GetMotionFiles(CArrayList<bayoDatFile_t> &dfiles, bayoDatFile_t &df, noeRAPI_t *rapi, CArrayList<bayoDatFile_t *> &motfiles)
+static void Model_Bayo_GetMotionFiles(CArrayList<bayoDatFile_t> &dfiles, bayoDatFile_t &df, noeRAPI_t *rapi, CArrayList<bayoDatFile_t *> &motfiles, const char *prefix = NULL)
 {
 	char motName[MAX_NOESIS_PATH];
-	rapi->Noesis_GetExtensionlessName(motName, df.name);
+	if (prefix)
+	{
+		sprintf_s(motName, MAX_NOESIS_PATH, "%s", prefix);
+	}
+	else
+	{
+		rapi->Noesis_GetExtensionlessName(motName, df.name);
+	}
 	for (int i = 0; i < dfiles.Num(); i++)
 	{
 		bayoDatFile_t &dft = dfiles[i];
@@ -2346,12 +2353,14 @@ static void Model_Bayo_LoadExternalMotions(CArrayList<noesisAnim_t *> &animList,
 	noeUserPromptParam_t promptParams;
 	char wmbName[MAX_NOESIS_PATH];
 	char motionPrompt[MAX_NOESIS_PATH];
+	char defaultValue[MAX_NOESIS_PATH];
 	rapi->Noesis_GetExtensionlessName(wmbName, df.name);
-	sprintf_s(motionPrompt, MAX_NOESIS_PATH, "Load motions for %s in other files?", wmbName);
+	sprintf_s(motionPrompt, MAX_NOESIS_PATH, "Load motions for %s in other files? (specify prefix if different)", wmbName);
+	sprintf_s(defaultValue, MAX_NOESIS_PATH, "%s", wmbName);
 	promptParams.titleStr = "Load motions?";
 	promptParams.promptStr = motionPrompt;
-	promptParams.defaultValue = "Just click!";
-	promptParams.valType = NOEUSERVAL_NONE;
+	promptParams.defaultValue = defaultValue;
+	promptParams.valType = NOEUSERVAL_STRING;
 	promptParams.valHandler = NULL;
 	wchar_t noepath[MAX_NOESIS_PATH];
 	GetCurrentDirectory(MAX_NOESIS_PATH, noepath);
@@ -2364,7 +2373,7 @@ static void Model_Bayo_LoadExternalMotions(CArrayList<noesisAnim_t *> &animList,
 			Model_Bayo_GetDATEntries<big>(datfiles, data, dataLength);
 			if(datfiles.Num() > 0) {
 				CArrayList<bayoDatFile_t *> motfiles;
-				Model_Bayo_GetMotionFiles(datfiles, df, rapi, motfiles);
+				Model_Bayo_GetMotionFiles(datfiles, df, rapi, motfiles, (char *)promptParams.valBuf);
 				if(motfiles.Num() > 0) {
 					Model_Bayo_LoadMotions<big, game>(animList, motfiles, expfile, bones, bone_number, rapi, animBoneTT);
 				}
