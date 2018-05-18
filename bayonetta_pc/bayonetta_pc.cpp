@@ -482,8 +482,8 @@ struct bayo2EXPValue : public bayo2EXPValue_s
 };
 typedef struct bayo2EXPInterpolationData_s
 {
-	int				numPoints;
-	int				unknownA;
+	short int		numPoints;
+	short int		unknownA;
 	unsigned int	offset;
 } bayo2EXPInterpolationData_t;
 template <bool big>
@@ -495,17 +495,17 @@ struct bayo2EXPInterpolationData : public bayo2EXPInterpolationData_s
 		LITTLE_BIG_SWAP(offset);
 	}
 };
-typedef struct bayo2EXPInterpolationPoints_s
+typedef struct bayo2EXPInterpolationPoint_s
 {
 	float v;
 	float p;
 	float m0;
 	float m1;
-} bayo2EXPInterpolationPoints_t;
+} bayo2EXPInterpolationPoint_t;
 template <bool big>
-struct bayo2EXPInterpolationPoints : public bayo2EXPInterpolationPoints_s
+struct bayo2EXPInterpolationPoint : public bayo2EXPInterpolationPoint_s
 {
-	bayo2EXPInterpolationPoints(bayo2EXPInterpolationPoints_t *ptr) : bayo2EXPInterpolationPoints_s(*ptr) {
+	bayo2EXPInterpolationPoint(bayo2EXPInterpolationPoint_t *ptr) : bayo2EXPInterpolationPoint_s(*ptr) {
 		LITTLE_BIG_SWAP(v);
 		LITTLE_BIG_SWAP(p);
 		LITTLE_BIG_SWAP(m0);
@@ -1771,6 +1771,30 @@ static void Model_Bayo1_ApplyEXP(CArrayList<bayoDatFile_t *> & expfile, float * 
 	}
 }
 template <bool big>
+static float Model_Bayo2_InterpolateEXP_Value(short int interpolFunction, float value, BYTE *interpol) {
+	BYTE *data = interpol + interpolFunction * sizeof(bayo2EXPInterpolationData_t);
+	bayo2EXPInterpolationData<big> interpolData((bayo2EXPInterpolationData_t *)data);
+	short int numPoints = interpolData.numPoints;
+	float outValue = 0.0;
+	data += interpolData.offset;
+	for (int i = 0; i < numPoints - 1; i++) {
+		bayo2EXPInterpolationPoint<big> leftPoint((bayo2EXPInterpolationPoint_t *)(data + i * sizeof(bayo2EXPInterpolationPoint_t)));
+		bayo2EXPInterpolationPoint<big> rightPoint((bayo2EXPInterpolationPoint_t *)(data + (i + 1) * sizeof(bayo2EXPInterpolationPoint_t)));
+		if (leftPoint.v <= value && rightPoint.v >= value) {
+			float p0, p1, m0, m1;
+			float t;
+			p0 = leftPoint.p;
+			p1 = rightPoint.p;
+			m0 = leftPoint.m1;
+			m1 = rightPoint.m0;
+			t = (value - leftPoint.v) / (rightPoint.v - leftPoint.v);
+			outValue = (2 * t*t*t - 3 * t*t + 1)*p0 + (t*t*t - 2 * t*t + t)*m0 + (-2 * t*t*t + 3 * t*t)*p1 + (t*t*t - t * t)*m1;
+			DBGLOG("{t = %f}", t);
+		}
+	}
+	return outValue;
+}
+template <bool big>
 static float Model_Bayo2_DecodeEXP_Value( float * tmpValues, const int bone_number, const short int frameCount, short int * animBoneTT, BYTE *interpol, BYTE *&values, int &valueCount, int frame) {
 	//DBGLOG("\t\tDecoding, remaining: %d\n\t\t\t", valueCount);
 	static int maxCoeffs = 10;
@@ -1833,8 +1857,11 @@ static float Model_Bayo2_DecodeEXP_Value( float * tmpValues, const int bone_numb
 			return s.top();
 			break;
 		case 8: // interpolate
-			DBGLOG("Interpolate( ");
-			s.push(0.0);
+			DBGLOG("Interpolate%d( ", v.boneIndex);
+			s.push(Model_Bayo2_InterpolateEXP_Value<big>(v.boneIndex,
+				Model_Bayo2_DecodeEXP_Value<big>(tmpValues, bone_number, frameCount, animBoneTT, interpol, values, valueCount, frame),
+				interpol)
+			);
 			break;
 		}
 
@@ -2285,6 +2312,11 @@ static void Model_Bayo_LoadMotions(CArrayList<noesisAnim_t *> &animList, CArrayL
 
 	for (int bi = 0; bi < bone_number; bi++) {
 		for (int fi = 0; fi < frameCount; fi++) {
+			// convert to dm
+			tmp_values[fi + 0 * frameCount + bi * frameCount * maxCoeffs] *= 10;
+			tmp_values[fi + 1 * frameCount + bi * frameCount * maxCoeffs] *= 10;
+			tmp_values[fi + 2 * frameCount + bi * frameCount * maxCoeffs] *= 10;
+			// convert to degrees
 			tmp_values[fi + 3 * frameCount + bi * frameCount * maxCoeffs] *= g_flRadToDeg;
 			tmp_values[fi + 4 * frameCount + bi * frameCount * maxCoeffs] *= g_flRadToDeg;
 			tmp_values[fi + 5 * frameCount + bi * frameCount * maxCoeffs] *= g_flRadToDeg;
@@ -2293,6 +2325,15 @@ static void Model_Bayo_LoadMotions(CArrayList<noesisAnim_t *> &animList, CArrayL
 
 
 	Model_Bayo_ApplyEXP<big, game>(expfile, tmp_values, bone_number, frameCount, animBoneTT);
+
+	for (int bi = 0; bi < bone_number; bi++) {
+		for (int fi = 0; fi < frameCount; fi++) {
+			// convert back to m
+			tmp_values[fi + 0 * frameCount + bi * frameCount * maxCoeffs] /= 10;
+			tmp_values[fi + 1 * frameCount + bi * frameCount * maxCoeffs] /= 10;
+			tmp_values[fi + 2 * frameCount + bi * frameCount * maxCoeffs] /= 10;
+		}
+	}
 
 	Model_Bayo_ApplyMotions(matrixes, tmp_values, bones, bone_number, frameCount);
 
