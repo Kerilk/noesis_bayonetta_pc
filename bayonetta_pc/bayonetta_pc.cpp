@@ -7,6 +7,7 @@
 #include "half.hpp"
 using half_float::half;
 #include <map>
+#include <stack>
 
 const char *g_pPluginName = "bayonetta_pc";
 const char *g_pPluginDesc = "Bayonetta PC model handler, by Dick, Kerilk.";
@@ -221,14 +222,52 @@ struct GX2Hdr : public GX2Hdr_s {
 		for (int i = 0; i < 5; i++) LITTLE_BIG_SWAP(textureRegisters[i]);
 	}
 };
+typedef struct bayoSCRHdr_s
+{
+	BYTE				id[4];
+	int					numModels;
+	unsigned int		ofsTextures;
+	BYTE				unknown[4];
+} bayoSCRHdr_t;
+template <bool big>
+struct bayoSCRHdr : public bayoSCRHdr_s {
+	bayoSCRHdr(bayoSCRHdr_t * ptr) : bayoSCRHdr_s(*ptr) {
+		if (big) {
+			LITTLE_BIG_SWAP(numModels);
+			LITTLE_BIG_SWAP(ofsTextures);
+		}
+	}
+};
+typedef struct bayoSCRModelDscr_s
+{
+	BYTE				name[16];
+	unsigned int		offset;
+	float				transform[9];
+	short				unknownA[42];
+}bayoSCRModelDscr_t;
+template <bool big>
+struct bayoSCRModelDscr : public bayoSCRModelDscr_s {
+	bayoSCRModelDscr(bayoSCRModelDscr_t * ptr) : bayoSCRModelDscr_s(*ptr) {
+		if (big) {
+			LITTLE_BIG_SWAP(offset);
+			for (int i = 0; i < 9; i++) {
+				LITTLE_BIG_SWAP(transform[i]);
+			}
+			for (int i = 0; i < 42; i++) {
+				LITTLE_BIG_SWAP(unknownA[i]);
+			}
+		}
+	}
+};
+
 typedef struct bayoWMBHdr_s
 {
 	BYTE				id[4];				// 0
 	int					unknownA;			// 4
-	WORD				unknownB;			// 8
-	WORD				unknownC;			// A
+	int					unknownB;			// 8
 	int					numVerts;			// C
-	WORD				unknownD;			//10
+	BYTE				unknownC;			//10
+	BYTE				unknownD;			//11
 	WORD				unknownE;			//12
 	int					unknownF;			//14
 	int					ofsVerts;			//18
@@ -259,9 +298,7 @@ struct bayoWMBHdr : public bayoWMBHdr_s {
 			LITTLE_BIG_SWAP(*((int *)id));
 			LITTLE_BIG_SWAP(unknownA);
 			LITTLE_BIG_SWAP(unknownB);
-			LITTLE_BIG_SWAP(unknownC);
 			LITTLE_BIG_SWAP(numVerts);
-			LITTLE_BIG_SWAP(unknownD);
 			LITTLE_BIG_SWAP(unknownE);
 			LITTLE_BIG_SWAP(unknownF);
 			LITTLE_BIG_SWAP(ofsVerts);
@@ -930,6 +967,7 @@ bool Model_Bayo_Check(BYTE *fileBuffer, int bufferLen, noeRAPI_t *rapi)
 	}
 	int numWMB = 0;
 	int numMOT = 0;
+	int numSCR = 0;
 	DBGLOG("Found %d resources\n", dat.numRes);
 	for (int i = 0; i < dat.numRes; i++)
 	{
@@ -943,12 +981,12 @@ bool Model_Bayo_Check(BYTE *fileBuffer, int bufferLen, noeRAPI_t *rapi)
 		{
 			numWMB++;
 		}
-		if (game == BAYONETTA2 && rapi->Noesis_CheckFileExt(name, ".wtb"))
+		else if (game == BAYONETTA2 && rapi->Noesis_CheckFileExt(name, ".wtb"))
 		{
 			DBGLOG("Found Bayonetta File!");
 			return false;
 		}
-		if (game == BAYONETTA && (rapi->Noesis_CheckFileExt(name, ".wta") || rapi->Noesis_CheckFileExt(name, ".wtp")))
+		else if (game == BAYONETTA && (rapi->Noesis_CheckFileExt(name, ".wta") || rapi->Noesis_CheckFileExt(name, ".wtp")))
 		{
 			DBGLOG("Found Bayonetta 2 File!");
 			return false;
@@ -960,13 +998,19 @@ bool Model_Bayo_Check(BYTE *fileBuffer, int bufferLen, noeRAPI_t *rapi)
 			numMOT++;
 		}
 		*/
+		else if (game == BAYONETTA && rapi->Noesis_CheckFileExt(name, ".scr"))
+		{
+			numSCR++;
+		}
+
 		namesp += strSize;
 	}
-	if (numWMB <= 0 && numMOT <= 0)
+	if (numWMB <= 0 && numMOT <= 0 && numSCR <= 0)
 	{ //nothing of interest in here
 		return false;
 	}
 	DBGLOG("Found %d wmb files\n", numWMB);
+	DBGLOG("Found %d scr files\n", numSCR);
 	return true;
 }
 
@@ -979,6 +1023,7 @@ static void Model_Bayo_GetTextureBundle<BAYONETTA>(CArrayList<bayoDatFile_t *> &
 	char texName[MAX_NOESIS_PATH];
 	rapi->Noesis_GetExtensionlessName(texName, df.name);
 	strcat_s(texName, MAX_NOESIS_PATH, ".wtb");
+	DBGLOG("texName: %s\n", texName);
 	for (int i = 0; i < dfiles.Num(); i++)
 	{
 		bayoDatFile_t &dft = dfiles[i];
@@ -2390,6 +2435,54 @@ static void Model_Bayo_GetDATEntries(CArrayList<bayoDatFile_t> &dfiles, BYTE *fi
 	}
 }
 template <bool big, game_t game>
+static void Model_Bayo_LoadScenery(bayoDatFile_t &df, noeRAPI_t *rapi, CArrayList<noesisModel_t *> &models) {
+	DBGLOG("Loading %s\n", df.name);
+	bayoSCRHdr<big> hdr((bayoSCRHdr_t *)df.data);
+	if (memcmp(hdr.id, "SCR\0", 4))
+	{ //invalid header
+		return;
+	}
+	bayoDatFile_t textureFile;
+	textureFile.name = rapi->Noesis_PooledString("dummy.wtb");
+	textureFile.data = df.data + hdr.ofsTextures;
+	textureFile.dataSize = df.dataSize - hdr.ofsTextures;
+	CArrayList<bayoDatFile_t> dfiles;
+	CArrayList<bayoDatFile_t *> texfiles;
+	texfiles.Append(& textureFile);
+	CArrayList<noesisTex_t *> textures;
+	Model_Bayo_LoadTextures<big, game>(textures, texfiles, rapi);
+
+	DBGLOG("found %d models in %s\n", hdr.numModels, df.name);
+	for (int i = 0; i < hdr.numModels; i++) {
+		bayoDatFile_t modelFile;
+		int dscrOffset = sizeof(bayoSCRHdr_t) + i * sizeof(bayoSCRModelDscr_t);
+		bayoSCRModelDscr<big> modelDscr((bayoSCRModelDscr_t *)(df.data + dscrOffset));
+		char modelName[21];
+		memset(modelName, 0, 21);
+		for (int j = 0; j < 16; j++) {
+			modelName[j] = modelDscr.name[j];
+		}
+		modelName[16] = '.';
+		modelName[17] = 'w';
+		modelName[18] = 'm';
+		modelName[19] = 'b';
+		DBGLOG(" model name: %s, ", modelName);
+		modelFile.name = rapi->Noesis_PooledString(modelName);
+		modelFile.data = df.data + dscrOffset + modelDscr.offset;
+		if (i < (hdr.numModels - 1)) {
+			int nextDscrOffset = sizeof(bayoSCRHdr_t) + (i + 1) * sizeof(bayoSCRModelDscr_t);
+			bayoSCRModelDscr<big> nextModelDscr((bayoSCRModelDscr_t *)(df.data + nextDscrOffset));
+			modelFile.dataSize = (nextDscrOffset + nextModelDscr.offset) - (dscrOffset + modelDscr.offset);
+		}
+		else {
+			modelFile.dataSize = hdr.ofsTextures - (dscrOffset + modelDscr.offset);
+		}
+		DBGLOG("start: %d, size: %d\n", dscrOffset + modelDscr.offset, modelFile.dataSize);
+		Model_Bayo_LoadModel<big,game>(dfiles, modelFile, rapi, models, textures);
+	}
+	rapi->SetPreviewOption("drawAllModels", "1");
+}
+template <bool big, game_t game>
 static void Model_Bayo_LoadExternalMotions(CArrayList<noesisAnim_t *> &animList, bayoDatFile_t &df, CArrayList<bayoDatFile_t *> &expfile, modelBone_t *bones, int bone_number, noeRAPI_t *rapi, short int * animBoneTT){
 	noeUserPromptParam_t promptParams;
 	char wmbName[MAX_NOESIS_PATH];
@@ -2690,7 +2783,7 @@ static void Model_Bayo_LoadMaterials(bayoWMBHdr<big> &hdr,
 }
 //load a single model from a dat set
 template <bool big, game_t game>
-static void Model_Bayo_LoadModel(CArrayList<bayoDatFile_t> &dfiles, bayoDatFile_t &df, noeRAPI_t *rapi, CArrayList<noesisModel_t *> &models)
+static void Model_Bayo_LoadModel(CArrayList<bayoDatFile_t> &dfiles, bayoDatFile_t &df, noeRAPI_t *rapi, CArrayList<noesisModel_t *> &models, CArrayList<noesisTex_t *> &givenTextures)
 {
 	DBGLOG("Loading %s\n", df.name);
 	BYTE *data = df.data;
@@ -2718,20 +2811,41 @@ static void Model_Bayo_LoadModel(CArrayList<bayoDatFile_t> &dfiles, bayoDatFile_
 
 	bool hasExMatInfo;
 
-	Model_Bayo_GetTextureBundle<game>(texFiles, dfiles, df, rapi);
-	if (texFiles.Num() > 0)
-	{
-		for( int i = 0; i < texFiles.Num(); i++) {
-			DBGLOG("Found texture bundle %s\n", texFiles[i]->name);
+	if (givenTextures.Num() == 0) {
+		Model_Bayo_GetTextureBundle<game>(texFiles, dfiles, df, rapi);
+		if (texFiles.Num() > 0)
+		{
+			for (int i = 0; i < texFiles.Num(); i++) {
+				DBGLOG("Found texture bundle %s\n", texFiles[i]->name);
+			}
+			Model_Bayo_LoadTextures<big, game>(textures, texFiles, rapi);
 		}
-		Model_Bayo_LoadTextures<big,game>(textures, texFiles, rapi);
 	}
+	else {
+		for (int i = 0; i < givenTextures.Num(); i++) {
+			textures.Append(givenTextures[i]);
+		}
+	}
+
 
 	Model_Bayo_LoadMaterials<big>(hdr, textures, hasExMatInfo, matList, matListLightMap, totMatList, data, rapi);
 	void *pgctx = rapi->rpgCreateContext();
 	rapi->rpgSetEndian(big);
 	BYTE *vertData = data + hdr.ofsVerts;
-	const int bayoVertSize = 32;//(hdr.ofsVerts > 128) ? 48 : 32;
+	int bayoVertSize;
+	DBGLOG("%x %x\n", hdr.unknownB, hdr.unknownB & 0xff);
+	if ((hdr.unknownB & 0xff) == 0xf) {
+		DBGLOG("Found small vertex size!\n");
+		if (hdr.unknownC == 1) {
+			bayoVertSize = 28;
+		}
+		else {
+			bayoVertSize = 32;
+		}
+	}
+	else {
+		bayoVertSize = 32;//(hdr.ofsVerts > 128) ? 48 : 32;
+	}
 
 	int numBones;
 	short int * animBoneTT;
@@ -2739,15 +2853,16 @@ static void Model_Bayo_LoadModel(CArrayList<bayoDatFile_t> &dfiles, bayoDatFile_
 
 	Model_Bayo_GetMotionFiles(dfiles, df, rapi, motfiles);
 	Model_Bayo_GetEXPFile(dfiles, df, rapi, expfile);
-	Model_Bayo_LoadMotions<big, game>(animList, motfiles, expfile, bones, numBones, rapi, animBoneTT);
-
-	Model_Bayo_LoadExternalMotions<big, game>(animList, df, expfile, bones, numBones, rapi, animBoneTT);
+	if (bones) {
+		Model_Bayo_LoadMotions<big, game>(animList, motfiles, expfile, bones, numBones, rapi, animBoneTT);
+		Model_Bayo_LoadExternalMotions<big, game>(animList, df, expfile, bones, numBones, rapi, animBoneTT);
+	}
 
 	//decode normals
 	float *normals = (float *)rapi->Noesis_PooledAlloc(sizeof(float) * 3 * hdr.numVerts);
 	Model_Bayo_CreateNormals<big, game>(vertData + 16, normals, hdr.numVerts, bayoVertSize);
-	float *tangents = (float *)rapi->Noesis_PooledAlloc(sizeof(float) * 4 * hdr.numVerts);
-	Model_Bayo_CreateTangents<big, game>(vertData + 20, tangents, hdr.numVerts, bayoVertSize);
+	//float *tangents = (float *)rapi->Noesis_PooledAlloc(sizeof(float) * 4 * hdr.numVerts);
+	//Model_Bayo_CreateTangents<big, game>(vertData + 20, tangents, hdr.numVerts, bayoVertSize);
 
 	BYTE *meshStart = data + hdr.ofsMeshes;
 	int *meshOfsList = (int *)(data + hdr.ofsMeshOfs);
@@ -2800,7 +2915,7 @@ static void Model_Bayo_LoadModel(CArrayList<bayoDatFile_t> &dfiles, bayoDatFile_
 			//bind normals
 			rapi->rpgBindNormalBuffer(normals + vertOfs*3, RPGEODATA_FLOAT, sizeof(float)*3);
 			//bind tangents
-			rapi->rpgBindTangentBuffer(tangents + vertOfs * 4, RPGEODATA_FLOAT, sizeof(float) * 4);
+			//rapi->rpgBindTangentBuffer(tangents + vertOfs * 4, RPGEODATA_FLOAT, sizeof(float) * 4);
 			//bind uv's
 			rapi->rpgBindUV1Buffer(vertData+12 + vertOfs*bayoVertSize, RPGEODATA_HALFFLOAT, bayoVertSize);
 			if (bones)
@@ -2929,7 +3044,12 @@ noesisModel_t *Model_Bayo_Load(BYTE *fileBuffer, int bufferLen, int &numMdl, noe
 		bayoDatFile_t &df = dfiles[i];
 		if (rapi->Noesis_CheckFileExt(df.name, ".wmb"))
 		{ //it's a model
-			Model_Bayo_LoadModel<big, game>(dfiles, df, rapi, models);
+			CArrayList<noesisTex_t *> textures;
+			Model_Bayo_LoadModel<big, game>(dfiles, df, rapi, models, textures);
+		}
+		else if (game == BAYONETTA && rapi->Noesis_CheckFileExt(df.name, ".scr"))
+		{ //it's a scenery
+			Model_Bayo_LoadScenery<big, game>(df, rapi, models);
 		}
 	}
 	DBGFLUSH();
