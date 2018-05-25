@@ -482,10 +482,11 @@ typedef struct bayoEXPRecord_s
 	char				animationTrack;
 	char				entryType;
 	char				unknownB;
-	char				unknwonC;
-	int					unknownD;
+	char				interpolationType;
+	short int			numPoints;
+	short int			unknownC;
 	unsigned int		offset;
-	int					unknownE;
+	unsigned int		offsetInterpolation;
 } bayoEXPRecord_t;
 template <bool big>
 struct bayoEXPRecord : public bayoEXPRecord_s
@@ -494,9 +495,53 @@ struct bayoEXPRecord : public bayoEXPRecord_s
 		if (big) {
 			LITTLE_BIG_SWAP(unknownA);
 			LITTLE_BIG_SWAP(boneIndex);
-			LITTLE_BIG_SWAP(unknownD);
+			LITTLE_BIG_SWAP(numPoints);
+			LITTLE_BIG_SWAP(unknownC);
 			LITTLE_BIG_SWAP(offset);
-			LITTLE_BIG_SWAP(unknownE);
+			LITTLE_BIG_SWAP(offsetInterpolation);
+		}
+	}
+};
+typedef struct bayoEXPInterpolationData4_s
+{
+	float p;
+	float dp;
+	float m0;
+	float dm0;
+	float m1;
+	float dm1;
+} bayoEXPInterpolationData4_t;
+template <bool big>
+struct bayoEXPInterpolationData4 : public bayoEXPInterpolationData4_s
+{
+	bayoEXPInterpolationData4(bayoEXPInterpolationData4_t * ptr) : bayoEXPInterpolationData4_s(*ptr) {
+		if (big) {
+			LITTLE_BIG_SWAP(p);
+			LITTLE_BIG_SWAP(dp);
+			LITTLE_BIG_SWAP(m0);
+			LITTLE_BIG_SWAP(dm0);
+			LITTLE_BIG_SWAP(m1);
+			LITTLE_BIG_SWAP(dm1);
+		}
+	}
+};
+typedef struct bayoEXPInterpolationPoint4_s {
+	float			v;
+	unsigned short	dummy;
+	unsigned short	cp;
+	unsigned short	cm0;
+	unsigned short	cm1;
+} bayoEXPInterpolationPoint4_t;
+template <bool big>
+struct bayoEXPInterpolationPoint4 : public bayoEXPInterpolationPoint4_s
+{
+	bayoEXPInterpolationPoint4(bayoEXPInterpolationPoint4_t * ptr) : bayoEXPInterpolationPoint4_s(*ptr) {
+		if (big) {
+			LITTLE_BIG_SWAP(v);
+			LITTLE_BIG_SWAP(dummy);
+			LITTLE_BIG_SWAP(cp);
+			LITTLE_BIG_SWAP(cm0);
+			LITTLE_BIG_SWAP(cm1);
 		}
 	}
 };
@@ -1743,6 +1788,28 @@ static void Model_Bayo_InitMotions(modelMatrix_t * &matrixes, float * &tmpValues
 		}
 	}
 }
+template <bool big>
+static float Model_Bayo_Interpolate4EXP_Value(float value, BYTE *interpol, short int numPoints) {
+	BYTE *data = interpol;
+	bayoEXPInterpolationData4<big> interpolData((bayoEXPInterpolationData4_t *)data);
+	float outValue = 0.0;
+	data += sizeof(bayoEXPInterpolationData4_t);
+	for (int i = 0; i < numPoints - 1; i++) {
+		bayoEXPInterpolationPoint4<big> leftPoint((bayoEXPInterpolationPoint4_t *)(data + i * sizeof(bayoEXPInterpolationPoint4_t)));
+		bayoEXPInterpolationPoint4<big> rightPoint((bayoEXPInterpolationPoint4_t *)(data + (i + 1) * sizeof(bayoEXPInterpolationPoint4_t)));
+		if (leftPoint.v <= value && rightPoint.v >= value) {
+			float p0, p1, m0, m1;
+			float t;
+			p0 = interpolData.p + leftPoint.cp * interpolData.dp;
+			p1 = interpolData.p + rightPoint.cp * interpolData.dp;
+			m0 = interpolData.m1 + leftPoint.cm1 * interpolData.dm1;
+			m1 = interpolData.m0 + rightPoint.cm0 * interpolData.dm0;
+			t = (value - leftPoint.v) / (rightPoint.v - leftPoint.v);
+			outValue = (2 * t*t*t - 3 * t*t + 1)*p0 + (t*t*t - 2 * t*t + t)*m0 + (-2 * t*t*t + 3 * t*t)*p1 + (t*t*t - t * t)*m1;
+		}
+	}
+	return outValue;
+}
 //apply constrained bone motions
 template <bool big>
 static void Model_Bayo1_ApplyEXP(CArrayList<bayoDatFile_t *> & expfile, float * tmpValues, const int bone_number, const short int frameCount, short int * animBoneTT) {
@@ -1770,6 +1837,11 @@ static void Model_Bayo1_ApplyEXP(CArrayList<bayoDatFile_t *> & expfile, float * 
 				DBGLOG("\t\ttrgtBone: %d, trgtTrack: %d, srcBone: %d, srcTrack: %d\n", targetBone, targetTrack, sourceBone, sourceTrack);
 				for (int fi = 0; fi < frameCount; fi++) {
 					tmpValues[fi + targetTrack * frameCount + targetBone * frameCount * maxCoeffs] = tmpValues[fi + sourceTrack * frameCount + sourceBone * frameCount * maxCoeffs];
+				}
+				if (record.interpolationType == 4) {
+					for (int fi = 0; fi < frameCount; fi++) {
+						tmpValues[fi + targetTrack * frameCount + targetBone * frameCount * maxCoeffs] = Model_Bayo_Interpolate4EXP_Value<big>(tmpValues[fi + targetTrack * frameCount + targetBone * frameCount * maxCoeffs], data + record.offsetInterpolation, record.numPoints);
+					}
 				}
 			}
 			else if (record.entryType == 2) {
