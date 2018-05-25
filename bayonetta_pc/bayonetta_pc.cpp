@@ -2247,6 +2247,9 @@ template <bool big, game_t game>
 static void Model_Bayo_LoadMotions(CArrayList<noesisAnim_t *> &animList, CArrayList<bayoDatFile_t *> &motfiles, CArrayList<bayoDatFile_t *> &expfile, modelBone_t *bones, int bone_number, noeRAPI_t *rapi, short int * animBoneTT)
 {
   const int maxCoeffs = 10;
+  if (motfiles.Num() > 0) {
+	  Model_Bayo_CreateRestPoseAnim<big, game>(animList, bones, bone_number, rapi);
+  }
   for(int mi=0; mi < motfiles.Num(); mi++)
   {
 	DBGLOG("Loading %s\n", motfiles[mi]->name);
@@ -2954,7 +2957,6 @@ static void Model_Bayo_LoadModel(CArrayList<bayoDatFile_t> &dfiles, bayoDatFile_
 	Model_Bayo_GetMotionFiles(dfiles, df, rapi, motfiles);
 	Model_Bayo_GetEXPFile(dfiles, df, rapi, expfile);
 	if (bones) {
-		Model_Bayo_CreateRestPoseAnim<big, game>(animList, bones, numBones, rapi);
 		Model_Bayo_LoadMotions<big, game>(animList, motfiles, expfile, bones, numBones, rapi, animBoneTT);
 		Model_Bayo_LoadExternalMotions<big, game>(animList, df, expfile, bones, numBones, rapi, animBoneTT);
 	}
