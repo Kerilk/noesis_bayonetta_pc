@@ -1774,6 +1774,9 @@ static void Model_Bayo_InitMotions(modelMatrix_t * &matrixes, float * &tmpValues
 			g_mfn->Math_VecSub(bones[i].mat.o, bones[i].eData.parent->mat.o, translate);
 			//g_mfn->Math_TranslateMatrix(&matrixes[i + j*bone_number], translate);
 		}
+		else {
+			g_mfn->Math_VecCopy(bones[i].mat.o, translate);
+		}
 		for( int j = 0; j < frameCount; j++) {
 			matrixes[i + j*boneNumber] = g_identityMatrix;
 			for( int k = 0; k < 3; k++) {
@@ -2213,6 +2216,31 @@ static void Model_Bayo_Interpolate(float * tmpValues, BYTE * data, const short i
 	}
 
 	DBGALOG("\n");
+}
+template <bool big, game_t game>
+static void Model_Bayo_CreateRestPoseAnim(CArrayList<noesisAnim_t *> &animList, modelBone_t *bones, int bone_number, noeRAPI_t *rapi)
+{
+	const int frameCount = 1;
+	const int maxCoeffs = 10;
+	modelMatrix_t * matrixes;
+	float * tmp_values;
+	Model_Bayo_InitMotions(matrixes, tmp_values, bones, bone_number, frameCount, rapi);
+	Model_Bayo_ApplyMotions(matrixes, tmp_values, bones, bone_number, frameCount);
+	noesisAnim_t *anim = rapi->rpgAnimFromBonesAndMatsFinish(bones, bone_number, matrixes, frameCount, 60);
+
+	anim->filename = rapi->Noesis_PooledString("restpose");
+	anim->flags |= NANIMFLAG_FILENAMETOSEQ;
+	anim->aseq = rapi->Noesis_AnimSequencesAlloc(1, frameCount);
+	anim->aseq->s->startFrame = 0;
+	anim->aseq->s->endFrame = frameCount - 1;
+	anim->aseq->s->frameRate = 60;
+	anim->aseq->s->name = rapi->Noesis_PooledString("restpose");
+	if (anim)
+	{
+		animList.Append(anim);
+	}
+	rapi->Noesis_UnpooledFree(matrixes);
+	rapi->Noesis_UnpooledFree(tmp_values);
 }
 //loat motion file
 template <bool big, game_t game>
@@ -2926,6 +2954,7 @@ static void Model_Bayo_LoadModel(CArrayList<bayoDatFile_t> &dfiles, bayoDatFile_
 	Model_Bayo_GetMotionFiles(dfiles, df, rapi, motfiles);
 	Model_Bayo_GetEXPFile(dfiles, df, rapi, expfile);
 	if (bones) {
+		Model_Bayo_CreateRestPoseAnim<big, game>(animList, bones, numBones, rapi);
 		Model_Bayo_LoadMotions<big, game>(animList, motfiles, expfile, bones, numBones, rapi, animBoneTT);
 		Model_Bayo_LoadExternalMotions<big, game>(animList, df, expfile, bones, numBones, rapi, animBoneTT);
 	}
