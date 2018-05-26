@@ -982,7 +982,7 @@ static void bayoSetMatTypes(void) {
 template <bool big, game_e game>
 bool Model_Bayo_Check(BYTE *fileBuffer, int bufferLen, noeRAPI_t *rapi)
 {
-	DBGLOG("----------------------\n");
+	DBGLOG("Checking %s %s\n", big? "big" : "little", game == BAYONETTA ? "Bayonetta" : "Bayonetta2");
 	if (bufferLen < sizeof(bayoDat_t))
 	{
 		return false;
@@ -1053,6 +1053,21 @@ bool Model_Bayo_Check(BYTE *fileBuffer, int bufferLen, noeRAPI_t *rapi)
 	if (numWMB <= 0 && numMOT <= 0 && numSCR <= 0)
 	{ //nothing of interest in here
 		return false;
+	}
+	if (game == BAYONETTA2 && numSCR > 0) {
+		namesp = fileBuffer + dat.ofsNames + sizeof(int);
+		bool found = false;
+		for (int i = 0; i < dat.numRes; i++) {
+			char *name = (char *)namesp;
+			DBGLOG("name: %s", name);
+			if (rapi->Noesis_CheckFileExt(name, ".wta")) {
+				found = true;
+			}
+			namesp += strSize;
+		}
+		if (!found) {
+			return false;
+		}
 	}
 	DBGLOG("Found %d wmb files\n", numWMB);
 	DBGLOG("Found %d scr files\n", numSCR);
