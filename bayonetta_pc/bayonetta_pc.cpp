@@ -2781,7 +2781,7 @@ static void Model_Bayo_LoadMaterials(bayoWMBHdr<big> &hdr,
 									 BYTE *data,
 									 noeRAPI_t *rapi) {
 	int *matOfsList = (int *)(data + hdr.ofsMaterialsOfs);
-	hasExMatInfo = (hdr.exMatInfo[0] && hdr.exMatInfo[1] && hdr.exMatInfo[2] && hdr.exMatInfo[3]);
+	hasExMatInfo = (hdr.exMatInfo[0] && hdr.exMatInfo[1] && hdr.exMatInfo[3]);
 	int *matIDs = (hasExMatInfo) ? (int *)(data + hdr.exMatInfo[1]) : NULL;
 	int numMatIDs = 0;
 	if (matIDs)
