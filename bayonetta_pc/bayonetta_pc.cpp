@@ -2950,7 +2950,7 @@ static void Model_Bayo_LoadModel(CArrayList<bayoDatFile_t> &dfiles, bayoDatFile_
 	void *pgctx = rapi->rpgCreateContext();
 	rapi->rpgSetEndian(big);
 	BYTE *vertData = data + hdr.ofsVerts;
-	int bayoVertSize;
+	int bayoVertSize = 0;
 	DBGLOG("%x %x\n", hdr.unknownB, hdr.unknownB & 0xff);
 	if ((hdr.unknownB & 0xff) == 0xf) {
 		DBGLOG("Found small vertex size!\n");
@@ -2961,8 +2961,18 @@ static void Model_Bayo_LoadModel(CArrayList<bayoDatFile_t> &dfiles, bayoDatFile_
 			bayoVertSize = 32;
 		}
 	}
-	else {
+	else if ((hdr.unknownB & 0xff) == 0xd) {
+		if (hdr.unknownC == 1) {
+			bayoVertSize = 24;
+		}
+	}
+	else if ((hdr.unknownB & 0xff) == 0x1d || (hdr.unknownB & 0xff)  == 0x1f ){
 		bayoVertSize = 32;//(hdr.ofsVerts > 128) ? 48 : 32;
+	}
+
+	if (bayoVertSize == 0) {
+		DBGLOG("Unknown Vertex Format!!!\n");
+		return;
 	}
 
 	int numBones;
