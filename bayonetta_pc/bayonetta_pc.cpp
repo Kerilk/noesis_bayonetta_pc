@@ -238,6 +238,23 @@ struct bayoSCRHdr : public bayoSCRHdr_s {
 		}
 	}
 };
+typedef struct bayo2SCRHdr_s
+{
+	BYTE				id[4];
+	unsigned short		unknownA;
+	unsigned short		numModels;
+	unsigned int		ofsOffsetsModels;
+} bayo2SCRHdr_t;
+template <bool big>
+struct bayo2SCRHdr : public bayo2SCRHdr_s {
+	bayo2SCRHdr(bayo2SCRHdr_t * ptr) : bayo2SCRHdr_s(*ptr) {
+		if (big) {
+			LITTLE_BIG_SWAP(unknownA);
+			LITTLE_BIG_SWAP(numModels);
+			LITTLE_BIG_SWAP(ofsOffsetsModels);
+		}
+	}
+};
 typedef struct bayoSCRModelDscr_s
 {
 	BYTE				name[16];
@@ -259,7 +276,27 @@ struct bayoSCRModelDscr : public bayoSCRModelDscr_s {
 		}
 	}
 };
-
+typedef struct bayo2SCRModelDscr_s
+{
+	unsigned int		offset;
+	BYTE				name[64];
+	float				transform[9];
+	short				unknownA[18]; //Speculations
+}bayo2SCRModelDscr_t;
+template <bool big>
+struct bayo2SCRModelDscr : public bayo2SCRModelDscr_s {
+	bayo2SCRModelDscr(bayo2SCRModelDscr_t * ptr) : bayo2SCRModelDscr_s(*ptr) {
+		if (big) {
+			LITTLE_BIG_SWAP(offset);
+			for (int i = 0; i < 9; i++) {
+				LITTLE_BIG_SWAP(transform[i]);
+			}
+			for (int i = 0; i < 18; i++) {
+				LITTLE_BIG_SWAP(unknownA[i]);
+			}
+		}
+	}
+};
 typedef struct bayoWMBHdr_s
 {
 	BYTE				id[4];				// 0
@@ -1043,7 +1080,7 @@ bool Model_Bayo_Check(BYTE *fileBuffer, int bufferLen, noeRAPI_t *rapi)
 			numMOT++;
 		}
 		*/
-		else if (game == BAYONETTA && rapi->Noesis_CheckFileExt(name, ".scr"))
+		else if (rapi->Noesis_CheckFileExt(name, ".scr"))
 		{
 			numSCR++;
 		}
@@ -1120,6 +1157,57 @@ static void Model_Bayo_GetTextureBundle<BAYONETTA2>(CArrayList<bayoDatFile_t *> 
 	}
 	if (texFiles.Num() < 2) {
 		texFiles.Clear();
+	}
+}
+static void Model_Bayo2_GetSCRTextureBundle(CArrayList<bayoDatFile_t *> &texFiles, CArrayList<bayoDatFile_t> &dfiles, bayoDatFile_t &df, noeRAPI_t *rapi)
+{
+	char texName[MAX_NOESIS_PATH];
+	char texName2[MAX_NOESIS_PATH];
+	rapi->Noesis_GetExtensionlessName(texName, df.name);
+	strcat_s(texName, MAX_NOESIS_PATH, "scr.wta");
+	rapi->Noesis_GetExtensionlessName(texName2, df.name);
+	strcat_s(texName2, MAX_NOESIS_PATH, "scr.wtp");
+	for (int i = 0; i < dfiles.Num(); i++)
+	{
+		bayoDatFile_t &dft = dfiles[i];
+		if (!_stricmp(dft.name, texName))
+		{
+			texFiles.Append(&dft);
+		}
+	}
+	for (int i = 0; i < dfiles.Num(); i++)
+	{
+		bayoDatFile_t &dft = dfiles[i];
+		if (!_stricmp(dft.name, texName2))
+		{
+			texFiles.Append(&dft);
+		}
+	}
+	if (texFiles.Num() < 2) {
+		texFiles.Clear();
+	}
+	rapi->Noesis_GetExtensionlessName(texName, df.name);
+	strcat_s(texName, MAX_NOESIS_PATH, "shared.wta");
+	rapi->Noesis_GetExtensionlessName(texName2, df.name);
+	strcat_s(texName2, MAX_NOESIS_PATH, "shared.wtp");
+	for (int i = 0; i < dfiles.Num(); i++)
+	{
+		bayoDatFile_t &dft = dfiles[i];
+		if (!_stricmp(dft.name, texName))
+		{
+			texFiles.Append(&dft);
+		}
+	}
+	for (int i = 0; i < dfiles.Num(); i++)
+	{
+		bayoDatFile_t &dft = dfiles[i];
+		if (!_stricmp(dft.name, texName2))
+		{
+			texFiles.Append(&dft);
+		}
+	}
+	if (texFiles.Num() == 3 || texFiles.Num() == 1) {
+		texFiles.Pop();
 	}
 }
 // get motion files
@@ -2553,54 +2641,6 @@ static void Model_Bayo_GetDATEntries(CArrayList<bayoDatFile_t> &dfiles, BYTE *fi
 	}
 }
 template <bool big, game_t game>
-static void Model_Bayo_LoadScenery(bayoDatFile_t &df, noeRAPI_t *rapi, CArrayList<noesisModel_t *> &models) {
-	DBGLOG("Loading %s\n", df.name);
-	bayoSCRHdr<big> hdr((bayoSCRHdr_t *)df.data);
-	if (memcmp(hdr.id, "SCR\0", 4))
-	{ //invalid header
-		return;
-	}
-	bayoDatFile_t textureFile;
-	textureFile.name = rapi->Noesis_PooledString("dummy.wtb");
-	textureFile.data = df.data + hdr.ofsTextures;
-	textureFile.dataSize = df.dataSize - hdr.ofsTextures;
-	CArrayList<bayoDatFile_t> dfiles;
-	CArrayList<bayoDatFile_t *> texfiles;
-	texfiles.Append(& textureFile);
-	CArrayList<noesisTex_t *> textures;
-	Model_Bayo_LoadTextures<big, game>(textures, texfiles, rapi);
-
-	DBGLOG("found %d models in %s\n", hdr.numModels, df.name);
-	for (int i = 0; i < hdr.numModels; i++) {
-		bayoDatFile_t modelFile;
-		int dscrOffset = sizeof(bayoSCRHdr_t) + i * sizeof(bayoSCRModelDscr_t);
-		bayoSCRModelDscr<big> modelDscr((bayoSCRModelDscr_t *)(df.data + dscrOffset));
-		char modelName[21];
-		memset(modelName, 0, 21);
-		for (int j = 0; j < 16; j++) {
-			modelName[j] = modelDscr.name[j];
-		}
-		modelName[16] = '.';
-		modelName[17] = 'w';
-		modelName[18] = 'm';
-		modelName[19] = 'b';
-		DBGLOG(" model name: %s, ", modelName);
-		modelFile.name = rapi->Noesis_PooledString(modelName);
-		modelFile.data = df.data + dscrOffset + modelDscr.offset;
-		if (i < (hdr.numModels - 1)) {
-			int nextDscrOffset = sizeof(bayoSCRHdr_t) + (i + 1) * sizeof(bayoSCRModelDscr_t);
-			bayoSCRModelDscr<big> nextModelDscr((bayoSCRModelDscr_t *)(df.data + nextDscrOffset));
-			modelFile.dataSize = (nextDscrOffset + nextModelDscr.offset) - (dscrOffset + modelDscr.offset);
-		}
-		else {
-			modelFile.dataSize = hdr.ofsTextures - (dscrOffset + modelDscr.offset);
-		}
-		DBGLOG("start: %d, size: %d\n", dscrOffset + modelDscr.offset, modelFile.dataSize);
-		Model_Bayo_LoadModel<big,game>(dfiles, modelFile, rapi, models, textures);
-	}
-	rapi->SetPreviewOption("drawAllModels", "1");
-}
-template <bool big, game_t game>
 static void Model_Bayo_LoadExternalMotions(CArrayList<noesisAnim_t *> &animList, bayoDatFile_t &df, CArrayList<bayoDatFile_t *> &expfile, modelBone_t *bones, int bone_number, noeRAPI_t *rapi, short int * animBoneTT){
 	noeUserPromptParam_t promptParams;
 	char wmbName[MAX_NOESIS_PATH];
@@ -2666,14 +2706,19 @@ static void Model_Bayo_CreateNormal<false, BAYONETTA>(char *src, float *dst) {
 	}
 }
 template <bool big, game_t game>
-static void Model_Bayo_CreateNormals(BYTE *data, float *dsts, int numVerts, int stride)
+static void Model_Bayo_CreateNormals(BYTE *data, float *dsts, int numVerts, int stride, modelMatrix_t *m)
 {
 	for (int i = 0; i < numVerts; i++)
 	{
 		char *src = (char *)(data + stride*i);
 		float *dst = dsts+i*3;
+		float tmp[3];
 		Model_Bayo_CreateNormal<big, game>(src, dst);
 		g_mfn->Math_VecNorm(dst);
+		if (m) {
+			g_mfn->Math_TransformPointByMatrix(m, dst, tmp);
+			g_mfn->Math_VecCopy(tmp, dst);
+		}
 		if(big) {
 			LITTLE_BIG_SWAP(dst[0]);
 			LITTLE_BIG_SWAP(dst[1]);
@@ -2681,7 +2726,27 @@ static void Model_Bayo_CreateNormals(BYTE *data, float *dsts, int numVerts, int 
 		}
 	}
 }
-
+template <bool big>
+static void Model_Bayo_PretransformPositions(BYTE *data, int numVerts, int stride, modelMatrix_t *m)
+{
+	for (int i = 0; i < numVerts; i++)
+	{
+		float * src = (float *)(data + stride*i);
+		float tmp[3];
+		if (big) {
+			LITTLE_BIG_SWAP(src[0]);
+			LITTLE_BIG_SWAP(src[1]);
+			LITTLE_BIG_SWAP(src[2]);
+		}
+		g_mfn->Math_TransformPointByMatrix(m, src, tmp);
+		g_mfn->Math_VecCopy(tmp, src);
+		if (big) {
+			LITTLE_BIG_SWAP(src[0]);
+			LITTLE_BIG_SWAP(src[1]);
+			LITTLE_BIG_SWAP(src[2]);
+		}
+	}
+}
 template <bool big, game_t game>
 static void Model_Bayo_CreateTangents(BYTE *data, float *dsts, int numVerts, int stride)
 {
@@ -2901,7 +2966,7 @@ static void Model_Bayo_LoadMaterials(bayoWMBHdr<big> &hdr,
 }
 //load a single model from a dat set
 template <bool big, game_t game>
-static void Model_Bayo_LoadModel(CArrayList<bayoDatFile_t> &dfiles, bayoDatFile_t &df, noeRAPI_t *rapi, CArrayList<noesisModel_t *> &models, CArrayList<noesisTex_t *> &givenTextures)
+static void Model_Bayo_LoadModel(CArrayList<bayoDatFile_t> &dfiles, bayoDatFile_t &df, noeRAPI_t *rapi, CArrayList<noesisModel_t *> &models, CArrayList<noesisTex_t *> &givenTextures, modelMatrix_t * pretransform = NULL)
 {
 	DBGLOG("Loading %s\n", df.name);
 	BYTE *data = df.data;
@@ -2936,7 +3001,18 @@ static void Model_Bayo_LoadModel(CArrayList<bayoDatFile_t> &dfiles, bayoDatFile_
 			for (int i = 0; i < texFiles.Num(); i++) {
 				DBGLOG("Found texture bundle %s\n", texFiles[i]->name);
 			}
-			Model_Bayo_LoadTextures<big, game>(textures, texFiles, rapi);
+			if (game == BAYONETTA2) {
+				CArrayList<bayoDatFile_t *> newTexFiles;
+				for (int i = 0; i < texFiles.Num(); i += 2) {
+					CArrayList<bayoDatFile_t *> newTexFiles;
+					newTexFiles.Append(texFiles[i]);
+					newTexFiles.Append(texFiles[i + 1]);
+					Model_Bayo_LoadTextures<big, game>(textures, newTexFiles, rapi);
+				}
+			}
+			else {
+				Model_Bayo_LoadTextures<big, game>(textures, texFiles, rapi);
+			}
 		}
 	}
 	else {
@@ -2988,7 +3064,11 @@ static void Model_Bayo_LoadModel(CArrayList<bayoDatFile_t> &dfiles, bayoDatFile_
 
 	//decode normals
 	float *normals = (float *)rapi->Noesis_PooledAlloc(sizeof(float) * 3 * hdr.numVerts);
-	Model_Bayo_CreateNormals<big, game>(vertData + 16, normals, hdr.numVerts, bayoVertSize);
+	Model_Bayo_CreateNormals<big, game>(vertData + 16, normals, hdr.numVerts, bayoVertSize, pretransform);
+	if (pretransform)
+	{
+		Model_Bayo_PretransformPositions<big>(vertData, hdr.numVerts, bayoVertSize, pretransform);
+	}
 	//float *tangents = (float *)rapi->Noesis_PooledAlloc(sizeof(float) * 4 * hdr.numVerts);
 	//Model_Bayo_CreateTangents<big, game>(vertData + 20, tangents, hdr.numVerts, bayoVertSize);
 
@@ -3141,7 +3221,162 @@ static void Model_Bayo_LoadModel(CArrayList<bayoDatFile_t> &dfiles, bayoDatFile_
 	totMatList.Clear();
 }
 
+static void Model_Bayo_CreatePreTransformMatrix(float * transform, modelMatrix_t &m) {
+	float translate[3];
+	float rotate[3];
+	float scale[3];
+	//int rotate_order[3] = {2,1,0};
+	float rotate_coeff[3] = { -1.0, 1.0, -1.0 };
+	float translate_coeff[3] = { 1.0, 1.0, 1.0 };
+	float scale_coeff[3] = { 1.0, 1.0, 1.0 };
 
+	m = g_identityMatrix;
+
+	for (int i = 0; i < 3; i++) {
+		translate[i] = translate_coeff[i] * transform[i];
+	}
+	for (int i = 3, j = 0; i < 6; i++, j++) {
+		rotate[j] = rotate_coeff[j] * transform[i] * g_flRadToDeg;
+	}
+	for (int i = 6, j = 0; i < 9; i++, j++) {
+		scale[j] = scale_coeff[j] * transform[i];
+	}
+
+	DBGALOG("\tpre translate: %f, %f, %f\n", translate[0], translate[1], translate[2]);
+	g_mfn->Math_TranslateMatrix(&m, translate);
+
+	DBGALOG("\tpre rotate: %f, %f, %f\n", rotate[0], rotate[1], rotate[2]);
+
+	g_mfn->Math_RotateMatrix(&m, rotate[2], 0.0f, 0.0f, 1.0f);
+	g_mfn->Math_RotateMatrix(&m, rotate[1], 0.0f, 1.0f, 0.0f);
+	g_mfn->Math_RotateMatrix(&m, rotate[0], 1.0f, 0.0f, 0.0f);
+
+	DBGALOG("\tpre scale: %f, %f, %f\n", scale[0], scale[1], scale[2]);
+	for (int i = 0; i < 3; i++) {
+		m.x1[i] *= scale[i];
+		m.x2[i] *= scale[i];
+		m.x3[i] *= scale[i];
+	}
+}
+template <bool big, game_t game>
+static void Model_Bayo_LoadScenery(CArrayList<bayoDatFile_t> &olddfiles, bayoDatFile_t &df, noeRAPI_t *rapi, CArrayList<noesisModel_t *> &models);
+template <>
+static void Model_Bayo_LoadScenery<true, BAYONETTA2>(CArrayList<bayoDatFile_t> &olddfiles, bayoDatFile_t &df, noeRAPI_t *rapi, CArrayList<noesisModel_t *> &models) {
+	const bool big = true;
+	DBGLOG("Loading %s\n", df.name);
+	bayo2SCRHdr<big> hdr((bayo2SCRHdr_t *)df.data);
+	if (memcmp(hdr.id, "SCR\0", 4))
+	{ //invalid header
+		DBGLOG("Invalid SCR file\n");
+		return;
+	}
+	CArrayList<bayoDatFile_t *> texFiles;
+	CArrayList<noesisTex_t *> textures;
+	Model_Bayo2_GetSCRTextureBundle(texFiles, olddfiles, df, rapi);
+	if (texFiles.Num() > 0)
+	{
+		for (int i = 0; i < texFiles.Num(); i++) {
+			DBGLOG("Found texture bundle %s\n", texFiles[i]->name);
+		}
+		Model_Bayo_LoadTextures<big, BAYONETTA2>(textures, texFiles, rapi);
+	}
+
+	CArrayList<bayoDatFile_t> dfiles;
+
+	unsigned int * ofsOffsetsModels = (unsigned int *)(df.data + hdr.ofsOffsetsModels);
+
+	DBGLOG("found %d models in %s\n", hdr.numModels, df.name);
+	for (int i = 0; i < hdr.numModels; i++) {
+		bayoDatFile_t modelFile;
+		int dscrOffset = ofsOffsetsModels[i];
+		if (big) {
+			LITTLE_BIG_SWAP(dscrOffset);
+		}
+		bayo2SCRModelDscr<big> modelDscr((bayo2SCRModelDscr_t *)(df.data + dscrOffset));
+		char modelName[69];
+		char fileName[69];
+		memset(modelName, 0, 69);
+		for (int j = 0; j < 64; j++) {
+			modelName[j] = modelDscr.name[j];
+		}
+		snprintf(fileName, 69, "%s.wmb", modelName);
+		DBGLOG(" model name: %s, ", fileName);
+		modelFile.name = rapi->Noesis_PooledString(fileName);
+		modelFile.data = df.data + modelDscr.offset;
+		if (i < (hdr.numModels - 1)) {
+			int nextDscrOffset = ofsOffsetsModels[i + 1];
+			if (big) {
+				LITTLE_BIG_SWAP(nextDscrOffset);
+			}
+			modelFile.dataSize = nextDscrOffset - modelDscr.offset;
+		}
+		else {
+			modelFile.dataSize = df.dataSize - modelDscr.offset;
+		}
+		DBGLOG("start: %d, size: %d\n", modelDscr.offset, modelFile.dataSize);
+		modelMatrix_t m;
+		Model_Bayo_CreatePreTransformMatrix(modelDscr.transform, m);
+		Model_Bayo_LoadModel<big, BAYONETTA2>(dfiles, modelFile, rapi, models, textures, &m);
+	}
+	rapi->SetPreviewOption("drawAllModels", "1");
+}
+template <bool big>
+static void Model_Bayo_LoadSceneryBayo1(CArrayList<bayoDatFile_t> &olddfiles, bayoDatFile_t &df, noeRAPI_t *rapi, CArrayList<noesisModel_t *> &models) {
+	DBGLOG("Loading %s\n", df.name);
+	bayoSCRHdr<big> hdr((bayoSCRHdr_t *)df.data);
+	if (memcmp(hdr.id, "SCR\0", 4))
+	{ //invalid header
+		DBGLOG("Invalid SCR file\n");
+		return;
+	}
+	bayoDatFile_t textureFile;
+	textureFile.name = rapi->Noesis_PooledString("dummy.wtb");
+	textureFile.data = df.data + hdr.ofsTextures;
+	textureFile.dataSize = df.dataSize - hdr.ofsTextures;
+	CArrayList<bayoDatFile_t> dfiles;
+	CArrayList<bayoDatFile_t *> texfiles;
+	texfiles.Append(&textureFile);
+	CArrayList<noesisTex_t *> textures;
+	Model_Bayo_LoadTextures<big, BAYONETTA>(textures, texfiles, rapi);
+	DBGLOG("found %d models in %s\n", hdr.numModels, df.name);
+	for (int i = 0; i < hdr.numModels; i++) {
+		bayoDatFile_t modelFile;
+		int dscrOffset = sizeof(bayoSCRHdr_t) + i * sizeof(bayoSCRModelDscr_t);
+		DBGLOG("offset: %x\n", dscrOffset);
+		bayoSCRModelDscr<big> modelDscr((bayoSCRModelDscr_t *)(df.data + dscrOffset));
+		char modelName[21];
+		char fileName[21];
+		memset(modelName, 0, 21);
+		for (int j = 0; j < 16; j++) {
+			modelName[j] = modelDscr.name[j];
+		}
+		snprintf(fileName, 21, "%s.wmb", modelName);
+		DBGLOG(" model name: %s, ", fileName);
+		modelFile.name = rapi->Noesis_PooledString(fileName);
+		modelFile.data = df.data + dscrOffset + modelDscr.offset;
+		if (i < (hdr.numModels - 1)) {
+			int nextDscrOffset = sizeof(bayoSCRHdr_t) + (i + 1) * sizeof(bayoSCRModelDscr_t);
+			bayoSCRModelDscr<big> nextModelDscr((bayoSCRModelDscr_t *)(df.data + nextDscrOffset));
+			modelFile.dataSize = (nextDscrOffset + nextModelDscr.offset) - (dscrOffset + modelDscr.offset);
+		}
+		else {
+			modelFile.dataSize = hdr.ofsTextures - (dscrOffset + modelDscr.offset);
+		}
+		DBGLOG("start: %d, size: %d\n", dscrOffset + modelDscr.offset, modelFile.dataSize);
+		modelMatrix_t m;
+		Model_Bayo_CreatePreTransformMatrix(modelDscr.transform, m);
+		Model_Bayo_LoadModel<big, BAYONETTA>(dfiles, modelFile, rapi, models, textures, &m);
+	}
+	rapi->SetPreviewOption("drawAllModels", "1");
+}
+template <>
+static void Model_Bayo_LoadScenery<false, BAYONETTA>(CArrayList<bayoDatFile_t> &olddfiles, bayoDatFile_t &df, noeRAPI_t *rapi, CArrayList<noesisModel_t *> &models) {
+	Model_Bayo_LoadSceneryBayo1<false>(olddfiles, df, rapi, models);
+}
+template <>
+static void Model_Bayo_LoadScenery<true, BAYONETTA>(CArrayList<bayoDatFile_t> &olddfiles, bayoDatFile_t &df, noeRAPI_t *rapi, CArrayList<noesisModel_t *> &models) {
+	Model_Bayo_LoadSceneryBayo1<true>(olddfiles, df, rapi, models);
+}
 //load it
 template <bool big, game_t game>
 noesisModel_t *Model_Bayo_Load(BYTE *fileBuffer, int bufferLen, int &numMdl, noeRAPI_t *rapi)
@@ -3175,9 +3410,9 @@ noesisModel_t *Model_Bayo_Load(BYTE *fileBuffer, int bufferLen, int &numMdl, noe
 			CArrayList<noesisTex_t *> textures;
 			Model_Bayo_LoadModel<big, game>(dfiles, df, rapi, models, textures);
 		}
-		else if (game == BAYONETTA && rapi->Noesis_CheckFileExt(df.name, ".scr"))
+		else if (rapi->Noesis_CheckFileExt(df.name, ".scr"))
 		{ //it's a scenery
-			Model_Bayo_LoadScenery<big, game>(df, rapi, models);
+			Model_Bayo_LoadScenery<big, game>(dfiles, df, rapi, models);
 		}
 	}
 	DBGFLUSH();
@@ -3217,11 +3452,11 @@ bool NPAPI_InitLocal(void)
 	//set the data handlers for this format
 	g_nfn->NPAPI_SetTypeHandler_TypeCheck(fh, Model_Bayo_Check<false, BAYONETTA>);
 	g_nfn->NPAPI_SetTypeHandler_LoadModel(fh, Model_Bayo_Load<false, BAYONETTA>);
-	g_nfn->NPAPI_SetTypeHandler_TypeCheck(fh_b2, Model_Bayo_Check<true, BAYONETTA2>);
-	g_nfn->NPAPI_SetTypeHandler_LoadModel(fh_b2, Model_Bayo_Load<true, BAYONETTA2>);
 	g_nfn->NPAPI_SetTypeHandler_TypeCheck(fh_b, Model_Bayo_Check<true, BAYONETTA>);
 	g_nfn->NPAPI_SetTypeHandler_LoadModel(fh_b, Model_Bayo_Load<true, BAYONETTA>);
-
+	g_nfn->NPAPI_SetTypeHandler_TypeCheck(fh_b2, Model_Bayo_Check<true, BAYONETTA2>);
+	g_nfn->NPAPI_SetTypeHandler_LoadModel(fh_b2, Model_Bayo_Load<true, BAYONETTA2>);
+	//g_nfn->NPAPI_PopupDebugLog(0);
 	return true;
 }
 
