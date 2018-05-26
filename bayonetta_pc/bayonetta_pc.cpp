@@ -1096,7 +1096,7 @@ bool Model_Bayo_Check(BYTE *fileBuffer, int bufferLen, noeRAPI_t *rapi)
 		bool found = false;
 		for (int i = 0; i < dat.numRes; i++) {
 			char *name = (char *)namesp;
-			DBGLOG("name: %s", name);
+			//DBGLOG("name: %s", name);
 			if (rapi->Noesis_CheckFileExt(name, ".wta")) {
 				found = true;
 			}
@@ -1258,7 +1258,8 @@ static void Model_Bayo_LoadTextures<true, BAYONETTA2>(CArrayList<noesisTex_t *> 
 	BYTE * data = texFiles[0]->data;
 	int dataSize2 = texFiles[1]->dataSize;
 	BYTE * data2 = texFiles[1]->data;
-
+	char texName[MAX_NOESIS_PATH];
+	rapi->Noesis_GetExtensionlessName(texName, texFiles[0]->name);
 	if (dataSize < sizeof(bayoWTAHdr_t))
 	{
 		return;
@@ -1287,7 +1288,7 @@ static void Model_Bayo_LoadTextures<true, BAYONETTA2>(CArrayList<noesisTex_t *> 
 		rapi->Noesis_GetDirForFilePath(fname, rapi->Noesis_GetOutputName());
 
 		char nameStr[MAX_NOESIS_PATH];
-		sprintf_s(nameStr, MAX_NOESIS_PATH, ".\\%sbayotex%03i", rapi->Noesis_GetOption("texpre"), i);
+		sprintf_s(nameStr, MAX_NOESIS_PATH, ".\\%s%s%03i", rapi->Noesis_GetOption("texpre"), texName, i);
 		strcat_s(fname, MAX_NOESIS_PATH, nameStr);
 		sprintf_s(fnamegtx, MAX_NOESIS_PATH, "%s.gtx", fname);
 		sprintf_s(fnamedds, MAX_NOESIS_PATH, "%s.dds", fname);
@@ -2641,6 +2642,55 @@ static void Model_Bayo_GetDATEntries(CArrayList<bayoDatFile_t> &dfiles, BYTE *fi
 	}
 }
 template <bool big, game_t game>
+static void Model_Bayo_LoadSharedTextures(CArrayList<noesisTex_t *> &textures, bayoDatFile_t &df, noeRAPI_t *rapi) {
+	noeUserPromptParam_t promptParams;
+	char scrName[MAX_NOESIS_PATH];
+	char texturePrompt[MAX_NOESIS_PATH];
+	char defaultValue[MAX_NOESIS_PATH];
+	rapi->Noesis_GetExtensionlessName(scrName, df.name);
+	sprintf_s(texturePrompt, MAX_NOESIS_PATH, "Load shared textures for %s in other files? (specify prefix if different)", scrName);
+	sprintf_s(defaultValue, MAX_NOESIS_PATH, "%s", "Just click!");
+	promptParams.titleStr = "Load shared textures?";
+	promptParams.promptStr = texturePrompt;
+	promptParams.defaultValue = defaultValue;
+	promptParams.valType = NOEUSERVAL_NONE;
+	promptParams.valHandler = NULL;
+	wchar_t noepath[MAX_NOESIS_PATH];
+	GetCurrentDirectory(MAX_NOESIS_PATH, noepath);
+
+	while (g_nfn->NPAPI_UserPrompt(&promptParams)) {
+		int dataLength;
+		BYTE* data = rapi->Noesis_LoadPairedFile("Bayonetta 2 Scenery Model", ".dat", dataLength, NULL);
+		SetCurrentDirectory(noepath);
+		if (data) {
+			CArrayList<bayoDatFile_t> datfiles;
+			Model_Bayo_GetDATEntries<big>(datfiles, data, dataLength);
+			if (datfiles.Num() > 0) {
+				CArrayList<bayoDatFile_t *> texfiles;
+				for (int i = 0; i < datfiles.Num(); i++) {
+					if (strstr(datfiles[i].name, "shared.wta")) {
+						DBGLOG("Found shared texture bundle %s\n", datfiles[i].name);
+						texfiles.Append(&datfiles[i]);
+					}
+				}
+				for (int i = 0; i < datfiles.Num(); i++) {
+					if (strstr(datfiles[i].name, "shared.wtp")) {
+						DBGLOG("Found shared texture bundle %s\n", datfiles[i].name);
+						texfiles.Append(&datfiles[i]);
+					}
+				}
+				if (texfiles.Num() == 2) {
+					Model_Bayo_LoadTextures<big, game>(textures, texfiles, rapi);
+				}
+				texfiles.Clear();
+			}
+			datfiles.Clear();
+		}
+		rapi->Noesis_UnpooledFree(data);
+	}
+	SetCurrentDirectory(noepath);
+}
+template <bool big, game_t game>
 static void Model_Bayo_LoadExternalMotions(CArrayList<noesisAnim_t *> &animList, bayoDatFile_t &df, CArrayList<bayoDatFile_t *> &expfile, modelBone_t *bones, int bone_number, noeRAPI_t *rapi, short int * animBoneTT){
 	noeUserPromptParam_t promptParams;
 	char wmbName[MAX_NOESIS_PATH];
@@ -3280,6 +3330,7 @@ static void Model_Bayo_LoadScenery<true, BAYONETTA2>(CArrayList<bayoDatFile_t> &
 		}
 		Model_Bayo_LoadTextures<big, BAYONETTA2>(textures, texFiles, rapi);
 	}
+	Model_Bayo_LoadSharedTextures<big, BAYONETTA2>(textures, df, rapi);
 
 	CArrayList<bayoDatFile_t> dfiles;
 
