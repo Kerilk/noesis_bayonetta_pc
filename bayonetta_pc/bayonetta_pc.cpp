@@ -2798,24 +2798,51 @@ static void Model_Bayo_PretransformPositions(BYTE *data, int numVerts, int strid
 	}
 }
 template <bool big, game_t game>
-static void Model_Bayo_CreateTangents(BYTE *data, float *dsts, int numVerts, int stride)
+static void Model_Bayo_CreateTangents(BYTE *data, float *dsts, int numVerts, int stride);
+template <>
+static void Model_Bayo_CreateTangents<false, BAYONETTA>(BYTE *data, float *dsts, int numVerts, int stride)
 {
 	for (int i = 0; i < numVerts; i++)
 	{
-		uint32_t src = *((uint32_t *)(data + stride * i));
+		BYTE *src = data + stride * i;
 		float *dst = dsts + i * 4;
 		for (int j = 0; j < 4; j++) {
-			dst[j] = ((float)((src >> (8*i)) & 0xff) - (float)127) / (float)127;
+			dst[j] = ( src[j] - (float)127 ) / (float)127;
 		}
 		g_mfn->Math_VecNorm(dst);
-		if (big) {
-			for (int j = 0; j < 4; j++) {
-				LITTLE_BIG_SWAP(dst[j]);
-			}
+	}
+}
+template <>
+static void Model_Bayo_CreateTangents<true, BAYONETTA2>(BYTE *data, float *dsts, int numVerts, int stride) {
+	for (int i = 0; i < numVerts; i++)
+	{
+		BYTE *src = data + stride * i;
+		float *dst = dsts + i * 4;
+		for (int j = 0; j < 4; j++) {
+			dst[j] = (src[j] - (float)127) / (float)127;
+		}
+		g_mfn->Math_VecNorm(dst);
+		for (int j = 0; j < 4; j++) {
+			LITTLE_BIG_SWAP(dst[j]);
 		}
 	}
 }
-
+template <>
+static void Model_Bayo_CreateTangents<true, BAYONETTA>(BYTE *data, float *dsts, int numVerts, int stride)
+{
+	for (int i = 0; i < numVerts; i++)
+	{
+		BYTE *src = data + stride * i;
+		float *dst = dsts + i * 4;
+		for (int j = 0; j < 4; j++) {
+			dst[j] = (src[3-j] - (float)127) / (float)127;
+		}
+		g_mfn->Math_VecNorm(dst);
+		for (int j = 0; j < 4; j++) {
+			LITTLE_BIG_SWAP(dst[j]);
+		}
+	}
+}
 //convert the bones
 template <bool big>
 modelBone_t *Model_Bayo_CreateBones(bayoWMBHdr<big> &hdr, BYTE *data, noeRAPI_t *rapi, int &numBones, short int * &animBoneTT)
