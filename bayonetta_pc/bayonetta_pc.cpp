@@ -306,7 +306,7 @@ typedef struct bayoWMBHdr_s
 	BYTE				unknownC;			//10
 	BYTE				unknownD;			//11
 	WORD				unknownE;			//12
-	int					unknownF;			//14
+	int					ofsPositions;		//14
 	int					ofsVerts;			//18
 	int					ofsVertExData;		//1C
 	int					unknownG[4];		//20
@@ -337,7 +337,7 @@ struct bayoWMBHdr : public bayoWMBHdr_s {
 			LITTLE_BIG_SWAP(unknownB);
 			LITTLE_BIG_SWAP(numVerts);
 			LITTLE_BIG_SWAP(unknownE);
-			LITTLE_BIG_SWAP(unknownF);
+			LITTLE_BIG_SWAP(ofsPositions);
 			LITTLE_BIG_SWAP(ofsVerts);
 			LITTLE_BIG_SWAP(ofsVertExData);
 			for(int i=0; i<4; i++) LITTLE_BIG_SWAP(unknownG[i]);
@@ -2764,11 +2764,11 @@ static void Model_Bayo_CreateNormals(BYTE *data, float *dsts, int numVerts, int 
 		float *dst = dsts+i*3;
 		float tmp[3];
 		Model_Bayo_CreateNormal<big, game>(src, dst);
-		g_mfn->Math_VecNorm(dst);
 		if (m) {
-			g_mfn->Math_TransformPointByMatrix(m, dst, tmp);
+			g_mfn->Math_TransformPointByMatrixNoTrans(m, dst, tmp);
 			g_mfn->Math_VecCopy(tmp, dst);
 		}
+		g_mfn->Math_VecNorm(dst);
 		if(big) {
 			LITTLE_BIG_SWAP(dst[0]);
 			LITTLE_BIG_SWAP(dst[1]);
@@ -2797,29 +2797,60 @@ static void Model_Bayo_PretransformPositions(BYTE *data, int numVerts, int strid
 		}
 	}
 }
+template <bool big>
+static void Model_Bayo_PretransformNormals(BYTE *data, int numVerts, int stride, modelMatrix_t *m)
+{
+	for (int i = 0; i < numVerts; i++)
+	{
+		float * src = (float *)(data + stride * i);
+		float tmp[3];
+		if (big) {
+			LITTLE_BIG_SWAP(src[0]);
+			LITTLE_BIG_SWAP(src[1]);
+			LITTLE_BIG_SWAP(src[2]);
+		}
+		g_mfn->Math_TransformPointByMatrixNoTrans(m, src, tmp);
+		g_mfn->Math_VecCopy(tmp, src);
+		if (big) {
+			LITTLE_BIG_SWAP(src[0]);
+			LITTLE_BIG_SWAP(src[1]);
+			LITTLE_BIG_SWAP(src[2]);
+		}
+	}
+}
 template <bool big, game_t game>
-static void Model_Bayo_CreateTangents(BYTE *data, float *dsts, int numVerts, int stride);
+static void Model_Bayo_CreateTangents(BYTE *data, float *dsts, int numVerts, int stride, modelMatrix_t *m);
 template <>
-static void Model_Bayo_CreateTangents<false, BAYONETTA>(BYTE *data, float *dsts, int numVerts, int stride)
+static void Model_Bayo_CreateTangents<false, BAYONETTA>(BYTE *data, float *dsts, int numVerts, int stride, modelMatrix_t *m)
 {
 	for (int i = 0; i < numVerts; i++)
 	{
 		BYTE *src = data + stride * i;
+		float tmp[3];
 		float *dst = dsts + i * 4;
 		for (int j = 0; j < 4; j++) {
 			dst[j] = ( src[j] - (float)127 ) / (float)127;
+		}
+		if (m) {
+			g_mfn->Math_TransformPointByMatrixNoTrans(m, dst, tmp);
+			g_mfn->Math_VecCopy(tmp, dst);
 		}
 		g_mfn->Math_VecNorm(dst);
 	}
 }
 template <>
-static void Model_Bayo_CreateTangents<true, BAYONETTA2>(BYTE *data, float *dsts, int numVerts, int stride) {
+static void Model_Bayo_CreateTangents<true, BAYONETTA2>(BYTE *data, float *dsts, int numVerts, int stride, modelMatrix_t *m) {
 	for (int i = 0; i < numVerts; i++)
 	{
 		BYTE *src = data + stride * i;
+		float tmp[3];
 		float *dst = dsts + i * 4;
 		for (int j = 0; j < 4; j++) {
 			dst[j] = (src[j] - (float)127) / (float)127;
+		}
+		if (m) {
+			g_mfn->Math_TransformPointByMatrixNoTrans(m, dst, tmp);
+			g_mfn->Math_VecCopy(tmp, dst);
 		}
 		g_mfn->Math_VecNorm(dst);
 		for (int j = 0; j < 4; j++) {
@@ -2828,14 +2859,19 @@ static void Model_Bayo_CreateTangents<true, BAYONETTA2>(BYTE *data, float *dsts,
 	}
 }
 template <>
-static void Model_Bayo_CreateTangents<true, BAYONETTA>(BYTE *data, float *dsts, int numVerts, int stride)
+static void Model_Bayo_CreateTangents<true, BAYONETTA>(BYTE *data, float *dsts, int numVerts, int stride, modelMatrix_t *m)
 {
 	for (int i = 0; i < numVerts; i++)
 	{
 		BYTE *src = data + stride * i;
+		float tmp[3];
 		float *dst = dsts + i * 4;
 		for (int j = 0; j < 4; j++) {
 			dst[j] = (src[3-j] - (float)127) / (float)127;
+		}
+		if (m) {
+			g_mfn->Math_TransformPointByMatrixNoTrans(m, dst, tmp);
+			g_mfn->Math_VecCopy(tmp, dst);
 		}
 		g_mfn->Math_VecNorm(dst);
 		for (int j = 0; j < 4; j++) {
@@ -3041,6 +3077,365 @@ static void Model_Bayo_LoadMaterials(bayoWMBHdr<big> &hdr,
 		totMatList.Append(nmat);
 	}
 }
+typedef struct buffer_s {
+	BYTE				*address = NULL;
+	unsigned int		stride = 0;
+	rpgeoDataType_e		type = RPGEODATA_FLOAT;
+} buffer_t;
+typedef struct buffers_s {
+	buffer_t position;
+	buffer_t mapping;
+	buffer_t tangents;
+	buffer_t normal;
+	buffer_t bone_indexes;
+	buffer_t bone_weights;
+	buffer_t color;
+	buffer_t mapping2;
+	buffer_t position2;
+} buffers_t;
+template <bool big, game_t game>
+static void __set_position(buffer_t &position, BYTE *address, unsigned int stride, unsigned int count, modelMatrix_t * pretransform = NULL) {
+	position.address = address;
+	position.stride = stride;
+	position.type = RPGEODATA_FLOAT;
+	if (pretransform)
+	{
+		Model_Bayo_PretransformPositions<big>(position.address, count, stride, pretransform);
+	}
+}
+template <bool big, game_t game>
+static void __set_fnormal(buffer_t &normal, BYTE *address, unsigned int stride, unsigned int count, modelMatrix_t * pretransform = NULL) {
+	normal.address = address;
+	normal.stride = stride;
+	normal.type = RPGEODATA_FLOAT;
+	if (pretransform)
+	{
+		Model_Bayo_PretransformNormals<big>(normal.address, count, stride, pretransform);
+	}
+}
+template <bool big, game_t game>
+static void __set_mapping(buffer_t &mapping, BYTE *address, unsigned int stride) {
+	mapping.address = address;
+	mapping.stride = stride;
+	mapping.type = RPGEODATA_HALFFLOAT;
+}
+template <bool big, game_t game>
+static void __set_fmapping(buffer_t &mapping, BYTE *address, unsigned int stride) {
+	mapping.address = address;
+	mapping.stride = stride;
+	mapping.type = RPGEODATA_FLOAT;
+}
+template <bool big, game_t game>
+static void __set_normal(buffer_t &normal, BYTE *address, unsigned int stride, unsigned int count, noeRAPI_t *rapi, modelMatrix_t * pretransform = NULL) {
+	normal.address = (BYTE *)rapi->Noesis_PooledAlloc(sizeof(float) * 3 * count);
+	Model_Bayo_CreateNormals<big, game>(address, (float *)normal.address, count, stride, pretransform);
+	normal.stride = 12;
+	normal.type = RPGEODATA_FLOAT;
+}
+template <bool big, game_t game>
+static void __set_tangents(buffer_t &tangents, BYTE *address, unsigned int stride, unsigned int count, noeRAPI_t *rapi, modelMatrix_t * pretransform = NULL) {
+	tangents.address = (BYTE *)rapi->Noesis_PooledAlloc(sizeof(float) * 4 * count);
+	Model_Bayo_CreateTangents<big, game>(address, (float *)tangents.address, count, stride, pretransform);
+	tangents.stride = 16;
+	tangents.type = RPGEODATA_FLOAT;
+}
+template <bool big, game_t game>
+static void __set_bone_infos(buffer_t &bone_indexes, BYTE *address, unsigned int stride) {
+	bone_indexes.address = address;
+	bone_indexes.stride = stride;
+	bone_indexes.type = RPGEODATA_UBYTE;
+}
+template <bool big, game_t game>
+static void __set_color(buffer_t &color, BYTE *address, unsigned int stride) {
+	color.address = address;
+	color.stride = stride;
+	color.type = RPGEODATA_UBYTE;
+}
+template <bool big, game_t game>
+static void Model_Bayo_SetBuffers(bayoDatFile_t &df, noeRAPI_t *rapi, bayoWMBHdr<big> &hdr, buffers_t &buffers, modelMatrix_t * pretransform = NULL) {
+	BYTE *data = df.data;
+	unsigned int bayoVertSize;
+	unsigned int bayoVertExSize;
+	unsigned int numVerts = hdr.numVerts;
+	BYTE *pos = data + hdr.ofsPositions;
+	BYTE *verts = data + hdr.ofsVerts;
+	BYTE *vertsEx = data + hdr.ofsVertExData;
+	DBGLOG("Vertex format: <%0x, %d, %d>!!!\n", hdr.unknownB, hdr.unknownC, hdr.unknownD);
+	// Bayonetta
+	if (hdr.unknownB == 0x6800001f && hdr.unknownC == 0x2 && hdr.unknownD == 0x1){
+		bayoVertSize = 32;
+		bayoVertExSize = 8;
+		__set_position<big, game>(buffers.position, verts, bayoVertSize, numVerts, pretransform);
+		__set_mapping<big, game>(buffers.mapping, verts + 12, bayoVertSize);
+		__set_normal<big, game>(buffers.normal, verts + 16, bayoVertSize, numVerts, rapi, pretransform);
+		__set_tangents<big, game>(buffers.tangents, verts + 20, bayoVertSize, numVerts, rapi, pretransform);
+		__set_bone_infos<big, game>(buffers.bone_indexes, verts + 24, bayoVertSize);
+		__set_bone_infos<big, game>(buffers.bone_weights, verts + 28, bayoVertSize);
+		__set_color<big, game>(buffers.color, vertsEx, bayoVertExSize);
+		__set_mapping<big, game>(buffers.mapping2, vertsEx + 4, bayoVertExSize);
+	}
+	else if (hdr.unknownB == 0x6800001f && hdr.unknownC == 0x1 && hdr.unknownD == 0x1){
+		bayoVertSize = 32;
+		bayoVertExSize = 4;
+		__set_position<big, game>(buffers.position, verts, bayoVertSize, numVerts, pretransform);
+		__set_mapping<big, game>(buffers.mapping, verts + 12, bayoVertSize);
+		__set_normal<big, game>(buffers.normal, verts + 16, bayoVertSize, numVerts, rapi, pretransform);
+		__set_tangents<big, game>(buffers.tangents, verts + 20, bayoVertSize, numVerts, rapi, pretransform);
+		__set_bone_infos<big, game>(buffers.bone_indexes, verts + 24, bayoVertSize);
+		__set_bone_infos<big, game>(buffers.bone_weights, verts + 28, bayoVertSize);
+		__set_color<big, game>(buffers.color, vertsEx, bayoVertExSize);
+	}
+	else if (hdr.unknownB == 0x4800000f && hdr.unknownC == 0x2 && hdr.unknownD == 0x1) {
+		bayoVertSize = 32;
+		bayoVertExSize = 0;
+		__set_position<big, game>(buffers.position, verts, bayoVertSize, numVerts, pretransform);
+		__set_mapping<big, game>(buffers.mapping, verts + 12, bayoVertSize);
+		__set_normal<big, game>(buffers.normal, verts + 16, bayoVertSize, numVerts, rapi, pretransform);
+		__set_tangents<big, game>(buffers.tangents, verts + 20, bayoVertSize, numVerts, rapi, pretransform);
+		__set_color<big, game>(buffers.color, verts + 24, bayoVertSize);
+		__set_mapping<big, game>(buffers.mapping2, verts + 28, bayoVertSize);
+	}
+	else if (hdr.unknownB == 0x4800000f && hdr.unknownC == 0x1 && hdr.unknownD == 0x1) {
+		bayoVertSize = 28;
+		bayoVertExSize = 0;
+		__set_position<big, game>(buffers.position, verts, bayoVertSize, numVerts, pretransform);
+		__set_mapping<big, game>(buffers.mapping, verts + 12, bayoVertSize);
+		__set_normal<big, game>(buffers.normal, verts + 16, bayoVertSize, numVerts, rapi, pretransform);
+		__set_tangents<big, game>(buffers.tangents, verts + 20, bayoVertSize, numVerts, rapi, pretransform);
+		__set_color<big, game>(buffers.color, verts + 24, bayoVertSize);
+	}
+	else if (hdr.unknownB == 0x6800003f && hdr.unknownC == 0x1 && hdr.unknownD == 0x1) {
+		bayoVertSize = 32;
+		bayoVertExSize = 16;
+		__set_position<big, game>(buffers.position, verts, bayoVertSize, numVerts, pretransform);
+		__set_mapping<big, game>(buffers.mapping, verts + 12, bayoVertSize);
+		__set_normal<big, game>(buffers.normal, verts + 16, bayoVertSize, numVerts, rapi, pretransform);
+		__set_tangents<big, game>(buffers.tangents, verts + 20, bayoVertSize, numVerts, rapi, pretransform);
+		__set_bone_infos<big, game>(buffers.bone_indexes, verts + 24, bayoVertSize);
+		__set_bone_infos<big, game>(buffers.bone_weights, verts + 28, bayoVertSize);
+		__set_color<big, game>(buffers.color, vertsEx, bayoVertExSize);
+		__set_position<big, game>(buffers.position2, vertsEx + 4, bayoVertExSize, numVerts, pretransform);
+	}
+	else if (hdr.unknownB == 0x6000001f && hdr.unknownC == 0x2 && hdr.unknownD == 0x1) {
+		bayoVertSize = 44;
+		bayoVertExSize = 0;
+		__set_position<big, game>(buffers.position, pos, 12, numVerts, pretransform);
+		__set_fnormal<big, game>(buffers.normal, verts, bayoVertSize, numVerts, pretransform);
+		__set_color<big, game>(buffers.color, verts + 12, bayoVertSize);
+		__set_tangents<big, game>(buffers.tangents, verts + 16, bayoVertSize, numVerts, rapi, pretransform);
+		__set_bone_infos<big, game>(buffers.bone_indexes, verts + 20, bayoVertSize);
+		__set_bone_infos<big, game>(buffers.bone_weights, verts + 24, bayoVertSize);
+		__set_fmapping<big, game>(buffers.mapping, verts + 28, bayoVertSize);
+		__set_fmapping<big, game>(buffers.mapping2, verts + 36, bayoVertSize);
+	}
+	else if (hdr.unknownB == 0x4800001f && hdr.unknownC == 0x2 && hdr.unknownD == 0x1) {
+		bayoVertSize = 32;
+		bayoVertExSize = 8;
+		__set_position<big, game>(buffers.position, verts, bayoVertSize, numVerts, pretransform);
+		__set_mapping<big, game>(buffers.mapping, verts + 12, bayoVertSize);
+		__set_normal<big, game>(buffers.normal, verts + 16, bayoVertSize, numVerts, rapi, pretransform);
+		__set_tangents<big, game>(buffers.tangents, verts + 20, bayoVertSize, numVerts, rapi, pretransform);
+		__set_bone_infos<big, game>(buffers.bone_indexes, verts + 24, bayoVertSize);
+		__set_bone_infos<big, game>(buffers.bone_weights, verts + 28, bayoVertSize);
+		__set_color<big, game>(buffers.color, vertsEx, bayoVertExSize);
+		__set_mapping<big, game>(buffers.mapping2, vertsEx + 4, bayoVertExSize);
+	}
+	else if (hdr.unknownB == 0x4800001f && hdr.unknownC == 0x1 && hdr.unknownD == 0x1) {
+		bayoVertSize = 32;
+		bayoVertExSize = 4;
+		__set_position<big, game>(buffers.position, verts, bayoVertSize, numVerts, pretransform);
+		__set_mapping<big, game>(buffers.mapping, verts + 12, bayoVertSize);
+		__set_normal<big, game>(buffers.normal, verts + 16, bayoVertSize, numVerts, rapi, pretransform);
+		__set_tangents<big, game>(buffers.tangents, verts + 20, bayoVertSize, numVerts, rapi, pretransform);
+		__set_bone_infos<big, game>(buffers.bone_indexes, verts + 24, bayoVertSize);
+		__set_bone_infos<big, game>(buffers.bone_weights, verts + 28, bayoVertSize);
+		__set_color<big, game>(buffers.color, vertsEx, bayoVertExSize);
+	}
+	else if (hdr.unknownB == 0x4000001f && hdr.unknownC == 0x1 && hdr.unknownD == 0x1) {
+		bayoVertSize = 36;
+		bayoVertExSize = 0;
+		__set_position<big, game>(buffers.position, pos, 12, numVerts, pretransform);
+		__set_fnormal<big, game>(buffers.normal, verts, bayoVertSize, numVerts, pretransform);
+		__set_color<big, game>(buffers.color, verts + 12, bayoVertSize);
+		__set_tangents<big, game>(buffers.tangents, verts + 16, bayoVertSize, numVerts, rapi, pretransform);
+		__set_bone_infos<big, game>(buffers.bone_indexes, verts + 20, bayoVertSize);
+		__set_bone_infos<big, game>(buffers.bone_weights, verts + 24, bayoVertSize);
+		__set_fmapping<big, game>(buffers.mapping, verts + 28, bayoVertSize);
+	}
+	else if (hdr.unknownB == 0x6000001f && hdr.unknownC == 0x1 && hdr.unknownD == 0x1) {
+		bayoVertSize = 36;
+		bayoVertExSize = 0;
+		__set_position<big, game>(buffers.position, pos, 12, numVerts, pretransform);
+		__set_fnormal<big, game>(buffers.normal, verts, bayoVertSize, numVerts, pretransform);
+		__set_color<big, game>(buffers.color, verts + 12, bayoVertSize);
+		__set_tangents<big, game>(buffers.tangents, verts + 16, bayoVertSize, numVerts, rapi, pretransform);
+		__set_bone_infos<big, game>(buffers.bone_indexes, verts + 20, bayoVertSize);
+		__set_bone_infos<big, game>(buffers.bone_weights, verts + 24, bayoVertSize);
+		__set_fmapping<big, game>(buffers.mapping, verts + 28, bayoVertSize);
+	}
+	else if (hdr.unknownB == 0x5800000f && hdr.unknownC == 0x2 && hdr.unknownD == 0x1) {
+		bayoVertSize = 32;
+		bayoVertExSize = 0;
+		__set_position<big, game>(buffers.position, verts, bayoVertSize, numVerts, pretransform);
+		__set_mapping<big, game>(buffers.mapping, verts + 12, bayoVertSize);
+		__set_normal<big, game>(buffers.normal, verts + 16, bayoVertSize, numVerts, rapi, pretransform);
+		__set_tangents<big, game>(buffers.tangents, verts + 20, bayoVertSize, numVerts, rapi, pretransform);
+		__set_color<big, game>(buffers.color, verts + 24, bayoVertSize);
+		__set_mapping<big, game>(buffers.mapping2, verts + 28, bayoVertSize);
+	}
+	else if (hdr.unknownB == 0x5800000f && hdr.unknownC == 0x1 && hdr.unknownD == 0x1) {
+		bayoVertSize = 28;
+		bayoVertExSize = 0;
+		__set_position<big, game>(buffers.position, verts, bayoVertSize, numVerts, pretransform);
+		__set_mapping<big, game>(buffers.mapping, verts + 12, bayoVertSize);
+		__set_normal<big, game>(buffers.normal, verts + 16, bayoVertSize, numVerts, rapi, pretransform);
+		__set_tangents<big, game>(buffers.tangents, verts + 20, bayoVertSize, numVerts, rapi, pretransform);
+		__set_color<big, game>(buffers.color, verts + 24, bayoVertSize);
+	}
+	else if (hdr.unknownB == 0x5800002f && hdr.unknownC == 0x1 && hdr.unknownD == 0x1) {
+		bayoVertSize = 40;
+		bayoVertExSize = 0;
+		__set_position<big, game>(buffers.position, verts, bayoVertSize, numVerts, pretransform);
+		__set_mapping<big, game>(buffers.mapping, verts + 12, bayoVertSize);
+		__set_normal<big, game>(buffers.normal, verts + 16, bayoVertSize, numVerts, rapi, pretransform);
+		__set_tangents<big, game>(buffers.tangents, verts + 20, bayoVertSize, numVerts, rapi, pretransform);
+		__set_color<big, game>(buffers.color, verts + 24, bayoVertSize);
+		__set_position<big, game>(buffers.position2, verts + 28, bayoVertSize, numVerts, pretransform);
+	}
+	else if (hdr.unknownB == 0x4800000b && hdr.unknownC == 0x1 && hdr.unknownD == 0x1) {
+	}
+	else if (hdr.unknownB == 0x4800002f && hdr.unknownC == 0x1 && hdr.unknownD == 0x1) {
+		bayoVertSize = 40;
+		bayoVertExSize = 0;
+		__set_position<big, game>(buffers.position, verts, bayoVertSize, numVerts, pretransform);
+		__set_mapping<big, game>(buffers.mapping, verts + 12, bayoVertSize);
+		__set_normal<big, game>(buffers.normal, verts + 16, bayoVertSize, numVerts, rapi, pretransform);
+		__set_tangents<big, game>(buffers.tangents, verts + 20, bayoVertSize, numVerts, rapi, pretransform);
+		__set_color<big, game>(buffers.color, verts + 24, bayoVertSize);
+		__set_position<big, game>(buffers.position2, verts + 28, bayoVertSize, numVerts, pretransform);
+	}
+	//Bayonetta 2
+	else if (hdr.unknownB == 0x6b40001f && hdr.unknownC == 0x1 && hdr.unknownD == 0x1) {
+		bayoVertSize = 32;
+		bayoVertExSize = 4;
+		__set_position<big, game>(buffers.position, verts, bayoVertSize, numVerts, pretransform);
+		__set_mapping<big, game>(buffers.mapping, verts + 12, bayoVertSize);
+		__set_normal<big, game>(buffers.normal, verts + 16, bayoVertSize, numVerts, rapi, pretransform);
+		__set_tangents<big, game>(buffers.tangents, verts + 20, bayoVertSize, numVerts, rapi, pretransform);
+		__set_bone_infos<big, game>(buffers.bone_indexes, verts + 24, bayoVertSize);
+		__set_bone_infos<big, game>(buffers.bone_weights, verts + 28, bayoVertSize);
+		__set_color<big, game>(buffers.color, vertsEx, bayoVertExSize);
+	}
+	else if (hdr.unknownB == 0x4b40000f && hdr.unknownC == 0x1 && hdr.unknownD == 0x1) {
+		bayoVertSize = 28;
+		bayoVertExSize = 0;
+		__set_position<big, game>(buffers.position, verts, bayoVertSize, numVerts, pretransform);
+		__set_mapping<big, game>(buffers.mapping, verts + 12, bayoVertSize);
+		__set_normal<big, game>(buffers.normal, verts + 16, bayoVertSize, numVerts, rapi, pretransform);
+		__set_tangents<big, game>(buffers.tangents, verts + 20, bayoVertSize, numVerts, rapi, pretransform);
+		__set_color<big, game>(buffers.color, verts + 24, bayoVertSize);
+	}
+	else if (hdr.unknownB == 0x6b40001f && hdr.unknownC == 0x2 && hdr.unknownD == 0x1) {
+		bayoVertSize = 32;
+		bayoVertExSize = 8;
+		__set_position<big, game>(buffers.position, verts, bayoVertSize, numVerts, pretransform);
+		__set_mapping<big, game>(buffers.mapping, verts + 12, bayoVertSize);
+		__set_normal<big, game>(buffers.normal, verts + 16, bayoVertSize, numVerts, rapi, pretransform);
+		__set_tangents<big, game>(buffers.tangents, verts + 20, bayoVertSize, numVerts, rapi, pretransform);
+		__set_bone_infos<big, game>(buffers.bone_indexes, verts + 24, bayoVertSize);
+		__set_bone_infos<big, game>(buffers.bone_weights, verts + 28, bayoVertSize);
+		__set_color<big, game>(buffers.color, vertsEx, bayoVertExSize);
+		__set_mapping<big, game>(buffers.mapping2, vertsEx + 4, bayoVertExSize);
+	}
+	else if (hdr.unknownB == 0x4b40000f && hdr.unknownC == 0x2 && hdr.unknownD == 0x1) {
+		bayoVertSize = 32;
+		bayoVertExSize = 0;
+		__set_position<big, game>(buffers.position, verts, bayoVertSize, numVerts, pretransform);
+		__set_mapping<big, game>(buffers.mapping, verts + 12, bayoVertSize);
+		__set_normal<big, game>(buffers.normal, verts + 16, bayoVertSize, numVerts, rapi, pretransform);
+		__set_tangents<big, game>(buffers.tangents, verts + 20, bayoVertSize, numVerts, rapi, pretransform);
+		__set_color<big, game>(buffers.color, verts + 24, bayoVertSize);
+		__set_mapping<big, game>(buffers.mapping2, verts + 28, bayoVertSize);
+	}
+	else if (hdr.unknownB == 0x4b40001f && hdr.unknownC == 0x2 && hdr.unknownD == 0x1) {
+		bayoVertSize = 32;
+		bayoVertExSize = 8;
+		__set_position<big, game>(buffers.position, verts, bayoVertSize, numVerts, pretransform);
+		__set_mapping<big, game>(buffers.mapping, verts + 12, bayoVertSize);
+		__set_normal<big, game>(buffers.normal, verts + 16, bayoVertSize, numVerts, rapi, pretransform);
+		__set_tangents<big, game>(buffers.tangents, verts + 20, bayoVertSize, numVerts, rapi, pretransform);
+		__set_bone_infos<big, game>(buffers.bone_indexes, verts + 24, bayoVertSize);
+		__set_bone_infos<big, game>(buffers.bone_weights, verts + 28, bayoVertSize);
+		__set_color<big, game>(buffers.color, vertsEx, bayoVertExSize);
+		__set_mapping<big, game>(buffers.mapping2, vertsEx + 4, bayoVertExSize);
+	}
+	else if (hdr.unknownB == 0x6b40001d && hdr.unknownC == 0x1 && hdr.unknownD == 0x0) {
+		bayoVertSize = 32;
+		bayoVertExSize = 0;
+		__set_position<big, game>(buffers.position, verts, bayoVertSize, numVerts, pretransform);
+		__set_mapping<big, game>(buffers.mapping, verts + 12, bayoVertSize);
+		__set_normal<big, game>(buffers.normal, verts + 16, bayoVertSize, numVerts, rapi, pretransform);
+		__set_tangents<big, game>(buffers.tangents, verts + 20, bayoVertSize, numVerts, rapi, pretransform);
+		__set_bone_infos<big, game>(buffers.bone_indexes, verts + 24, bayoVertSize);
+		__set_bone_infos<big, game>(buffers.bone_weights, verts + 28, bayoVertSize);
+	}
+	else if (hdr.unknownB == 0x4b40001d && hdr.unknownC == 0x1 && hdr.unknownD == 0x0) {
+		bayoVertSize = 32;
+		bayoVertExSize = 0;
+		__set_position<big, game>(buffers.position, verts, bayoVertSize, numVerts, pretransform);
+		__set_mapping<big, game>(buffers.mapping, verts + 12, bayoVertSize);
+		__set_normal<big, game>(buffers.normal, verts + 16, bayoVertSize, numVerts, rapi, pretransform);
+		__set_tangents<big, game>(buffers.tangents, verts + 20, bayoVertSize, numVerts, rapi, pretransform);
+		__set_bone_infos<big, game>(buffers.bone_indexes, verts + 24, bayoVertSize);
+		__set_bone_infos<big, game>(buffers.bone_weights, verts + 28, bayoVertSize);
+	}
+	else if (hdr.unknownB == 0x4b40001f && hdr.unknownC == 0x1 && hdr.unknownD == 0x1) {
+		bayoVertSize = 32;
+		bayoVertExSize = 4;
+		__set_position<big, game>(buffers.position, verts, bayoVertSize, numVerts, pretransform);
+		__set_mapping<big, game>(buffers.mapping, verts + 12, bayoVertSize);
+		__set_normal<big, game>(buffers.normal, verts + 16, bayoVertSize, numVerts, rapi, pretransform);
+		__set_tangents<big, game>(buffers.tangents, verts + 20, bayoVertSize, numVerts, rapi, pretransform);
+		__set_bone_infos<big, game>(buffers.bone_indexes, verts + 24, bayoVertSize);
+		__set_bone_infos<big, game>(buffers.bone_weights, verts + 28, bayoVertSize);
+		__set_color<big, game>(buffers.color, vertsEx, bayoVertExSize);
+	}
+	else if (hdr.unknownB == 0x4b40001d && hdr.unknownC == 0x2 && hdr.unknownD == 0x0) {
+		bayoVertSize = 32;
+		bayoVertExSize = 8;
+		__set_position<big, game>(buffers.position, verts, bayoVertSize, numVerts, pretransform);
+		__set_mapping<big, game>(buffers.mapping, verts + 12, bayoVertSize);
+		__set_normal<big, game>(buffers.normal, verts + 16, bayoVertSize, numVerts, rapi, pretransform);
+		__set_tangents<big, game>(buffers.tangents, verts + 20, bayoVertSize, numVerts, rapi, pretransform);
+		__set_bone_infos<big, game>(buffers.bone_indexes, verts + 24, bayoVertSize);
+		__set_bone_infos<big, game>(buffers.bone_weights, verts + 28, bayoVertSize);
+		__set_color<big, game>(buffers.color, vertsEx, bayoVertExSize);
+		__set_mapping<big, game>(buffers.mapping2, vertsEx + 4, bayoVertExSize);
+	}
+	else if (hdr.unknownB == 0x4b40000d && hdr.unknownC == 0x1 && hdr.unknownD == 0x0) {
+		bayoVertSize = 24;
+		bayoVertExSize = 0;
+		__set_position<big, game>(buffers.position, verts, bayoVertSize, numVerts, pretransform);
+		__set_mapping<big, game>(buffers.mapping, verts + 12, bayoVertSize);
+		__set_normal<big, game>(buffers.normal, verts + 16, bayoVertSize, numVerts, rapi, pretransform);
+		__set_tangents<big, game>(buffers.tangents, verts + 20, bayoVertSize, numVerts, rapi, pretransform);
+	}
+	else if (hdr.unknownB == 0x6b40001d && hdr.unknownC == 0x2 && hdr.unknownD == 0x0) {
+		bayoVertSize = 32;
+		bayoVertExSize = 8;
+		__set_position<big, game>(buffers.position, verts, bayoVertSize, numVerts, pretransform);
+		__set_mapping<big, game>(buffers.mapping, verts + 12, bayoVertSize);
+		__set_normal<big, game>(buffers.normal, verts + 16, bayoVertSize, numVerts, rapi, pretransform);
+		__set_tangents<big, game>(buffers.tangents, verts + 20, bayoVertSize, numVerts, rapi, pretransform);
+		__set_bone_infos<big, game>(buffers.bone_indexes, verts + 24, bayoVertSize);
+		__set_bone_infos<big, game>(buffers.bone_weights, verts + 28, bayoVertSize);
+		__set_color<big, game>(buffers.color, vertsEx, bayoVertExSize);
+		__set_mapping<big, game>(buffers.mapping2, vertsEx + 4, bayoVertExSize);
+	}
+	else {
+		DBGLOG("Unknown vertex format: <%0x, %d, %d>!!!\n", hdr.unknownB, hdr.unknownC, hdr.unknownD);
+	}
+}
 //load a single model from a dat set
 template <bool big, game_t game>
 static void Model_Bayo_LoadModel(CArrayList<bayoDatFile_t> &dfiles, bayoDatFile_t &df, noeRAPI_t *rapi, CArrayList<noesisModel_t *> &models, CArrayList<noesisTex_t *> &givenTextures, modelMatrix_t * pretransform = NULL)
@@ -3068,6 +3463,8 @@ static void Model_Bayo_LoadModel(CArrayList<bayoDatFile_t> &dfiles, bayoDatFile_
 	CArrayList<noesisMaterial_t *> matListLightMap;
 	CArrayList<noesisMaterial_t *> totMatList;
 	CArrayList<noesisAnim_t *> animList;
+
+	buffers_t buffers;
 
 	bool hasExMatInfo;
 
@@ -3102,31 +3499,6 @@ static void Model_Bayo_LoadModel(CArrayList<bayoDatFile_t> &dfiles, bayoDatFile_
 	Model_Bayo_LoadMaterials<big>(hdr, textures, hasExMatInfo, matList, matListLightMap, totMatList, data, rapi);
 	void *pgctx = rapi->rpgCreateContext();
 	rapi->rpgSetEndian(big);
-	BYTE *vertData = data + hdr.ofsVerts;
-	int bayoVertSize = 0;
-	DBGLOG("%x %x\n", hdr.unknownB, hdr.unknownB & 0xff);
-	if ((hdr.unknownB & 0xff) == 0xf) {
-		DBGLOG("Found small vertex size!\n");
-		if (hdr.unknownC == 1) {
-			bayoVertSize = 28;
-		}
-		else {
-			bayoVertSize = 32;
-		}
-	}
-	else if ((hdr.unknownB & 0xff) == 0xd) {
-		if (hdr.unknownC == 1) {
-			bayoVertSize = 24;
-		}
-	}
-	else if ((hdr.unknownB & 0xff) == 0x1d || (hdr.unknownB & 0xff)  == 0x1f ){
-		bayoVertSize = 32;//(hdr.ofsVerts > 128) ? 48 : 32;
-	}
-
-	if (bayoVertSize == 0) {
-		DBGLOG("Unknown Vertex Format!!!\n");
-		return;
-	}
 
 	int numBones;
 	short int * animBoneTT;
@@ -3139,15 +3511,7 @@ static void Model_Bayo_LoadModel(CArrayList<bayoDatFile_t> &dfiles, bayoDatFile_
 		Model_Bayo_LoadExternalMotions<big, game>(animList, df, expfile, bones, numBones, rapi, animBoneTT);
 	}
 
-	//decode normals
-	float *normals = (float *)rapi->Noesis_PooledAlloc(sizeof(float) * 3 * hdr.numVerts);
-	Model_Bayo_CreateNormals<big, game>(vertData + 16, normals, hdr.numVerts, bayoVertSize, pretransform);
-	if (pretransform)
-	{
-		Model_Bayo_PretransformPositions<big>(vertData, hdr.numVerts, bayoVertSize, pretransform);
-	}
-	//float *tangents = (float *)rapi->Noesis_PooledAlloc(sizeof(float) * 4 * hdr.numVerts);
-	//Model_Bayo_CreateTangents<big, game>(vertData + 20, tangents, hdr.numVerts, bayoVertSize);
+	Model_Bayo_SetBuffers<big,game>(df, rapi, hdr, buffers, pretransform);
 
 	BYTE *meshStart = data + hdr.ofsMeshes;
 	int *meshOfsList = (int *)(data + hdr.ofsMeshOfs);
@@ -3194,19 +3558,19 @@ static void Model_Bayo_LoadModel(CArrayList<bayoDatFile_t> &dfiles, bayoDatFile_
 			}
 			rapi->rpgSetBoneMap(boneRefDst);
 			int vertOfs = batch.vertOfs;
-			DBGLOG("vertAddr: %x, ", hdr.ofsVerts + vertOfs*bayoVertSize);
+			DBGLOG("vertAddr: %p, ", buffers.position.address + vertOfs*buffers.position.stride);
 			//bind positions
-			rapi->rpgBindPositionBuffer(vertData + vertOfs*bayoVertSize, RPGEODATA_FLOAT, bayoVertSize);
+			rapi->rpgBindPositionBuffer(buffers.position.address + vertOfs * buffers.position.stride, buffers.position.type, buffers.position.stride);
 			//bind normals
-			rapi->rpgBindNormalBuffer(normals + vertOfs*3, RPGEODATA_FLOAT, sizeof(float)*3);
+			rapi->rpgBindNormalBuffer(buffers.normal.address + vertOfs * buffers.normal.stride, buffers.normal.type, buffers.normal.stride);
 			//bind tangents
-			//rapi->rpgBindTangentBuffer(tangents + vertOfs * 4, RPGEODATA_FLOAT, sizeof(float) * 4);
+			rapi->rpgBindTangentBuffer(buffers.tangents.address + vertOfs * buffers.tangents.stride, buffers.tangents.type, buffers.tangents.stride);
 			//bind uv's
-			rapi->rpgBindUV1Buffer(vertData+12 + vertOfs*bayoVertSize, RPGEODATA_HALFFLOAT, bayoVertSize);
+			rapi->rpgBindUV1Buffer(buffers.mapping.address + vertOfs * buffers.mapping.stride, buffers.mapping.type, buffers.mapping.stride);
 			if (bones)
 			{ //bind weight data
-				rapi->rpgBindBoneIndexBuffer(vertData+24 + vertOfs*bayoVertSize, RPGEODATA_UBYTE, bayoVertSize, 4);
-				rapi->rpgBindBoneWeightBuffer(vertData+28 + vertOfs*bayoVertSize, RPGEODATA_UBYTE, bayoVertSize, 4);
+				rapi->rpgBindBoneIndexBuffer(buffers.bone_indexes.address + vertOfs * buffers.bone_indexes.stride, buffers.bone_indexes.type, buffers.bone_indexes.stride, 4);
+				rapi->rpgBindBoneWeightBuffer(buffers.bone_weights.address + vertOfs * buffers.bone_weights.stride, buffers.bone_weights.type, buffers.bone_weights.stride, 4);
 			}
 
 			int texID = (hasExMatInfo) ? batch.unknownC : batch.texID;
