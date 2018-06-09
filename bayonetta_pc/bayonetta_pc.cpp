@@ -2781,9 +2781,9 @@ static void Model_Bayo_LoadMotions(CArrayList<noesisAnim_t *> &animList, CArrayL
 	for (int bi = 0; bi < bone_number; bi++) {
 		for (int fi = 0; fi < frameCount; fi++) {
 			// convert back to m
-			tmp_values[fi + 0 * frameCount + bi * frameCount * maxCoeffs] /= 10;
-			tmp_values[fi + 1 * frameCount + bi * frameCount * maxCoeffs] /= 10;
-			tmp_values[fi + 2 * frameCount + bi * frameCount * maxCoeffs] /= 10;
+			tmp_values[fi + 0 * frameCount + bi * frameCount * maxCoeffs] *= 0.1;
+			tmp_values[fi + 1 * frameCount + bi * frameCount * maxCoeffs] *= 0.1;
+			tmp_values[fi + 2 * frameCount + bi * frameCount * maxCoeffs] *= 0.1;
 		}
 	}
 
