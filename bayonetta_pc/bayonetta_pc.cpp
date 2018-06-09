@@ -1063,11 +1063,20 @@ bool Model_Bayo_Check(BYTE *fileBuffer, int bufferLen, noeRAPI_t *rapi)
 		{
 			numWMB++;
 			//Try to rule out non bayonetta file.
-			if ( game == BAYONETTA && ((int*)(fileBuffer + dat.ofsSizes))[i] > 12) {
-				unsigned int vertex_type = ((int*)(fileBuffer + ((int*)(fileBuffer + dat.ofsRes))[i]))[2];
+			int sizeWmb = ((int*)(fileBuffer + dat.ofsSizes))[i];
+			if (big) {
+				LITTLE_BIG_SWAP(sizeWmb);
+			}
+			if ( game == BAYONETTA && sizeWmb > 12) {
+				int offWmb = ((int*)(fileBuffer + dat.ofsRes))[i];
+				if (big) {
+					LITTLE_BIG_SWAP(offWmb);
+				}
+				unsigned int vertex_type = ((int*)(fileBuffer + offWmb))[2];
 				if (big) {
 					LITTLE_BIG_SWAP(vertex_type);
 				}
+				DBGLOG("%x\n", vertex_type);
 				if (vertex_type & 0x400000) {
 					DBGLOG("Found Bayonetta 2 or Vanquish File!\n");
 					return false;
