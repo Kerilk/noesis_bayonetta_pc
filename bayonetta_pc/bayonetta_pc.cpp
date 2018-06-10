@@ -313,7 +313,7 @@ typedef struct nierWMBHdr_s
 	BYTE				id[4];				// 0
 	unsigned int		version;			// 4
 	int					unknownA;			// 8
-	short				unknownB;			// C
+	short				unknownB;			// C Seems related to vertex index size
 	short				unknownC;			// E
 	float				boundingBox[6];		//10
 	unsigned int		ofsBones;			//28
@@ -4008,6 +4008,12 @@ static void __set_indices(buffer_t &indices, BYTE *address, unsigned int stride)
 	indices.stride = stride;
 }
 template <bool big, game_t game>
+static void __set_sindices(buffer_t &indices, BYTE *address, unsigned int stride) {
+	indices.address = address;
+	indices.type = RPGEODATA_USHORT;
+	indices.stride = stride;
+}
+template <bool big, game_t game>
 static void Model_Bayo_SetBuffers(bayoDatFile_t &df, noeRAPI_t *rapi, bayoWMBHdr<big> &hdr, buffers_t &buffers, modelMatrix_t * pretransform = NULL) {
 	BYTE *data = df.data;
 	unsigned int bayoVertSize;
@@ -4336,9 +4342,18 @@ static void Model_Nier_SetBuffers(bayoDatFile_t &df, noeRAPI_t *rapi, nierWMBHdr
 			DBGLOG("Unknown vertex size format: %d!!!\n", bayoVertSize);
 			continue;
 		}
-		else{
+		else {
 			DBGLOG("Found vertex groups %d %d %x\n", bayoVertSize, bayoVertExSize, vg.vertExDataFlag);
-			__set_indices<big, game>(buffers[i].indices, indices, 4);
+			DBGLOG("Found unknownB %x\n", hdr.unknownB);
+			if (hdr.unknownB == 0xa || hdr.unknownB == 0x8) {
+				__set_indices<big, game>(buffers[i].indices, indices, 4);
+			}
+			else if (hdr.unknownB == 0x2) {
+				__set_sindices<big, game>(buffers[i].indices, indices, 2);
+			}
+			else {
+				DBGLOG("Found unknown unknownB %x!!!\n", hdr.unknownB);
+			}
 
 			__set_position<big, game>(buffers[i].position, verts, bayoVertSize, numVerts, pretransform);
 			__set_tangents<big, game>(buffers[i].tangents, verts + 12, bayoVertSize, numVerts, rapi, pretransform);
@@ -4657,7 +4672,7 @@ static void Model_Bayo_LoadModel<false, NIER_AUTOMATA>(CArrayList<bayoDatFile_t>
 			rapi->rpgBindNormalBuffer(buffers[vertexGroupIndex].normal.address, buffers[vertexGroupIndex].normal.type, buffers[vertexGroupIndex].normal.stride);
 			rapi->rpgBindUV1Buffer(buffers[vertexGroupIndex].mapping.address, buffers[vertexGroupIndex].mapping.type, buffers[vertexGroupIndex].mapping.stride);
 			rapi->rpgSetMaterial(matList[materialIndex]->name);
-			rapi->rpgCommitTriangles(buffers[vertexGroupIndex].indices.address + batch.indexStart * buffers[vertexGroupIndex].indices.stride, RPGEODATA_UINT, batch.numIndices, RPGEO_TRIANGLE, true);
+			rapi->rpgCommitTriangles(buffers[vertexGroupIndex].indices.address + batch.indexStart * buffers[vertexGroupIndex].indices.stride, buffers[vertexGroupIndex].indices.type, batch.numIndices, RPGEO_TRIANGLE, true);
 
 		}
 
