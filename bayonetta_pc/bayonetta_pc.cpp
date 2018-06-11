@@ -3998,6 +3998,8 @@ typedef struct buffers_s {
 typedef struct nierBuffers_s : public buffers_s {
 	buffer_t indices;
 	buffer_t mapping3;
+	buffer_t mapping4;
+	buffer_t mapping5;
 } nierBuffers_t;
 template <bool big, game_t game>
 static void __set_position(buffer_t &position, BYTE *address, unsigned int stride, unsigned int count, modelMatrix_t * pretransform = NULL) {
@@ -4412,44 +4414,107 @@ static void Model_Nier_SetBuffers(bayoDatFile_t &df, noeRAPI_t *rapi, nierWMBHdr
 		BYTE *vertsEx = data + vg.ofsVertsExData;
 		if (bayoVertSize != 28) {
 			DBGLOG("Unknown vertex size format: %d!!!\n", bayoVertSize);
+#ifdef _DEBUG
+			g_nfn->NPAPI_PopupDebugLog(0);
+#endif
 			continue;
 		}
+		DBGLOG("Found vertex groups %d %d %x\n", bayoVertSize, bayoVertExSize, vg.vertExDataFlag);
+		DBGLOG("Found unknownB %x\n", hdr.unknownB);
+		if (hdr.unknownB == 0xa || hdr.unknownB == 0x8) {
+			__set_indices<big, game>(buffers[i].indices, indices, 4);
+		}
+		else if (hdr.unknownB == 0x2) {
+			__set_sindices<big, game>(buffers[i].indices, indices, 2);
+		}
 		else {
-			DBGLOG("Found vertex groups %d %d %x\n", bayoVertSize, bayoVertExSize, vg.vertExDataFlag);
-			DBGLOG("Found unknownB %x\n", hdr.unknownB);
-			if (hdr.unknownB == 0xa || hdr.unknownB == 0x8) {
-				__set_indices<big, game>(buffers[i].indices, indices, 4);
-			}
-			else if (hdr.unknownB == 0x2) {
-				__set_sindices<big, game>(buffers[i].indices, indices, 2);
-			}
-			else {
-				DBGLOG("Found unknown unknownB %x!!!\n", hdr.unknownB);
-			}
-
+			DBGLOG("Found unknown unknownB %x!!!\n", hdr.unknownB);
+#ifdef _DEBUG
+			g_nfn->NPAPI_PopupDebugLog(0);
+#endif
+			continue;
+		}
+		DBGLOG("Found vertex groups %d %d %x\n", bayoVertSize, bayoVertExSize, vg.vertExDataFlag);
+		if (bayoVertExSize == 20 && vg.vertExDataFlag == 0xb) {
 			__set_position<big, game>(buffers[i].position, verts, bayoVertSize, numVerts, pretransform);
 			__set_tangents<big, game>(buffers[i].tangents, verts + 12, bayoVertSize, numVerts, rapi, pretransform);
 			__set_mapping<big, game>(buffers[i].mapping, verts + 16, bayoVertSize);
 			__set_bone_infos<big, game>(buffers[i].bone_indexes, verts + 20, bayoVertSize);
 			__set_bone_infos<big, game>(buffers[i].bone_weights, verts + 24, bayoVertSize);
-		}
-		if (bayoVertExSize == 20 && vg.vertExDataFlag == 0xb) {
+
 			__set_mapping<big, game>(buffers[i].mapping2, vertsEx, bayoVertExSize);
 			__set_color<big, game>(buffers[i].color, vertsEx + 4, bayoVertExSize);
 			__set_hnormal<big, game>(buffers[i].normal, vertsEx + 8, bayoVertExSize, numVerts, rapi, pretransform);
 			__set_mapping<big, game>(buffers[i].mapping3, vertsEx + 16, bayoVertExSize);
 		}
 		else if (bayoVertExSize == 12 && vg.vertExDataFlag == 0x7) {
+			__set_position<big, game>(buffers[i].position, verts, bayoVertSize, numVerts, pretransform);
+			__set_tangents<big, game>(buffers[i].tangents, verts + 12, bayoVertSize, numVerts, rapi, pretransform);
+			__set_mapping<big, game>(buffers[i].mapping, verts + 16, bayoVertSize);
+			__set_bone_infos<big, game>(buffers[i].bone_indexes, verts + 20, bayoVertSize);
+			__set_bone_infos<big, game>(buffers[i].bone_weights, verts + 24, bayoVertSize);
+
 			__set_mapping<big, game>(buffers[i].mapping2, vertsEx, bayoVertExSize);
 			__set_hnormal<big, game>(buffers[i].normal, vertsEx + 4, bayoVertExSize, numVerts, rapi, pretransform);
 		}
 		else if (bayoVertExSize == 16 && vg.vertExDataFlag == 0xa) {
+			__set_position<big, game>(buffers[i].position, verts, bayoVertSize, numVerts, pretransform);
+			__set_tangents<big, game>(buffers[i].tangents, verts + 12, bayoVertSize, numVerts, rapi, pretransform);
+			__set_mapping<big, game>(buffers[i].mapping, verts + 16, bayoVertSize);
+			__set_bone_infos<big, game>(buffers[i].bone_indexes, verts + 20, bayoVertSize);
+			__set_bone_infos<big, game>(buffers[i].bone_weights, verts + 24, bayoVertSize);
+
 			__set_mapping<big, game>(buffers[i].mapping2, vertsEx, bayoVertExSize);
 			__set_color<big, game>(buffers[i].color, vertsEx + 4, bayoVertExSize);
 			__set_hnormal<big, game>(buffers[i].normal, vertsEx + 8, bayoVertExSize, numVerts, rapi, pretransform);
 		}
+		else if (bayoVertExSize == 12 && vg.vertExDataFlag == 0x5) {
+			__set_position<big, game>(buffers[i].position, verts, bayoVertSize, numVerts, pretransform);
+			__set_tangents<big, game>(buffers[i].tangents, verts + 12, bayoVertSize, numVerts, rapi, pretransform);
+			__set_mapping<big, game>(buffers[i].mapping, verts + 16, bayoVertSize);
+			__set_mapping<big, game>(buffers[i].mapping2, verts + 20, bayoVertSize);
+			__set_color<big, game>(buffers[i].color, verts + 24, bayoVertSize);
+
+			__set_hnormal<big, game>(buffers[i].normal, vertsEx, bayoVertExSize, numVerts, rapi, pretransform);
+			__set_mapping<big, game>(buffers[i].mapping3, vertsEx + 8, bayoVertExSize);
+		}
+		else if (bayoVertExSize == 8 && vg.vertExDataFlag == 0x4) {
+			__set_position<big, game>(buffers[i].position, verts, bayoVertSize, numVerts, pretransform);
+			__set_tangents<big, game>(buffers[i].tangents, verts + 12, bayoVertSize, numVerts, rapi, pretransform);
+			__set_mapping<big, game>(buffers[i].mapping, verts + 16, bayoVertSize);
+			__set_mapping<big, game>(buffers[i].mapping2, verts + 20, bayoVertSize);
+			__set_color<big, game>(buffers[i].color, verts + 24, bayoVertSize);
+
+			__set_hnormal<big, game>(buffers[i].normal, vertsEx, bayoVertExSize, numVerts, rapi, pretransform);
+		} 
+		else if (bayoVertExSize == 16 & vg.vertExDataFlag == 0xe) {
+			__set_position<big, game>(buffers[i].position, verts, bayoVertSize, numVerts, pretransform);
+			__set_tangents<big, game>(buffers[i].tangents, verts + 12, bayoVertSize, numVerts, rapi, pretransform);
+			__set_mapping<big, game>(buffers[i].mapping, verts + 16, bayoVertSize);
+			__set_mapping<big, game>(buffers[i].mapping2, verts + 20, bayoVertSize);
+			__set_color<big, game>(buffers[i].color, verts + 24, bayoVertSize);
+
+			__set_hnormal<big, game>(buffers[i].normal, vertsEx, bayoVertExSize, numVerts, rapi, pretransform);
+			__set_mapping<big, game>(buffers[i].mapping3, vertsEx + 8, bayoVertExSize);
+			__set_mapping<big, game>(buffers[i].mapping4, vertsEx + 12, bayoVertExSize);
+		}
+		else if (bayoVertExSize == 20 & vg.vertExDataFlag == 0xc) {
+			__set_position<big, game>(buffers[i].position, verts, bayoVertSize, numVerts, pretransform);
+			__set_tangents<big, game>(buffers[i].tangents, verts + 12, bayoVertSize, numVerts, rapi, pretransform);
+			__set_mapping<big, game>(buffers[i].mapping, verts + 16, bayoVertSize);
+			__set_mapping<big, game>(buffers[i].mapping2, verts + 20, bayoVertSize);
+			__set_color<big, game>(buffers[i].color, verts + 24, bayoVertSize);
+
+			__set_hnormal<big, game>(buffers[i].normal, vertsEx, bayoVertExSize, numVerts, rapi, pretransform);
+			__set_mapping<big, game>(buffers[i].mapping3, vertsEx + 8, bayoVertExSize);
+			__set_mapping<big, game>(buffers[i].mapping4, vertsEx + 12, bayoVertExSize);
+			__set_mapping<big, game>(buffers[i].mapping5, vertsEx + 16, bayoVertExSize);
+		}
 		else {
 			DBGLOG("Unknown vertex EX size format: %d %x!!!\n", bayoVertExSize, vg.vertExDataFlag);
+#ifdef _DEBUG
+			g_nfn->NPAPI_PopupDebugLog(0);
+#endif
 		}
 	}
 }
@@ -4731,7 +4796,7 @@ static void Model_Bayo_LoadModel<false, NIER_AUTOMATA>(CArrayList<bayoDatFile_t>
 	nierBatch_t *batches = (nierBatch_t *)(data + hdr.ofsBatches);
 	nierBoneSet_t *boneSets = (nierBoneSet_t *)(data + hdr.ofsBoneSets);
 	unsigned int *boneMap = (unsigned int *)(data + hdr.ofsBoneMap);
-	for (int i = 0; i < hdr.numLods; i++)
+	for (int i = 0; i < std::min(hdr.numLods, 1); i++)
 	{
 		nierLod<big> lod(lods + i);
 		DBGLOG("LOD %d: name: %s\n", i, (char*)(data + lod.ofsName));
@@ -4750,7 +4815,7 @@ static void Model_Bayo_LoadModel<false, NIER_AUTOMATA>(CArrayList<bayoDatFile_t>
 			sprintf_s(batch_name, 256, "%s_%d_%s", (char *)(data + lod.ofsName), j, (char *)(data + mesh.ofsName));
 			DBGLOG("\t%s\n", batch_name);
 			int *boneIndices = NULL;
-			if (bones) {
+			if (bones && batch.boneSetIndex >= 0) {
 				boneIndices = (int *)rapi->Noesis_UnpooledAlloc(boneSet.numBoneIndices * sizeof(int));
 				unsigned short *originalBoneIndices = (unsigned short *)(data + boneSet.ofsBoneSet);
 				for (unsigned int j = 0; j < boneSet.numBoneIndices; j++) {
