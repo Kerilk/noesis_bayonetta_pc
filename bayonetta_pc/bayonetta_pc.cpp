@@ -4656,6 +4656,20 @@ static void Model_Bayo_LoadModel(CArrayList<bayoDatFile_t> &dfiles, bayoDatFile_
 			//bind normals
 			rapi->rpgBindNormalBuffer(buffers.normal.address + vertOfs * buffers.normal.stride, buffers.normal.type, buffers.normal.stride);
 			//bind tangents
+			/*if (batch.primType == 4) {
+				modelTan4_t	*tangents = rapi->rpgCalcTangents(batch.vertEnd - batch.vertOfs, batch.numIndices, batchData + batch.ofsIndices, RPGEODATA_USHORT, 3 * 2,
+					buffers.position.address + vertOfs * buffers.position.stride, buffers.position.type, buffers.position.stride,
+					buffers.normal.address + vertOfs * buffers.normal.stride, buffers.normal.type, buffers.normal.stride,
+					buffers.mapping.address + vertOfs * buffers.mapping.stride, buffers.mapping.type, buffers.mapping.stride,
+					NULL, true);
+				rapi->rpgBindTangentBuffer(tangents, RPGEODATA_FLOAT, 16);
+				for (int k = batch.vertStart - batch.vertOfs; k < batch.vertEnd - batch.vertOfs; k++) {
+					modelTan4_t * ta = (modelTan4_t *)(buffers.tangents.address + vertOfs * buffers.tangents.stride);
+					DBGLOG("%d gt: %f %f %f %f\n", k, ta[k].v[0], ta[k].v[1], ta[k].v[2], ta[k].v[3]);
+					DBGLOG("%d nt: %f %f %f %f\n", k, tangents[k].v[0], tangents[k].v[1], tangents[k].v[2], tangents[k].v[3]);
+					DBGLOG("%d  d: %f %f %f %f\n", k, abs(ta[k].v[0] - tangents[k].v[0]), abs(ta[k].v[1] - tangents[k].v[1]), abs(ta[k].v[2] - tangents[k].v[2]), abs(ta[k].v[3] - tangents[k].v[3]));
+				}
+			}*/
 			//rapi->rpgBindTangentBuffer(buffers.tangents.address + vertOfs * buffers.tangents.stride, buffers.tangents.type, buffers.tangents.stride);
 			//bind uv's
 			rapi->rpgBindUV1Buffer(buffers.mapping.address + vertOfs * buffers.mapping.stride, buffers.mapping.type, buffers.mapping.stride);
