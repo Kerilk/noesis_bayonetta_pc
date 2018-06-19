@@ -3059,6 +3059,14 @@ static void Model_Bayo_CreateRestPoseAnim(CArrayList<noesisAnim_t *> &animList, 
 	modelMatrix_t * matrixes;
 	float * tmp_values;
 	Model_Bayo_InitMotions<big,game>(matrixes, tmp_values, bones, bone_number, frameCount, rapi, extraBoneInfo);
+	for (int bi = 0; bi < bone_number; bi++) {
+		for (int fi = 0; fi < frameCount; fi++) {
+			// convert to degrees
+			tmp_values[fi + 3 * frameCount + bi * frameCount * maxCoeffs] *= g_flRadToDeg;
+			tmp_values[fi + 4 * frameCount + bi * frameCount * maxCoeffs] *= g_flRadToDeg;
+			tmp_values[fi + 5 * frameCount + bi * frameCount * maxCoeffs] *= g_flRadToDeg;
+		}
+	}
 	Model_Bayo_ApplyMotions(matrixes, tmp_values, bones, bone_number, frameCount);
 	noesisAnim_t *anim = rapi->rpgAnimFromBonesAndMatsFinish(bones, bone_number, matrixes, frameCount, 60);
 
@@ -4487,7 +4495,7 @@ static void Model_Nier_SetBuffers(bayoDatFile_t &df, noeRAPI_t *rapi, nierWMBHdr
 
 			__set_hnormal<big, game>(buffers[i].normal, vertsEx, bayoVertExSize, numVerts, rapi, pretransform);
 		} 
-		else if (bayoVertExSize == 16 & vg.vertExDataFlag == 0xe) {
+		else if (bayoVertExSize == 16 && vg.vertExDataFlag == 0xe) {
 			__set_position<big, game>(buffers[i].position, verts, bayoVertSize, numVerts, pretransform);
 			__set_tangents<big, game>(buffers[i].tangents, verts + 12, bayoVertSize, numVerts, rapi, pretransform);
 			__set_mapping<big, game>(buffers[i].mapping, verts + 16, bayoVertSize);
@@ -4498,7 +4506,7 @@ static void Model_Nier_SetBuffers(bayoDatFile_t &df, noeRAPI_t *rapi, nierWMBHdr
 			__set_mapping<big, game>(buffers[i].mapping3, vertsEx + 8, bayoVertExSize);
 			__set_mapping<big, game>(buffers[i].mapping4, vertsEx + 12, bayoVertExSize);
 		}
-		else if (bayoVertExSize == 20 & vg.vertExDataFlag == 0xc) {
+		else if (bayoVertExSize == 20 && vg.vertExDataFlag == 0xc) {
 			__set_position<big, game>(buffers[i].position, verts, bayoVertSize, numVerts, pretransform);
 			__set_tangents<big, game>(buffers[i].tangents, verts + 12, bayoVertSize, numVerts, rapi, pretransform);
 			__set_mapping<big, game>(buffers[i].mapping, verts + 16, bayoVertSize);
