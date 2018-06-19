@@ -2032,7 +2032,7 @@ static void Model_Bayo_LoadTextures<false, NIER_AUTOMATA>(CArrayList<noesisTex_t
 		char fname[8192];
 		rapi->Noesis_GetDirForFilePath(fname, rapi->Noesis_GetOutputName());
 		char nameStr[MAX_NOESIS_PATH];
-		sprintf_s(nameStr, MAX_NOESIS_PATH, ".\\%sbayotex%03i", rapi->Noesis_GetOption("texpre"), i);
+		sprintf_s(nameStr, MAX_NOESIS_PATH, ".\\%s%0x", rapi->Noesis_GetOption("texpre"), tidx[i]);
 		strcat_s(fname, MAX_NOESIS_PATH, nameStr);
 
 		int ofs = tofs[i];
