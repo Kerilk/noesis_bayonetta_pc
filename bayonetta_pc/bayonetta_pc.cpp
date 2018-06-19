@@ -4589,7 +4589,8 @@ static void Model_Bayo_LoadModel(CArrayList<bayoDatFile_t> &dfiles, bayoDatFile_
 
 	Model_Bayo_LoadMaterials<big,game>(hdr, textures, hasExMatInfo, matList, matListLightMap, totMatList, data, rapi);
 	void *pgctx = rapi->rpgCreateContext();
-	rapi->rpgSetEndian(big);
+	rapi->rpgSetOption(RPGOPT_BIGENDIAN, big);
+	rapi->rpgSetOption(RPGOPT_TRIWINDBACKWARD, true);
 
 	int numBones;
 	short int * animBoneTT;
@@ -4702,21 +4703,11 @@ static void Model_Bayo_LoadModel(CArrayList<bayoDatFile_t> &dfiles, bayoDatFile_
 	//	DBGLOG("seq: %p, size: %d\n", (anims+i)->aseq, (anims+i)->dataLen );
 	//}
     rapi->rpgSetExData_AnimsNum(anims, 1);
-	//rapi->rpgMultiplyBones(bones, numBones);
 	DBGLOG("Found %d anims\n", anims_num);
-	rapi->rpgSetTriWinding(true); //bayonetta uses reverse face windings
-	//rapi->rpgSetName(rapi->Noesis_PooledString(df.name));
 	noesisModel_t *mdl = rapi->rpgConstructModel();
 	if( mdl ) {
 		models.Append(mdl);
 	}
-/*	for(int i = 0; i < anims_num; i++) {
-		noesisModel_t *mdl = rapi->rpgConstructModel();
-		if( mdl ) {
-			models.Append(mdl);
-			rapi->Noesis_SetModelAnims(mdl, animList[i], 1);
-		}
-	}*/
 	
 	rapi->rpgDestroyContext(pgctx);
 
@@ -4783,7 +4774,8 @@ static void Model_Bayo_LoadModel<false, NIER_AUTOMATA>(CArrayList<bayoDatFile_t>
 	Model_Nier_SetBuffers<big, game>(df, rapi, hdr, buffers, pretransform);
 
 	void *pgctx = rapi->rpgCreateContext();
-	rapi->rpgSetEndian(big);
+	rapi->rpgSetOption(RPGOPT_BIGENDIAN, big);
+	rapi->rpgSetOption(RPGOPT_TRIWINDBACKWARD, true);
 
 	int numBones;
 	short int * animBoneTT;
@@ -4873,7 +4865,6 @@ static void Model_Bayo_LoadModel<false, NIER_AUTOMATA>(CArrayList<bayoDatFile_t>
 	} else if (animList.Num() > 0) {
 		DBGLOG("Could not create animation block\n");
 	}
-	rapi->rpgSetTriWinding(true);
 
 	noesisModel_t *mdl = rapi->rpgConstructModel();
 	if (mdl) {
