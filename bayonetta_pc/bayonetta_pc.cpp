@@ -38,7 +38,24 @@ typedef enum game_e {
 	VANQUISH,
 	NIER_AUTOMATA
 } game_t;
-
+typedef struct bayoV4F_s
+{
+	float x;
+	float y;
+	float z;
+	float w;
+} bayoV4F_t;
+template <bool big>
+struct bayoV4F : public bayoV4F_s {
+	bayoV4F(bayoV4F_t * ptr) : bayoV4F_s(*ptr) {
+		if (big) {
+			LITTLE_BIG_SWAP(x);
+			LITTLE_BIG_SWAP(y);
+			LITTLE_BIG_SWAP(z);
+			LITTLE_BIG_SWAP(w);
+		}
+	}
+};
 typedef struct bayoDat_s
 {
 	BYTE			id[4];
@@ -1146,17 +1163,6 @@ typedef struct bayoVertexData_s {
 	unsigned char boneIndex[4];	//18
 	unsigned char boneWeight[4];//1C
 } bayoVertexData_t;
-typedef struct bayoMatType_s {
-	bool known;
-	short size;
-	char texture_number;
-	char lightmap_index;
-	char normalmap_index;
-	char texture2_index;
-	char reflection_index;
-} bayoMatType_t;
-
-bayoMatType_t bayoMatTypes[256];
 
 //thanks Phernost (stackoverflow)
 class FloatDecompressor
@@ -1241,6 +1247,17 @@ public:
 
 };
 
+/*typedef struct bayoMatType_s {
+	bool known;
+	short size;
+	char texture_number;
+	char lightmap_index;
+	char normalmap_index;
+	char texture2_index;
+	char reflection_index;
+} bayoMatType_t;
+
+bayoMatType_t bayoMatTypes[256];
 
 static void bayoSetMatType(bayoMatType_t &mat,
 						   short size,
@@ -1309,8 +1326,9 @@ static void bayoSetMatTypes(void) {
 	bayoSetMatType(bayoMatTypes[0xB2], 0xD4, 4, -1,  1, -1, -1);
 	bayoSetMatType(bayoMatTypes[0xB3], 0x124,4, -1,  1, -1, -1);
 
-}
+}*/
 
+#include "bayonetta_materials.h"
 
 //see if something is a valid bayonetta .dat
 template <bool big, game_e game>
@@ -3390,13 +3408,11 @@ static void Model_Bayo_GetDATEntries(CArrayList<bayoDatFile_t> &dfiles, BYTE *fi
 	}
 }
 template <bool big, game_t game>
-static void Model_Bayo_LoadSharedTextures(CArrayList<noesisTex_t *> &textures, bayoDatFile_t &df, noeRAPI_t *rapi) {
+static void Model_Bayo_LoadSharedTextures(CArrayList<noesisTex_t *> &textures, char* name, noeRAPI_t *rapi) {
 	noeUserPromptParam_t promptParams;
-	char scrName[MAX_NOESIS_PATH];
 	char texturePrompt[MAX_NOESIS_PATH];
 	char defaultValue[MAX_NOESIS_PATH];
-	rapi->Noesis_GetExtensionlessName(scrName, df.name);
-	sprintf_s(texturePrompt, MAX_NOESIS_PATH, "Load shared textures for %s in other files? (specify prefix if different)", scrName);
+	sprintf_s(texturePrompt, MAX_NOESIS_PATH, "Load shared textures (%s) in other files? (specify prefix if different)", name);
 	sprintf_s(defaultValue, MAX_NOESIS_PATH, "%s", "Just click!");
 	promptParams.titleStr = "Load shared textures?";
 	promptParams.promptStr = texturePrompt;
@@ -3408,27 +3424,40 @@ static void Model_Bayo_LoadSharedTextures(CArrayList<noesisTex_t *> &textures, b
 
 	while (g_nfn->NPAPI_UserPrompt(&promptParams)) {
 		int dataLength;
-		BYTE* data = rapi->Noesis_LoadPairedFile("Bayonetta 2 Scenery Model", ".dat", dataLength, NULL);
+		BYTE* data = rapi->Noesis_LoadPairedFile("Scenery Model", ".dat", dataLength, NULL);
 		SetCurrentDirectory(noepath);
 		if (data) {
 			CArrayList<bayoDatFile_t> datfiles;
 			Model_Bayo_GetDATEntries<big>(datfiles, data, dataLength);
 			if (datfiles.Num() > 0) {
 				CArrayList<bayoDatFile_t *> texfiles;
-				for (int i = 0; i < datfiles.Num(); i++) {
-					if (strstr(datfiles[i].name, "shared.wta")) {
-						DBGLOG("Found shared texture bundle %s\n", datfiles[i].name);
-						texfiles.Append(&datfiles[i]);
+				if (game == BAYONETTA2) {
+					for (int i = 0; i < datfiles.Num(); i++) {
+						if (strstr(datfiles[i].name, "shared.wta")) {
+							DBGLOG("Found shared texture bundle %s\n", datfiles[i].name);
+							texfiles.Append(&datfiles[i]);
+						}
+					}
+					for (int i = 0; i < datfiles.Num(); i++) {
+						if (strstr(datfiles[i].name, "shared.wtp")) {
+							DBGLOG("Found shared texture bundle %s\n", datfiles[i].name);
+							texfiles.Append(&datfiles[i]);
+						}
+					}
+					if (texfiles.Num() == 2) {
+						Model_Bayo_LoadTextures<big, game>(textures, texfiles, rapi);
 					}
 				}
-				for (int i = 0; i < datfiles.Num(); i++) {
-					if (strstr(datfiles[i].name, "shared.wtp")) {
-						DBGLOG("Found shared texture bundle %s\n", datfiles[i].name);
-						texfiles.Append(&datfiles[i]);
+				else {
+					for (int i = 0; i < datfiles.Num(); i++) {
+						if (strstr(datfiles[i].name, "cmn.wtb")) {
+							DBGLOG("Found shared texture bundle %s\n", datfiles[i].name);
+							texfiles.Append(&datfiles[i]);
+						}
 					}
-				}
-				if (texfiles.Num() == 2) {
-					Model_Bayo_LoadTextures<big, game>(textures, texfiles, rapi);
+					if (texfiles.Num() > 0) {
+						Model_Bayo_LoadTextures<big, game>(textures, texfiles, rapi);
+					}
 				}
 				texfiles.Clear();
 			}
@@ -3777,16 +3806,57 @@ static void Model_Vanquish_LoadExtraTex(char *texDir, int texId, noeRAPI_t *rapi
 		DBGLOG("...Texture not found!\n");
 	}
 }
+template<bool big>
+static int Model_Bayo_ReadTextureIndex(wmbMat<big> &mat, CArrayList<noesisTex_t *> &textures, int textureOffset, int &sharedtextureoffset, bool default0, noeRAPI_t * rapi) {
+	DBGLOG("texture offset %d ", textureOffset);
+	if (textureOffset != -1 || default0) {
+		int offset;
+		if (textureOffset != -1) {
+			offset = textureOffset / 4 - 1;
+		}
+		else {
+			offset = 0;
+		}
+		DBGLOG(" offset %d ", offset);
+		if ((mat.texs[offset].tex_flagB & 0xff00) == 0xa000) {
+			if (sharedtextureoffset == -1) {
+				sharedtextureoffset = textures.Num();
+				char scrName[10];
+				snprintf(scrName, 10, "r%2x0", mat.texs[offset].tex_flagB & 0xff);
+				Model_Bayo_LoadSharedTextures<big, BAYONETTA>(textures, scrName, rapi);
+				if (textures.Num() == sharedtextureoffset) {
+					sharedtextureoffset = -2;
+				}
+			}
+			if (sharedtextureoffset >= 0) {
+				return mat.texs[offset].tex_idx + sharedtextureoffset;
+			}
+			else {
+				return -1;
+			}
+		}
+		else if (!mat.texs[offset].tex_flagB) {
+			return mat.texs[offset].tex_idx;
+		}
+		else {
+			return -1;
+		}
+	}
+	else {
+		return -1;
+	}
+}
 //load Bayonetta Material
 template <bool big, game_t game>
 static void Model_Bayo_LoadMaterials(bayoWMBHdr<big> &hdr,
-									 CArrayList<noesisTex_t *> &textures,
-									 bool &hasExMatInfo,
-									 CArrayList<noesisMaterial_t *> &matList,
-									 CArrayList<noesisMaterial_t *> &matListLightMap,
-									 CArrayList<noesisMaterial_t *> &totMatList,
-									 BYTE *data,
-									 noeRAPI_t *rapi) {
+                                     CArrayList<noesisTex_t *> &textures,
+                                     bool &hasExMatInfo,
+                                     CArrayList<noesisMaterial_t *> &matList,
+                                     CArrayList<noesisMaterial_t *> &matListLightMap,
+                                     CArrayList<noesisMaterial_t *> &totMatList,
+                                     BYTE *data,
+                                     noeRAPI_t *rapi,
+                                     int sharedtextureoffset = -1) {
 	char *inFile = rapi->Noesis_GetInputName();
 	char texDir[MAX_NOESIS_PATH] = "";
 	if (game == VANQUISH) {
@@ -3803,7 +3873,7 @@ static void Model_Bayo_LoadMaterials(bayoWMBHdr<big> &hdr,
 		if (big) LITTLE_BIG_SWAP(numMatIDs);
 		matIDs++;
 	}
-	DBGLOG("Found %d materials\n", hdr.numMaterials);
+	DBGLOG("Found %d materials, shared textures offset: %d\n", hdr.numMaterials, sharedtextureoffset);
 	for (int i = 0; i < hdr.numMaterials; i++)
 	{
 		DBGLOG("\t%03d:", i);
@@ -3815,6 +3885,7 @@ static void Model_Bayo_LoadMaterials(bayoWMBHdr<big> &hdr,
 		sprintf_s(matName, 128, "bayomat%i", i);
 		DBGLOG(" name: %s,", matName);
 		noesisMaterial_t *nmat = rapi->Noesis_GetMaterialList(1, true);
+		noesisMaterial_t *nmatLightMap = NULL;
 		nmat->name = rapi->Noesis_PooledString(matName);
 		//nmat->flags |= NMATFLAG_TWOSIDED;
 
@@ -3824,7 +3895,7 @@ static void Model_Bayo_LoadMaterials(bayoWMBHdr<big> &hdr,
 			nmat->noDefaultBlend = true;
 			nmat->texIdx = -1;
 			nmat->normalTexIdx = -1; //default to flat normal
-			char *shaderName = (char *)(data + hdr.exMatInfo[0] + 16*i);
+			char *shaderName = (char *)(data + hdr.exMatInfo[0] + 16 * i);
 			if (_strnicmp(shaderName, "har", 3) == 0 || _strnicmp(shaderName, "gla", 3) == 0 || _strnicmp(shaderName, "cnm", 3) == 0 || _strnicmp(shaderName, "alp", 3) == 0)
 			{ //blend hair
 				nmat->noDefaultBlend = false;
@@ -3848,7 +3919,7 @@ static void Model_Bayo_LoadMaterials(bayoWMBHdr<big> &hdr,
 			if (game == VANQUISH && nmat->texIdx == -1) {
 				//Try to load from texture directory
 				int numTex = textures.Num();
-				Model_Vanquish_LoadExtraTex<big,game>(texDir, difTexId, rapi, textures);
+				Model_Vanquish_LoadExtraTex<big, game>(texDir, difTexId, rapi, textures);
 				if (numTex < textures.Num()) {
 					nmat->texIdx = textures.Num() - 1;
 				}
@@ -3873,7 +3944,7 @@ static void Model_Bayo_LoadMaterials(bayoWMBHdr<big> &hdr,
 					nmat->normalTexIdx = textures.Num() - 1;
 				}
 			}
-			else if (nmat->normalTexIdx == -1){
+			else if (nmat->normalTexIdx == -1) {
 				nmat->normalTexIdx = textures.Num() - 1;
 			}
 		}
@@ -3881,30 +3952,47 @@ static void Model_Bayo_LoadMaterials(bayoWMBHdr<big> &hdr,
 		{ //bayonetta-style
 			wmbMat<big> mat((wmbMat_t *)matData);
 
-			if( !bayoMatTypes[mat.matFlags].known ) {
-				DBGLOG(" unknown material id: %4x, %4x", mat.matFlags, mat.unknownB);
-				for( int j=0; j<5; j++) {
-					DBGLOG(", tex%d: %d, %2x, %4x", j,  mat.texs[j].tex_idx, mat.texs[j].tex_flagA, mat.texs[j].tex_flagB);
+			if (!bayoMatTypes[mat.matFlags].known) {
+				DBGLOG(" unknown material id: %2x, %4x", mat.matFlags, mat.unknownB);
+				for (int j = 0; j < 5; j++) {
+					DBGLOG(", tex%d: %d, %2x, %4x", j, mat.texs[j].tex_idx, mat.texs[j].tex_flagA, mat.texs[j].tex_flagB);
 				}
 				DBGLOG("\n");
 				DBGFLUSH();
-			} else {
-				DBGLOG(" material id: %2x, offset: %x, tex: %d(%2x, %x)",
-					   mat.matFlags, hdr.ofsMaterials + matOfs, mat.texs[0].tex_idx, mat.texs[0].tex_flagA, mat.texs[0].tex_flagB);
+			}
+			else {
+				DBGLOG(" material id: %2x, %4x, offset: %x",
+					mat.matFlags, mat.unknownB, hdr.ofsMaterials + matOfs);
 			}
 
-			nmat->texIdx = mat.texs[0].tex_idx;
-			char normalmap_index = bayoMatTypes[mat.matFlags].normalmap_index;
-
-			if( normalmap_index != -1 && !mat.texs[normalmap_index].tex_flagB ) {
-				DBGLOG(", normal: %d(%2x, %x)", mat.texs[normalmap_index].tex_idx, mat.texs[normalmap_index].tex_flagA, mat.texs[normalmap_index].tex_flagB);
-				nmat->normalTexIdx = mat.texs[normalmap_index].tex_idx;
-			} else {
-				nmat->normalTexIdx = (textures.Num() > 0) ? textures.Num()-1 : -1;
+			nmat->normalTexIdx = -1;
+			nmat->texIdx = Model_Bayo_ReadTextureIndex(mat, textures, bayoMatTypes[mat.matFlags].color_1_sampler, sharedtextureoffset, true, rapi);
+			DBGLOG(", tex: %d", nmat->texIdx);
+			if (bayoMatTypes[mat.matFlags].shader_name && strstr(bayoMatTypes[mat.matFlags].shader_name, "modelshaderbgs")) {
+				nmat->bumpTexIdx = Model_Bayo_ReadTextureIndex(mat, textures, bayoMatTypes[mat.matFlags].reliefmap_sampler, sharedtextureoffset, false, rapi);
+				DBGLOG(", bump: %d", nmat->bumpTexIdx);
+			}
+			else {
+				nmat->normalTexIdx = Model_Bayo_ReadTextureIndex(mat, textures, bayoMatTypes[mat.matFlags].reliefmap_sampler, sharedtextureoffset, false, rapi);
+				DBGLOG(", normal: %d", nmat->normalTexIdx);
+			}
+			if (nmat->normalTexIdx == -1 && textures.Num() > 0) {
+				nmat->normalTexIdx = textures.Num();
 			}
 			//todo - some materials also do a scale+bias+rotation on the uv's at runtime to transform the texture coordinates into a
 			//specific region of the normal page. i would think the uv transform data is buried in the giant chunk of floats that
 			//follows the material data, but i don't see it in there. maybe it's related to some texture bundle flags.
+			short lightmap_offset = bayoMatTypes[mat.matFlags].lightmap_sampler;
+			if (lightmap_offset != -1 && !mat.texs[lightmap_offset / 4 - 1].tex_flagB) {
+				char matNameLightMap[128];
+				sprintf_s(matNameLightMap, 128, "bayomat_light%i", i);
+				nmatLightMap = rapi->Noesis_GetMaterialList(1, true);
+				nmatLightMap->name = rapi->Noesis_PooledString(matNameLightMap);
+				nmatLightMap->texIdx = mat.texs[lightmap_offset / 4 - 1].tex_idx;
+				nmatLightMap->normalTexIdx = nmat->normalTexIdx;
+				totMatList.Append(nmatLightMap);
+			}
+
 /*				if (nrmIdx == 6 || nrmIdx == 2 || nrmIdx == 13) {
 					char matNameLightMap[128];
 					sprintf_s(matNameLightMap, 128, "bayomat_light%i", i);
@@ -3923,15 +4011,15 @@ static void Model_Bayo_LoadMaterials(bayoWMBHdr<big> &hdr,
 			scaleBias[3] = 0.0f;
 			nmat->ex->pUvScaleBias = scaleBias;
 
-/*			if( bayoMatTypes[mat.matFlags].known ) { //Doesn't work everywhere unfortunately (bayonetta's eyes seem wrong with this) but works for sapientia's leg
-				float *scale_p = ((float *)matData) + 1 + bayoMatTypes[mat.matFlags].texture_number;
-				scaleBias[0] = scale_p[0];
-				scaleBias[1] = scale_p[1];
-			}*/
-			DBGLOG("scale: %f %f\n", nmat->ex->pUvScaleBias[0], nmat->ex->pUvScaleBias[1] );
+			if (bayoMatTypes[mat.matFlags].color_1_tile != -1) {
+				bayoV4F<big> tile((bayoV4F_t *)(matData + bayoMatTypes[mat.matFlags].color_1_tile));
+				scaleBias[0] = tile.x;
+				scaleBias[1] = tile.y;
+			}
+
 
 		}
-		matListLightMap.Append(NULL);
+		matListLightMap.Append(nmatLightMap);
 		matList.Append(nmat);
 		totMatList.Append(nmat);
 	}
@@ -4529,7 +4617,7 @@ static void Model_Nier_SetBuffers(bayoDatFile_t &df, noeRAPI_t *rapi, nierWMBHdr
 
 //load a single model from a dat set
 template <bool big, game_t game>
-static void Model_Bayo_LoadModel(CArrayList<bayoDatFile_t> &dfiles, bayoDatFile_t &df, noeRAPI_t *rapi, CArrayList<noesisModel_t *> &models, CArrayList<noesisTex_t *> &givenTextures, modelMatrix_t * pretransform = NULL)
+static void Model_Bayo_LoadModel(CArrayList<bayoDatFile_t> &dfiles, bayoDatFile_t &df, noeRAPI_t *rapi, CArrayList<noesisModel_t *> &models, CArrayList<noesisTex_t *> &givenTextures, modelMatrix_t * pretransform, int sharedtextureoffset = -1)
 {
 	DBGLOG("Loading %s\n", df.name);
 	BYTE *data = df.data;
@@ -4587,7 +4675,7 @@ static void Model_Bayo_LoadModel(CArrayList<bayoDatFile_t> &dfiles, bayoDatFile_
 	}
 
 
-	Model_Bayo_LoadMaterials<big,game>(hdr, textures, hasExMatInfo, matList, matListLightMap, totMatList, data, rapi);
+	Model_Bayo_LoadMaterials<big,game>(hdr, textures, hasExMatInfo, matList, matListLightMap, totMatList, data, rapi, sharedtextureoffset);
 	void *pgctx = rapi->rpgCreateContext();
 	rapi->rpgSetOption(RPGOPT_BIGENDIAN, big);
 	rapi->rpgSetOption(RPGOPT_TRIWINDBACKWARD, true);
@@ -4655,6 +4743,10 @@ static void Model_Bayo_LoadModel(CArrayList<bayoDatFile_t> &dfiles, bayoDatFile_
 			rapi->rpgBindPositionBuffer(buffers.position.address + vertOfs * buffers.position.stride, buffers.position.type, buffers.position.stride);
 			//bind normals
 			rapi->rpgBindNormalBuffer(buffers.normal.address + vertOfs * buffers.normal.stride, buffers.normal.type, buffers.normal.stride);
+			//bind color
+			//if (buffers.color.address) {
+				//rapi->rpgBindColorBuffer(buffers.color.address + vertOfs * buffers.color.stride, buffers.color.type, buffers.color.stride, 4);
+			//}
 			//bind tangents
 			/*if (batch.primType == 4) {
 				modelTan4_t	*tangents = rapi->rpgCalcTangents(batch.vertEnd - batch.vertOfs, batch.numIndices, batchData + batch.ofsIndices, RPGEODATA_USHORT, 3 * 2,
@@ -4673,6 +4765,12 @@ static void Model_Bayo_LoadModel(CArrayList<bayoDatFile_t> &dfiles, bayoDatFile_
 			//rapi->rpgBindTangentBuffer(buffers.tangents.address + vertOfs * buffers.tangents.stride, buffers.tangents.type, buffers.tangents.stride);
 			//bind uv's
 			rapi->rpgBindUV1Buffer(buffers.mapping.address + vertOfs * buffers.mapping.stride, buffers.mapping.type, buffers.mapping.stride);
+			if (buffers.mapping2.address) {
+				rapi->rpgBindUV2Buffer(buffers.mapping2.address + vertOfs * buffers.mapping2.stride, buffers.mapping2.type, buffers.mapping2.stride);
+			}
+			else {
+				rapi->rpgBindUV2Buffer(NULL, RPGEODATA_HALFFLOAT, 0);
+			}
 			if (bones && buffers.bone_indexes.address)
 			{ //bind weight data
 				rapi->rpgBindBoneIndexBuffer(buffers.bone_indexes.address + vertOfs * buffers.bone_indexes.stride, buffers.bone_indexes.type, buffers.bone_indexes.stride, 4);
@@ -4683,18 +4781,17 @@ static void Model_Bayo_LoadModel(CArrayList<bayoDatFile_t> &dfiles, bayoDatFile_
 			char *matName = (texID < matList.Num()) ? matList[texID]->name : NULL;
 			DBGLOG("matName: %s\n", matName);
 			rapi->rpgSetMaterial(matName);
-/*			if(texID < matList.Num() && matList[texID]->ex->pUvScaleBias) {
+			if(texID < matList.Num() && matList[texID]->ex->pUvScaleBias) {
 				rapi->rpgSetUVScaleBias(matList[texID]->ex->pUvScaleBias, matList[texID]->ex->pUvScaleBias + 2);
 			} else {
 				rapi->rpgSetUVScaleBias(NULL, NULL);
-			}*/
-/*			if(matListLightMap[texID]) {
+			}
+			if (animList.Num() == 0 && matListLightMap[texID] && buffers.mapping2.address) {
 				rapi->rpgSetLightmap(matListLightMap[texID]->name);
-				rapi->rpgBindUV2Buffer(vertData+20 + vertOfs*bayoVertSize, RPGEODATA_HALFFLOAT, bayoVertSize);
-			} else {
+			}
+			else {
 				rapi->rpgSetLightmap(NULL);
-				rapi->rpgBindUV2Buffer(NULL, RPGEODATA_HALFFLOAT, 0);
-			}*/
+			}
 			DBGLOG("primType: %d, numIndices: %d\n", batch.primType, batch.numIndices);
 			rpgeoPrimType_e primType = (batch.primType == 4) ? RPGEO_TRIANGLE : RPGEO_TRIANGLE_STRIP;
 			rapi->rpgCommitTriangles(batchData+batch.ofsIndices, RPGEODATA_USHORT, batch.numIndices, primType, true);
@@ -4734,7 +4831,7 @@ static void Model_Bayo_LoadModel(CArrayList<bayoDatFile_t> &dfiles, bayoDatFile_
 	totMatList.Clear();
 }
 template <>
-static void Model_Bayo_LoadModel<false, NIER_AUTOMATA>(CArrayList<bayoDatFile_t> &dfiles, bayoDatFile_t &df, noeRAPI_t *rapi, CArrayList<noesisModel_t *> &models, CArrayList<noesisTex_t *> &givenTextures, modelMatrix_t * pretransform) {
+static void Model_Bayo_LoadModel<false, NIER_AUTOMATA>(CArrayList<bayoDatFile_t> &dfiles, bayoDatFile_t &df, noeRAPI_t *rapi, CArrayList<noesisModel_t *> &models, CArrayList<noesisTex_t *> &givenTextures, modelMatrix_t * pretransform, int sharedtextureoffset) {
 	static const bool big = false;
 	static const game_t game = NIER_AUTOMATA;
 	DBGLOG("Loading %s\n", df.name);
@@ -4955,7 +5052,9 @@ static void Model_Bayo_LoadScenery<true, BAYONETTA2>(CArrayList<bayoDatFile_t> &
 		}
 		Model_Bayo_LoadTextures<big, BAYONETTA2>(textures, texFiles, rapi);
 	}
-	Model_Bayo_LoadSharedTextures<big, BAYONETTA2>(textures, df, rapi);
+	char scrName[MAX_NOESIS_PATH];
+	rapi->Noesis_GetExtensionlessName(scrName, df.name);
+	Model_Bayo_LoadSharedTextures<big, BAYONETTA2>(textures, scrName, rapi);
 
 	CArrayList<bayoDatFile_t> dfiles;
 
@@ -5013,7 +5112,12 @@ static void Model_Bayo_LoadSceneryBayo1(CArrayList<bayoDatFile_t> &olddfiles, ba
 	CArrayList<bayoDatFile_t *> texfiles;
 	texfiles.Append(&textureFile);
 	CArrayList<noesisTex_t *> textures;
+	int sharedtexturesoffset = -1;
 	Model_Bayo_LoadTextures<big, BAYONETTA>(textures, texfiles, rapi);
+	sharedtexturesoffset = textures.Num();
+	char scrName[MAX_NOESIS_PATH];
+	rapi->Noesis_GetExtensionlessName(scrName, df.name);
+	Model_Bayo_LoadSharedTextures<big, BAYONETTA>(textures, scrName, rapi);
 	DBGLOG("found %d models in %s\n", hdr.numModels, df.name);
 	for (int i = 0; i < hdr.numModels; i++) {
 		bayoDatFile_t modelFile;
@@ -5027,7 +5131,7 @@ static void Model_Bayo_LoadSceneryBayo1(CArrayList<bayoDatFile_t> &olddfiles, ba
 			modelName[j] = modelDscr.name[j];
 		}
 		snprintf(fileName, 21, "%s.wmb", modelName);
-		DBGLOG(" model name: %s, ", fileName);
+		DBGLOG("%d - %d: model name: %s, ", i, models.Num(), fileName);
 		modelFile.name = rapi->Noesis_PooledString(fileName);
 		modelFile.data = df.data + dscrOffset + modelDscr.offset;
 		if (i < (hdr.numModels - 1)) {
@@ -5041,7 +5145,7 @@ static void Model_Bayo_LoadSceneryBayo1(CArrayList<bayoDatFile_t> &olddfiles, ba
 		DBGLOG("start: %d, size: %d\n", dscrOffset + modelDscr.offset, modelFile.dataSize);
 		modelMatrix_t m;
 		Model_Bayo_CreatePreTransformMatrix(modelDscr.transform, m);
-		Model_Bayo_LoadModel<big, BAYONETTA>(dfiles, modelFile, rapi, models, textures, &m);
+		Model_Bayo_LoadModel<big, BAYONETTA>(dfiles, modelFile, rapi, models, textures, &m, sharedtexturesoffset);
 	}
 	rapi->SetPreviewOption("drawAllModels", "1");
 }
@@ -5103,7 +5207,7 @@ noesisModel_t *Model_Bayo_Load(BYTE *fileBuffer, int bufferLen, int &numMdl, noe
 		if (rapi->Noesis_CheckFileExt(df.name, ".wmb"))
 		{ //it's a model
 			CArrayList<noesisTex_t *> textures;
-			Model_Bayo_LoadModel<big, game>(dfiles, df, rapi, models, textures);
+			Model_Bayo_LoadModel<big, game>(dfiles, df, rapi, models, textures, NULL);
 		}
 		else if (rapi->Noesis_CheckFileExt(df.name, ".scr"))
 		{ //it's a scenery

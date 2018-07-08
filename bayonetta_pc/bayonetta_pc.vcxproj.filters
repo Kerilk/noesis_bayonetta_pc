@@ -44,6 +44,9 @@
     <ClInclude Include="..\..\pluginshare.h">
       <Filter>Header Files\shared</Filter>
     </ClInclude>
+    <ClInclude Include="bayonetta_materials.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Text Include="ReadMe.txt" />
