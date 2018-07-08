@@ -3835,7 +3835,7 @@ static int Model_Bayo_ReadTextureIndex(wmbMat<big> &mat, CArrayList<noesisTex_t 
 				return -1;
 			}
 		}
-		else if (!mat.texs[offset].tex_flagB) {
+		else if (!mat.texs[offset].tex_flagB || (mat.texs[offset].tex_flagB & 0xff00) == 0x9000) {
 			return mat.texs[offset].tex_idx;
 		}
 		else {
@@ -3977,7 +3977,7 @@ static void Model_Bayo_LoadMaterials(bayoWMBHdr<big> &hdr,
 				DBGLOG(", normal: %d", nmat->normalTexIdx);
 			}
 			if (nmat->normalTexIdx == -1 && textures.Num() > 0) {
-				nmat->normalTexIdx = textures.Num();
+				nmat->normalTexIdx = textures.Num() - 1;
 			}
 			//todo - some materials also do a scale+bias+rotation on the uv's at runtime to transform the texture coordinates into a
 			//specific region of the normal page. i would think the uv transform data is buried in the giant chunk of floats that
