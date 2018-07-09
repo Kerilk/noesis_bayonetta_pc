@@ -3987,7 +3987,6 @@ static void Model_Bayo_LoadMaterials(bayoWMBHdr<big> &hdr,
 				nmat->specular[0] = spec.x;
 				nmat->specular[1] = spec.y;
 				nmat->specular[2] = spec.z;
-				nmat->specular[3] = spec.w;
 			}
 
 			if (bayoMatTypes[mat.matFlags].diffuse != -1) {
@@ -3995,7 +3994,6 @@ static void Model_Bayo_LoadMaterials(bayoWMBHdr<big> &hdr,
 				nmat->diffuse[0] = diff.x;
 				nmat->diffuse[1] = diff.y;
 				nmat->diffuse[2] = diff.z;
-				nmat->diffuse[3] = diff.w;
 			}
 
 			nmat->envTexIdx = Model_Bayo_ReadTextureIndex(mat, textures, bayoMatTypes[mat.matFlags].envmap_sampler, sharedtextureoffset, false, rapi);
