@@ -3979,6 +3979,35 @@ static void Model_Bayo_LoadMaterials(bayoWMBHdr<big> &hdr,
 			if (nmat->normalTexIdx == -1 && textures.Num() > 0) {
 				nmat->normalTexIdx = textures.Num() - 1;
 			}
+
+			nmat->specularTexIdx = Model_Bayo_ReadTextureIndex(mat, textures, bayoMatTypes[mat.matFlags].spec_mask_sampler, sharedtextureoffset, false, rapi);
+
+			if (bayoMatTypes[mat.matFlags].specular != -1) {
+				bayoV4F<big> spec((bayoV4F_t *)(matData + bayoMatTypes[mat.matFlags].specular));
+				nmat->specular[0] = spec.x;
+				nmat->specular[1] = spec.y;
+				nmat->specular[2] = spec.z;
+				nmat->specular[3] = spec.w;
+			}
+
+			if (bayoMatTypes[mat.matFlags].diffuse != -1) {
+				bayoV4F<big> diff((bayoV4F_t *)(matData + bayoMatTypes[mat.matFlags].diffuse));
+				nmat->diffuse[0] = diff.x;
+				nmat->diffuse[1] = diff.y;
+				nmat->diffuse[2] = diff.z;
+				nmat->diffuse[3] = diff.w;
+			}
+
+			nmat->envTexIdx = Model_Bayo_ReadTextureIndex(mat, textures, bayoMatTypes[mat.matFlags].envmap_sampler, sharedtextureoffset, false, rapi);
+/*			if (nmat->envTexIdx != -1 && nmat->specularTexIdx == -1) {
+				nmat->specularTexIdx = nmat->texIdx;
+				nmat->flags |= NMATFLAG_PBR_SPEC;
+				nmat->specular[0] = 1.0;
+				nmat->specular[1] = 1.0;
+				nmat->specular[2] = 1.0;
+				nmat->specular[3] = 1.0;
+				nmat->noDefaultBlend = true;
+			}*/
 			//todo - some materials also do a scale+bias+rotation on the uv's at runtime to transform the texture coordinates into a
 			//specific region of the normal page. i would think the uv transform data is buried in the giant chunk of floats that
 			//follows the material data, but i don't see it in there. maybe it's related to some texture bundle flags.
@@ -3990,19 +4019,10 @@ static void Model_Bayo_LoadMaterials(bayoWMBHdr<big> &hdr,
 				nmatLightMap->name = rapi->Noesis_PooledString(matNameLightMap);
 				nmatLightMap->texIdx = mat.texs[lightmap_offset / 4 - 1].tex_idx;
 				nmatLightMap->normalTexIdx = nmat->normalTexIdx;
+				nmatLightMap->noLighting = true;
 				totMatList.Append(nmatLightMap);
 			}
 
-/*				if (nrmIdx == 6 || nrmIdx == 2 || nrmIdx == 13) {
-					char matNameLightMap[128];
-					sprintf_s(matNameLightMap, 128, "bayomat_light%i", i);
-					noesisMaterial_t *nmatLightMap = rapi->Noesis_GetMaterialList(1, true);
-					nmatLightMap->name = rapi->Noesis_PooledString(matNameLightMap);
-					nmatLightMap->texIdx = nrmIdx;
-					nmatLightMap->normalTexIdx = -1;
-					matListLightMap.Append(nmatLightMap);
-					totMatList.Append(nmatLightMap);
-				} */
 			DBGLOG("\n");
 			float *scaleBias = (float *)rapi->Noesis_PooledAlloc(4*sizeof(float));
 			scaleBias[0] = 1.0f;
@@ -4744,9 +4764,9 @@ static void Model_Bayo_LoadModel(CArrayList<bayoDatFile_t> &dfiles, bayoDatFile_
 			//bind normals
 			rapi->rpgBindNormalBuffer(buffers.normal.address + vertOfs * buffers.normal.stride, buffers.normal.type, buffers.normal.stride);
 			//bind color
-			//if (buffers.color.address) {
-				//rapi->rpgBindColorBuffer(buffers.color.address + vertOfs * buffers.color.stride, buffers.color.type, buffers.color.stride, 4);
-			//}
+			/*if (buffers.color.address) {
+				rapi->rpgBindColorBuffer(buffers.color.address + vertOfs * buffers.color.stride, buffers.color.type, buffers.color.stride, 4);
+			}*/
 			//bind tangents
 			/*if (batch.primType == 4) {
 				modelTan4_t	*tangents = rapi->rpgCalcTangents(batch.vertEnd - batch.vertOfs, batch.numIndices, batchData + batch.ofsIndices, RPGEODATA_USHORT, 3 * 2,
@@ -4788,6 +4808,7 @@ static void Model_Bayo_LoadModel(CArrayList<bayoDatFile_t> &dfiles, bayoDatFile_
 			}
 			if (animList.Num() == 0 && matListLightMap[texID] && buffers.mapping2.address) {
 				rapi->rpgSetLightmap(matListLightMap[texID]->name);
+				matList[texID]->noLighting = true;
 			}
 			else {
 				rapi->rpgSetLightmap(NULL);
