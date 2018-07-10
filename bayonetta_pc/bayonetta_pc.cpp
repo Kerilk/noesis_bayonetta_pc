@@ -3806,6 +3806,22 @@ static void Model_Vanquish_LoadExtraTex(char *texDir, int texId, noeRAPI_t *rapi
 		DBGLOG("...Texture not found!\n");
 	}
 }
+
+template<bool big>
+static void Model_Bayo_SetTile(BYTE * matData, int tileOffset, noesisMaterial_t * mat, noeRAPI_t *rapi) {
+	if (tileOffset != -1) {
+		bayoV4F<big> tile((bayoV4F_t *)(matData + tileOffset));
+		char myexpr[128];
+		if (tile.x != 1.0f) {
+			snprintf(myexpr, 128, "vert_uv_u * %f", tile.x);
+			mat->expr->v_uvExpr[0] = rapi->Express_Parse(myexpr);
+		}
+		if (tile.y != 1.0f) {
+			snprintf(myexpr, 128, "vert_uv_v * %f", tile.y);
+			mat->expr->v_uvExpr[1] = rapi->Express_Parse(myexpr);
+		}
+	}
+}
 template<bool big>
 static int Model_Bayo_ReadTextureIndex(wmbMat<big> &mat, CArrayList<noesisTex_t *> &textures, int textureOffset, int &sharedtextureoffset, bool default0, noeRAPI_t * rapi) {
 	DBGLOG("texture offset %d ", textureOffset);
@@ -3847,6 +3863,7 @@ static int Model_Bayo_ReadTextureIndex(wmbMat<big> &mat, CArrayList<noesisTex_t 
 	}
 }
 //load Bayonetta Material
+#define BAYONETTA_MULTIPASS (1<<0)
 template <bool big, game_t game>
 static void Model_Bayo_LoadMaterials(bayoWMBHdr<big> &hdr,
                                      CArrayList<noesisTex_t *> &textures,
@@ -3966,8 +3983,124 @@ static void Model_Bayo_LoadMaterials(bayoWMBHdr<big> &hdr,
 			}
 
 			nmat->normalTexIdx = -1;
-			nmat->texIdx = Model_Bayo_ReadTextureIndex(mat, textures, bayoMatTypes[mat.matFlags].color_1_sampler, sharedtextureoffset, true, rapi);
-			DBGLOG(", tex: %d", nmat->texIdx);
+			int color1 = Model_Bayo_ReadTextureIndex(mat, textures, bayoMatTypes[mat.matFlags].color_1_sampler, sharedtextureoffset, true, rapi);
+			int color2 = Model_Bayo_ReadTextureIndex(mat, textures, bayoMatTypes[mat.matFlags].color_2_sampler, sharedtextureoffset, false, rapi);
+			int color3 = Model_Bayo_ReadTextureIndex(mat, textures, bayoMatTypes[mat.matFlags].color_3_sampler, sharedtextureoffset, false, rapi);
+			DBGLOG(", color1: %d", color1);
+			if (color2 != -1) {
+				DBGLOG(", color2: %d", color2);
+			}
+			if (color3 != -1) {
+				DBGLOG(", color3: %d", color3);
+			}
+			if (color3 != -1 && color2 != -1) {
+				// r: 1 - ratio of color1 and (color2 + color3)
+				// g: 1 - ratio of color2 and color 3
+				// (1 - r) * (g*color3 + (1-g)*color2) +  r * color1
+				//(1-r) * g * color3 + (1-r)*(1-g)*color2 + r * color1
+				nmat->ex->userTag[0] = BAYONETTA_MULTIPASS;
+				nmat->texIdx = color3;
+				nmat->expr = rapi->Noesis_AllocMaterialExpressions(NULL);
+				nmat->expr->v_clrExpr[0] = rapi->Express_Parse("1.0");
+				nmat->expr->v_clrExpr[1] = rapi->Express_Parse("1.0");
+				nmat->expr->v_clrExpr[2] = rapi->Express_Parse("1.0");
+				nmat->expr->v_clrExpr[3] = rapi->Express_Parse("1.0");
+
+				char matName2[128];
+				sprintf_s(matName2, 128, "bayomat2p%i", i);
+				DBGLOG(" name: %s,", matName2);
+				noesisMaterial_t *nmat2 = rapi->Noesis_GetMaterialList(1, true);
+				nmat2->name = rapi->Noesis_PooledString(matName2);
+				totMatList.Append(nmat2);
+				nmat2->expr = rapi->Noesis_AllocMaterialExpressions(NULL);
+				nmat2->expr->v_clrExpr[0] = rapi->Express_Parse("1.0");
+				nmat2->expr->v_clrExpr[1] = rapi->Express_Parse("1.0");
+				nmat2->expr->v_clrExpr[2] = rapi->Express_Parse("1.0");
+				nmat2->expr->v_clrExpr[3] = rapi->Express_Parse("vert_clr_g");
+				nmat2->texIdx = color2;
+				nmat->nextPass = nmat2;
+				nmat2->blendSrc = NOEBLEND_ONE_MINUS_SRC_ALPHA;
+				nmat2->blendDst = NOEBLEND_SRC_ALPHA;
+
+				char matName3[128];
+				sprintf_s(matName3, 128, "bayomat3p%i", i);
+				DBGLOG(" name: %s,", matName3);
+				noesisMaterial_t *nmat3 = rapi->Noesis_GetMaterialList(1, true);
+				nmat3->name = rapi->Noesis_PooledString(matName3);
+				totMatList.Append(nmat3);
+				nmat3->expr = rapi->Noesis_AllocMaterialExpressions(NULL);
+				nmat3->expr->v_clrExpr[0] = rapi->Express_Parse("1.0");
+				nmat3->expr->v_clrExpr[1] = rapi->Express_Parse("1.0");
+				nmat3->expr->v_clrExpr[2] = rapi->Express_Parse("1.0");
+				nmat3->expr->v_clrExpr[3] = rapi->Express_Parse("vert_clr_r");
+				nmat3->texIdx = color1;
+				nmat2->nextPass = nmat3;
+				nmat3->blendSrc = NOEBLEND_ONE_MINUS_SRC_ALPHA;
+				nmat3->blendDst = NOEBLEND_SRC_ALPHA;
+
+				Model_Bayo_SetTile<big>(matData, bayoMatTypes[mat.matFlags].color_1_tile, nmat3, rapi);
+				Model_Bayo_SetTile<big>(matData, bayoMatTypes[mat.matFlags].color_2_tile, nmat2, rapi);
+				Model_Bayo_SetTile<big>(matData, bayoMatTypes[mat.matFlags].color_3_tile, nmat, rapi);
+			}
+			else if (color2 != -1) {
+				nmat->ex->userTag[0] = BAYONETTA_MULTIPASS;
+				nmat->texIdx = color1;
+				nmat->expr = rapi->Noesis_AllocMaterialExpressions(NULL);
+				nmat->expr->v_clrExpr[0] = rapi->Express_Parse("1.0");
+				nmat->expr->v_clrExpr[1] = rapi->Express_Parse("1.0");
+				nmat->expr->v_clrExpr[2] = rapi->Express_Parse("1.0");
+				nmat->expr->v_clrExpr[3] = rapi->Express_Parse("1.0");
+				//nmat->alphaTest = 0.0f;
+				//nmat->noDefaultBlend = true ;
+				//DBGLOG(", blendSrc: %d", nmat->blendSrc);
+				//DBGLOG(", blendDst: %d", nmat->blendDst);
+				char matName2[128];
+				sprintf_s(matName2, 128, "bayomat2p%i", i);
+				DBGLOG(" name: %s,", matName2);
+				noesisMaterial_t *nmat2 = rapi->Noesis_GetMaterialList(1, true);
+				nmat2->name = rapi->Noesis_PooledString(matName2);
+				totMatList.Append(nmat2);
+
+				nmat2->expr = rapi->Noesis_AllocMaterialExpressions(NULL);
+				nmat2->expr->v_clrExpr[0] = rapi->Express_Parse("1.0");
+				nmat2->expr->v_clrExpr[1] = rapi->Express_Parse("1.0");
+				nmat2->expr->v_clrExpr[2] = rapi->Express_Parse("1.0");
+				nmat2->expr->v_clrExpr[3] = rapi->Express_Parse("vert_clr_r");
+				nmat2->texIdx = color2;
+				nmat->nextPass = nmat2;
+
+				nmat2->blendSrc = NOEBLEND_SRC_ALPHA;
+				nmat2->blendDst = NOEBLEND_ONE_MINUS_SRC_ALPHA;
+
+				Model_Bayo_SetTile<big>(matData, bayoMatTypes[mat.matFlags].color_1_tile, nmat, rapi);
+				Model_Bayo_SetTile<big>(matData, bayoMatTypes[mat.matFlags].color_2_tile, nmat2, rapi);
+			}
+			else {
+				nmat->texIdx = color1;
+				//avoid using material expressions for simple materials.
+
+				/*if (bayoMatTypes[mat.matFlags].color_1_tile != -1) {
+					bayoV4F<big> tile((bayoV4F_t *)(matData + bayoMatTypes[mat.matFlags].color_1_tile));
+
+					if (tile.x != 1.0f || tile.y != 1.0f) {
+						float *scaleBias = (float *)rapi->Noesis_PooledAlloc(4 * sizeof(float));
+						scaleBias[0] = tile.x;
+						scaleBias[1] = tile.y;
+						scaleBias[2] = 0.0f;
+						scaleBias[3] = 0.0f;
+						nmat->ex->pUvScaleBias = scaleBias;
+					}
+				}*/
+				nmat->expr = rapi->Noesis_AllocMaterialExpressions(NULL);
+				/*nmat->expr->v_clrExpr[0] = rapi->Express_Parse("1.0");
+				nmat->expr->v_clrExpr[1] = rapi->Express_Parse("1.0");
+				nmat->expr->v_clrExpr[2] = rapi->Express_Parse("1.0");
+				nmat->expr->v_clrExpr[3] = rapi->Express_Parse("1.0");*/
+				Model_Bayo_SetTile<big>(matData, bayoMatTypes[mat.matFlags].color_1_tile, nmat, rapi);
+			}
+			if (bayoMatTypes[mat.matFlags].shader_name && strstr(bayoMatTypes[mat.matFlags].shader_name, "modelshaderpls06_bxnxx")) {
+				//nmat->flags |= NMATFLAG_NORMAL_UV1;
+			}
 			if (bayoMatTypes[mat.matFlags].shader_name && strstr(bayoMatTypes[mat.matFlags].shader_name, "modelshaderbgs")) {
 				nmat->bumpTexIdx = Model_Bayo_ReadTextureIndex(mat, textures, bayoMatTypes[mat.matFlags].reliefmap_sampler, sharedtextureoffset, false, rapi);
 				DBGLOG(", bump: %d", nmat->bumpTexIdx);
@@ -4010,7 +4143,7 @@ static void Model_Bayo_LoadMaterials(bayoWMBHdr<big> &hdr,
 			//specific region of the normal page. i would think the uv transform data is buried in the giant chunk of floats that
 			//follows the material data, but i don't see it in there. maybe it's related to some texture bundle flags.
 			short lightmap_offset = bayoMatTypes[mat.matFlags].lightmap_sampler;
-			if (lightmap_offset != -1 && !mat.texs[lightmap_offset / 4 - 1].tex_flagB) {
+			if ( lightmap_offset != -1 && !mat.texs[lightmap_offset / 4 - 1].tex_flagB) {
 				char matNameLightMap[128];
 				sprintf_s(matNameLightMap, 128, "bayomat_light%i", i);
 				nmatLightMap = rapi->Noesis_GetMaterialList(1, true);
@@ -4018,22 +4151,51 @@ static void Model_Bayo_LoadMaterials(bayoWMBHdr<big> &hdr,
 				nmatLightMap->texIdx = mat.texs[lightmap_offset / 4 - 1].tex_idx;
 				nmatLightMap->normalTexIdx = nmat->normalTexIdx;
 				nmatLightMap->noLighting = true;
+				nmatLightMap->flags |= NMATFLAG_USELMUVS;
+				nmatLightMap->blendDst = NOEBLEND_ZERO;
+				nmatLightMap->blendSrc = NOEBLEND_DST_COLOR;
+				//nmatLightMap->noDefaultBlend = true;
+				//nmatLightMap->alphaTest = 0.5;
+
+				if (nmat->ex->userTag[0] & BAYONETTA_MULTIPASS) {
+					nmatLightMap->expr = rapi->Noesis_AllocMaterialExpressions(NULL);
+					nmatLightMap->expr->v_clrExpr[0] = rapi->Express_Parse("1.0");
+					nmatLightMap->expr->v_clrExpr[1] = rapi->Express_Parse("1.0");
+					nmatLightMap->expr->v_clrExpr[2] = rapi->Express_Parse("1.0");
+					nmatLightMap->expr->v_clrExpr[3] = rapi->Express_Parse("1.0");
+				}
+
 				totMatList.Append(nmatLightMap);
+				nmat->noLighting = true;
+				if (color3 != -1 && color2 != -1) {
+					nmat->nextPass->nextPass->nextPass = nmatLightMap;
+				}
+				else if (color2 != -1) {
+					nmat->nextPass->nextPass = nmatLightMap;
+				}
+				else {
+					nmat->nextPass = nmatLightMap;
+				}
 			}
-
+			/*copy properties to next passes*/
+			if (color3 != -1 && color2 != -1) {
+				nmat->nextPass->nextPass->normalTexIdx = nmat->normalTexIdx;
+				nmat->nextPass->nextPass->noLighting = nmat->noLighting;
+				g_mfn->Math_VecCopy(nmat->diffuse, nmat->nextPass->nextPass->diffuse);
+				g_mfn->Math_VecCopy(nmat->specular, nmat->nextPass->nextPass->specular);
+				nmat->nextPass->normalTexIdx = nmat->normalTexIdx;
+				nmat->nextPass->noLighting = nmat->noLighting;
+				g_mfn->Math_VecCopy(nmat->diffuse, nmat->nextPass->diffuse);
+				g_mfn->Math_VecCopy(nmat->specular, nmat->nextPass->specular);
+			}
+			else if (color2 != -1) {
+				nmat->nextPass->normalTexIdx = nmat->normalTexIdx;
+				nmat->nextPass->noLighting = nmat->noLighting;
+				g_mfn->Math_VecCopy(nmat->diffuse, nmat->nextPass->diffuse);
+				g_mfn->Math_VecCopy(nmat->specular, nmat->nextPass->specular);
+			}
 			DBGLOG("\n");
-			float *scaleBias = (float *)rapi->Noesis_PooledAlloc(4*sizeof(float));
-			scaleBias[0] = 1.0f;
-			scaleBias[1] = 1.0f;
-			scaleBias[2] = 0.0f;
-			scaleBias[3] = 0.0f;
-			nmat->ex->pUvScaleBias = scaleBias;
 
-			if (bayoMatTypes[mat.matFlags].color_1_tile != -1) {
-				bayoV4F<big> tile((bayoV4F_t *)(matData + bayoMatTypes[mat.matFlags].color_1_tile));
-				scaleBias[0] = tile.x;
-				scaleBias[1] = tile.y;
-			}
 
 
 		}
@@ -4761,10 +4923,6 @@ static void Model_Bayo_LoadModel(CArrayList<bayoDatFile_t> &dfiles, bayoDatFile_
 			rapi->rpgBindPositionBuffer(buffers.position.address + vertOfs * buffers.position.stride, buffers.position.type, buffers.position.stride);
 			//bind normals
 			rapi->rpgBindNormalBuffer(buffers.normal.address + vertOfs * buffers.normal.stride, buffers.normal.type, buffers.normal.stride);
-			//bind color
-			/*if (buffers.color.address) {
-				rapi->rpgBindColorBuffer(buffers.color.address + vertOfs * buffers.color.stride, buffers.color.type, buffers.color.stride, 4);
-			}*/
 			//bind tangents
 			/*if (batch.primType == 4) {
 				modelTan4_t	*tangents = rapi->rpgCalcTangents(batch.vertEnd - batch.vertOfs, batch.numIndices, batchData + batch.ofsIndices, RPGEODATA_USHORT, 3 * 2,
@@ -4797,19 +4955,19 @@ static void Model_Bayo_LoadModel(CArrayList<bayoDatFile_t> &dfiles, bayoDatFile_
 
 			int texID = (hasExMatInfo) ? batch.unknownC : batch.texID;
 			char *matName = (texID < matList.Num()) ? matList[texID]->name : NULL;
+			//bind color if needed for multipass materials for now
+			if (matName && buffers.color.address && (matList[texID]->ex->userTag[0] & BAYONETTA_MULTIPASS)) {
+				rapi->rpgBindColorBuffer(buffers.color.address + vertOfs * buffers.color.stride, buffers.color.type, buffers.color.stride, 4);
+			}
+			else {
+				rapi->rpgBindColorBuffer(NULL, RPGEODATA_BYTE, 0, 0);
+			}
 			DBGLOG("matName: %s\n", matName);
 			rapi->rpgSetMaterial(matName);
 			if(texID < matList.Num() && matList[texID]->ex->pUvScaleBias) {
 				rapi->rpgSetUVScaleBias(matList[texID]->ex->pUvScaleBias, matList[texID]->ex->pUvScaleBias + 2);
 			} else {
 				rapi->rpgSetUVScaleBias(NULL, NULL);
-			}
-			if (animList.Num() == 0 && matListLightMap[texID] && buffers.mapping2.address) {
-				rapi->rpgSetLightmap(matListLightMap[texID]->name);
-				matList[texID]->noLighting = true;
-			}
-			else {
-				rapi->rpgSetLightmap(NULL);
 			}
 			DBGLOG("primType: %d, numIndices: %d\n", batch.primType, batch.numIndices);
 			rpgeoPrimType_e primType = (batch.primType == 4) ? RPGEO_TRIANGLE : RPGEO_TRIANGLE_STRIP;
