@@ -4150,7 +4150,7 @@ static void Model_Bayo_LoadMaterials(bayoWMBHdr<big> &hdr,
 				nmatLightMap->name = rapi->Noesis_PooledString(matNameLightMap);
 				nmatLightMap->texIdx = mat.texs[lightmap_offset / 4 - 1].tex_idx;
 				nmatLightMap->normalTexIdx = nmat->normalTexIdx;
-				nmatLightMap->noLighting = true;
+				//nmatLightMap->noLighting = true;
 				nmatLightMap->flags |= NMATFLAG_USELMUVS;
 				nmatLightMap->blendDst = NOEBLEND_ZERO;
 				nmatLightMap->blendSrc = NOEBLEND_DST_COLOR;
@@ -4166,7 +4166,7 @@ static void Model_Bayo_LoadMaterials(bayoWMBHdr<big> &hdr,
 				}
 
 				totMatList.Append(nmatLightMap);
-				nmat->noLighting = true;
+				//nmat->noLighting = true;
 				if (color3 != -1 && color2 != -1) {
 					nmat->nextPass->nextPass->nextPass = nmatLightMap;
 				}
