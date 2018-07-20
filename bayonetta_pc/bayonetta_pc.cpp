@@ -5020,7 +5020,9 @@ static void Model_Bayo_LoadModel(CArrayList<bayoDatFile_t> &dfiles, bayoDatFile_
 
 	noesisMatData_t *md = rapi->Noesis_GetMatDataFromLists(totMatList, textures);
 	rapi->rpgSetExData_Materials(md);
-	rapi->rpgSetExData_Bones(bones, numBones + 1);
+	if (bones) {
+		rapi->rpgSetExData_Bones(bones, numBones + 1);
+	}
 
 	int anims_num = animList.Num();
     noesisAnim_t *anims = rapi->Noesis_AnimFromAnimsList(animList, anims_num);
@@ -5177,7 +5179,9 @@ static void Model_Bayo_LoadModel<false, NIER_AUTOMATA>(CArrayList<bayoDatFile_t>
 
 	noesisMatData_t *md = rapi->Noesis_GetMatDataFromLists(totMatList, textures);
 	rapi->rpgSetExData_Materials(md);
-	rapi->rpgSetExData_Bones(bones, numBones+1);
+	if (bones) {
+		rapi->rpgSetExData_Bones(bones, numBones + 1);
+	}
 	int anims_num = animList.Num();
 	DBGLOG("Found %d anims\n", anims_num);
 	if (anims_num > 700) {
