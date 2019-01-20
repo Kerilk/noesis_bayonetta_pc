@@ -3626,6 +3626,8 @@ static void Model_Bayo_CreateTangents<false, BAYONETTA>(BYTE *data, float *dsts,
 		for (int j = 0; j < 4; j++) {
 			dst[j] = ( src[j] - (float)127 ) / (float)127;
 		}
+		// handedness is reverse here:
+		dst[3] *= -1;
 		if (m) {
 			g_mfn->Math_TransformPointByMatrixNoTrans(m, dst, tmp);
 			g_mfn->Math_VecCopy(tmp, dst);
@@ -3651,6 +3653,8 @@ static void Model_Bayo_CreateTangents<true, BAYONETTA2>(BYTE *data, float *dsts,
 		for (int j = 0; j < 4; j++) {
 			dst[j] = (src[j] - (float)127) / (float)127;
 		}
+		// handedness is reverse here:
+		dst[3] *= -1;
 		if (m) {
 			g_mfn->Math_TransformPointByMatrixNoTrans(m, dst, tmp);
 			g_mfn->Math_VecCopy(tmp, dst);
@@ -3672,6 +3676,8 @@ static void Model_Bayo_CreateTangents<true, BAYONETTA>(BYTE *data, float *dsts, 
 		for (int j = 0; j < 4; j++) {
 			dst[j] = (src[3-j] - (float)127) / (float)127;
 		}
+		// handedness is reverse here:
+		dst[3] *= -1;
 		if (m) {
 			g_mfn->Math_TransformPointByMatrixNoTrans(m, dst, tmp);
 			g_mfn->Math_VecCopy(tmp, dst);
