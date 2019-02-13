@@ -3626,13 +3626,10 @@ static void Model_Bayo_CreateTangents<false, BAYONETTA>(BYTE *data, float *dsts,
 		for (int j = 0; j < 4; j++) {
 			dst[j] = ( src[j] - (float)127 ) / (float)127;
 		}
-		// handedness is reverse here:
-		dst[3] *= -1;
 		if (m) {
 			g_mfn->Math_TransformPointByMatrixNoTrans(m, dst, tmp);
 			g_mfn->Math_VecCopy(tmp, dst);
 		}
-		g_mfn->Math_VecNorm(dst);
 	}
 }
 template <>
@@ -3654,12 +3651,10 @@ static void Model_Bayo_CreateTangents<true, BAYONETTA2>(BYTE *data, float *dsts,
 			dst[j] = (src[j] - (float)127) / (float)127;
 		}
 		// handedness is reverse here:
-		dst[3] *= -1;
 		if (m) {
 			g_mfn->Math_TransformPointByMatrixNoTrans(m, dst, tmp);
 			g_mfn->Math_VecCopy(tmp, dst);
 		}
-		g_mfn->Math_VecNorm(dst);
 		for (int j = 0; j < 4; j++) {
 			LITTLE_BIG_SWAP(dst[j]);
 		}
@@ -3677,12 +3672,10 @@ static void Model_Bayo_CreateTangents<true, BAYONETTA>(BYTE *data, float *dsts, 
 			dst[j] = (src[3-j] - (float)127) / (float)127;
 		}
 		// handedness is reverse here:
-		dst[3] *= -1;
 		if (m) {
 			g_mfn->Math_TransformPointByMatrixNoTrans(m, dst, tmp);
 			g_mfn->Math_VecCopy(tmp, dst);
 		}
-		g_mfn->Math_VecNorm(dst);
 		for (int j = 0; j < 4; j++) {
 			LITTLE_BIG_SWAP(dst[j]);
 		}
@@ -4968,8 +4961,10 @@ static void Model_Bayo_LoadModel(CArrayList<bayoDatFile_t> &dfiles, bayoDatFile_
 			//bind normals
 			rapi->rpgBindNormalBuffer(buffers.normal.address + vertOfs * buffers.normal.stride, buffers.normal.type, buffers.normal.stride);
 			//bind tangents
-			/*if (batch.primType == 4) {
-				modelTan4_t	*tangents = rapi->rpgCalcTangents(batch.vertEnd - batch.vertOfs, batch.numIndices, batchData + batch.ofsIndices, RPGEODATA_USHORT, 3 * 2,
+			if (false && batch.primType == 4) {
+				DBGLOG("\n");
+				modelTan4_t	*tangents = rapi->rpgCalcTangents(batch.vertEnd - vertOfs, batch.numIndices, batchData + batch.ofsIndices,
+					RPGEODATA_USHORT, sizeof(unsigned short) * (batch.primType == 4 ? 3 : 1),
 					buffers.position.address + vertOfs * buffers.position.stride, buffers.position.type, buffers.position.stride,
 					buffers.normal.address + vertOfs * buffers.normal.stride, buffers.normal.type, buffers.normal.stride,
 					buffers.mapping.address + vertOfs * buffers.mapping.stride, buffers.mapping.type, buffers.mapping.stride,
@@ -4977,12 +4972,29 @@ static void Model_Bayo_LoadModel(CArrayList<bayoDatFile_t> &dfiles, bayoDatFile_
 				rapi->rpgBindTangentBuffer(tangents, RPGEODATA_FLOAT, 16);
 				for (int k = batch.vertStart - batch.vertOfs; k < batch.vertEnd - batch.vertOfs; k++) {
 					modelTan4_t * ta = (modelTan4_t *)(buffers.tangents.address + vertOfs * buffers.tangents.stride);
+					modelVert_t * n = (modelVert_t *)(buffers.normal.address + vertOfs * buffers.normal.stride);
+					DBGLOG("%d no: %f %f %f\n", k, n[k].x, n[k].y, n[k].z);
 					DBGLOG("%d gt: %f %f %f %f\n", k, ta[k].v[0], ta[k].v[1], ta[k].v[2], ta[k].v[3]);
 					DBGLOG("%d nt: %f %f %f %f\n", k, tangents[k].v[0], tangents[k].v[1], tangents[k].v[2], tangents[k].v[3]);
 					DBGLOG("%d  d: %f %f %f %f\n", k, abs(ta[k].v[0] - tangents[k].v[0]), abs(ta[k].v[1] - tangents[k].v[1]), abs(ta[k].v[2] - tangents[k].v[2]), abs(ta[k].v[3] - tangents[k].v[3]));
+					modelVert_t bt;
+					bt.x = n[k].y * ta[k].v[2] - n[k].z * ta[k].v[1];
+					bt.y = n[k].z * ta[k].v[0] - n[k].x * ta[k].v[2];
+					bt.z = n[k].x * ta[k].v[1] - n[k].y * ta[k].v[0];
+					bt.x *= ta[k].v[3];
+					bt.y *= ta[k].v[3];
+					bt.z *= ta[k].v[3];
+					DBGLOG("%d gb: %f %f %f\n", k, bt.x, bt.y, bt.z);
+					bt.x = n[k].y * tangents[k].v[2] - n[k].z * tangents[k].v[1];
+					bt.y = n[k].z * tangents[k].v[0] - n[k].x * tangents[k].v[2];
+					bt.z = n[k].x * tangents[k].v[1] - n[k].y * tangents[k].v[0];
+					bt.x *= tangents[k].v[3];
+					bt.y *= tangents[k].v[3];
+					bt.z *= tangents[k].v[3];
+					DBGLOG("%d nb: %f %f %f\n", k, bt.x, bt.y, bt.z);
 				}
-			}*/
-			//rapi->rpgBindTangentBuffer(buffers.tangents.address + vertOfs * buffers.tangents.stride, buffers.tangents.type, buffers.tangents.stride);
+			}
+			rapi->rpgBindTangentBuffer(buffers.tangents.address + vertOfs * buffers.tangents.stride, buffers.tangents.type, buffers.tangents.stride);
 			//bind uv's
 			rapi->rpgBindUV1Buffer(buffers.mapping.address + vertOfs * buffers.mapping.stride, buffers.mapping.type, buffers.mapping.stride);
 			if (buffers.mapping2.address) {
@@ -5016,6 +5028,7 @@ static void Model_Bayo_LoadModel(CArrayList<bayoDatFile_t> &dfiles, bayoDatFile_
 			DBGLOG("primType: %d, numIndices: %d\n", batch.primType, batch.numIndices);
 			rpgeoPrimType_e primType = (batch.primType == 4) ? RPGEO_TRIANGLE : RPGEO_TRIANGLE_STRIP;
 			rapi->rpgCommitTriangles(batchData+batch.ofsIndices, RPGEODATA_USHORT, batch.numIndices, primType, true);
+			rapi->rpgSmoothTangents(NULL);
 			if (boneRefDst)
 			{ //reference map is no longer needed once triangles have been committed
 				rapi->rpgSetBoneMap(NULL);
