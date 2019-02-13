@@ -4978,19 +4978,11 @@ static void Model_Bayo_LoadModel(CArrayList<bayoDatFile_t> &dfiles, bayoDatFile_
 					DBGLOG("%d nt: %f %f %f %f\n", k, tangents[k].v[0], tangents[k].v[1], tangents[k].v[2], tangents[k].v[3]);
 					DBGLOG("%d  d: %f %f %f %f\n", k, abs(ta[k].v[0] - tangents[k].v[0]), abs(ta[k].v[1] - tangents[k].v[1]), abs(ta[k].v[2] - tangents[k].v[2]), abs(ta[k].v[3] - tangents[k].v[3]));
 					modelVert_t bt;
-					bt.x = n[k].y * ta[k].v[2] - n[k].z * ta[k].v[1];
-					bt.y = n[k].z * ta[k].v[0] - n[k].x * ta[k].v[2];
-					bt.z = n[k].x * ta[k].v[1] - n[k].y * ta[k].v[0];
-					bt.x *= ta[k].v[3];
-					bt.y *= ta[k].v[3];
-					bt.z *= ta[k].v[3];
+					g_mfn->Math_CrossProduct((float*)&n[k], ta[k].v, (float *)&bt);
+					g_mfn->Math_VecScale((float *)&bt, ta[k].v[3]);
 					DBGLOG("%d gb: %f %f %f\n", k, bt.x, bt.y, bt.z);
-					bt.x = n[k].y * tangents[k].v[2] - n[k].z * tangents[k].v[1];
-					bt.y = n[k].z * tangents[k].v[0] - n[k].x * tangents[k].v[2];
-					bt.z = n[k].x * tangents[k].v[1] - n[k].y * tangents[k].v[0];
-					bt.x *= tangents[k].v[3];
-					bt.y *= tangents[k].v[3];
-					bt.z *= tangents[k].v[3];
+					g_mfn->Math_CrossProduct((float*)&n[k], tangents[k].v, (float *)&bt);
+					g_mfn->Math_VecScale((float *)&bt, tangents[k].v[3]);
 					DBGLOG("%d nb: %f %f %f\n", k, bt.x, bt.y, bt.z);
 				}
 			}
