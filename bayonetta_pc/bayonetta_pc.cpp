@@ -647,8 +647,8 @@ typedef struct bayoWMBHdr_s
 	int					unknownK;			//5C
 	int					unknownL;			//60
 	int					ofsUnknownJ;		//64
-	int					ofsUnknownK;		//68
-	int					ofsUnknownL;		//6C
+	int					ofsBoneSymmetries;	//68
+	int					ofsBoneFlags;		//6C
 	int					exMatInfo[4];		//70
 } bayoWMBHdr_t;
 template <bool big>
@@ -678,8 +678,8 @@ struct bayoWMBHdr : public bayoWMBHdr_s {
 			LITTLE_BIG_SWAP(unknownK);
 			LITTLE_BIG_SWAP(unknownL);
 			LITTLE_BIG_SWAP(ofsUnknownJ);
-			LITTLE_BIG_SWAP(ofsUnknownK);
-			LITTLE_BIG_SWAP(ofsUnknownL);
+			LITTLE_BIG_SWAP(ofsBoneSymmetries);
+			LITTLE_BIG_SWAP(ofsBoneFlags);
 			for(int i=0; i<4; i++) LITTLE_BIG_SWAP(exMatInfo[i]);
 		}
 	}
@@ -2947,11 +2947,38 @@ static void Model_Bayo_ApplyMotions(modelMatrix_t * matrixes, float * tmpValues,
 
 			g_mfn->Math_TranslateMatrix(&matrixes[bi + (boneNumber + 1) * fi], translate);
 
-			DBGALOG("\t\trotate: %f, %f, %f\n", rotate[0], rotate[1], rotate[2]);
-
-			g_mfn->Math_RotateMatrix(&matrixes[bi + (boneNumber + 1) * fi], rotate[2], 0.0f, 0.0f, 1.0f);
-			g_mfn->Math_RotateMatrix(&matrixes[bi + (boneNumber + 1) * fi], rotate[1], 0.0f, 1.0f, 0.0f);
-			g_mfn->Math_RotateMatrix(&matrixes[bi + (boneNumber + 1) * fi], rotate[0], 1.0f, 0.0f, 0.0f);
+			DBGALOG("\t\trotate: %f, %f, %f (order %d)\n", rotate[0], rotate[1], rotate[2], bones[bi].userIndex);
+			switch (bones[bi].userIndex) {
+			case 0:
+				g_mfn->Math_RotateMatrix(&matrixes[bi + (boneNumber + 1) * fi], rotate[0], 1.0f, 0.0f, 0.0f);
+				g_mfn->Math_RotateMatrix(&matrixes[bi + (boneNumber + 1) * fi], rotate[1], 0.0f, 1.0f, 0.0f);
+				g_mfn->Math_RotateMatrix(&matrixes[bi + (boneNumber + 1) * fi], rotate[2], 0.0f, 0.0f, 1.0f);
+				break;
+			case 1:
+				g_mfn->Math_RotateMatrix(&matrixes[bi + (boneNumber + 1) * fi], rotate[0], 1.0f, 0.0f, 0.0f);
+				g_mfn->Math_RotateMatrix(&matrixes[bi + (boneNumber + 1) * fi], rotate[2], 0.0f, 0.0f, 1.0f);
+				g_mfn->Math_RotateMatrix(&matrixes[bi + (boneNumber + 1) * fi], rotate[1], 0.0f, 1.0f, 0.0f);
+				break;
+			case 2:
+				g_mfn->Math_RotateMatrix(&matrixes[bi + (boneNumber + 1) * fi], rotate[1], 0.0f, 1.0f, 0.0f);
+				g_mfn->Math_RotateMatrix(&matrixes[bi + (boneNumber + 1) * fi], rotate[0], 1.0f, 0.0f, 0.0f);
+				g_mfn->Math_RotateMatrix(&matrixes[bi + (boneNumber + 1) * fi], rotate[2], 0.0f, 0.0f, 1.0f);
+				break;
+			case 3:
+				g_mfn->Math_RotateMatrix(&matrixes[bi + (boneNumber + 1) * fi], rotate[1], 0.0f, 1.0f, 0.0f);
+				g_mfn->Math_RotateMatrix(&matrixes[bi + (boneNumber + 1) * fi], rotate[2], 0.0f, 0.0f, 1.0f);
+				g_mfn->Math_RotateMatrix(&matrixes[bi + (boneNumber + 1) * fi], rotate[0], 1.0f, 0.0f, 0.0f);
+				break;
+			case 4:
+				g_mfn->Math_RotateMatrix(&matrixes[bi + (boneNumber + 1) * fi], rotate[2], 0.0f, 0.0f, 1.0f);
+				g_mfn->Math_RotateMatrix(&matrixes[bi + (boneNumber + 1) * fi], rotate[0], 1.0f, 0.0f, 0.0f);
+				g_mfn->Math_RotateMatrix(&matrixes[bi + (boneNumber + 1) * fi], rotate[1], 0.0f, 1.0f, 0.0f);
+				break;
+			default:
+				g_mfn->Math_RotateMatrix(&matrixes[bi + (boneNumber + 1) * fi], rotate[2], 0.0f, 0.0f, 1.0f);
+				g_mfn->Math_RotateMatrix(&matrixes[bi + (boneNumber + 1) * fi], rotate[1], 0.0f, 1.0f, 0.0f);
+				g_mfn->Math_RotateMatrix(&matrixes[bi + (boneNumber + 1) * fi], rotate[0], 1.0f, 0.0f, 0.0f);
+			}
 
 			DBGALOG("\t\tscale: %f, %f, %f\n", scale[0], scale[1], scale[2]);
 			for ( int i = 0; i < 3; i++ ) {
@@ -3741,6 +3768,7 @@ modelBone_t *Model_Nier_CreateBones(nierWMBHdr<big> &hdr, BYTE *data, noeRAPI_t 
 			bone->mat.x2[i] *= scale[i];
 			bone->mat.x3[i] *= scale[i];
 		}
+		bone->userIndex = 5;
 		/*
 		pos[0] = nBone.position.x;
 		pos[1] = nBone.position.y;
@@ -3751,6 +3779,7 @@ modelBone_t *Model_Nier_CreateBones(nierWMBHdr<big> &hdr, BYTE *data, noeRAPI_t 
 	bones[numBones].eData.parent = NULL;
 	sprintf_s(bones[numBones].name, 30, "bone-1");
 	bones[numBones].mat = g_identityMatrix;
+	bones[numBones].userIndex = 5;
 	rapi->rpgMultiplyBones(bones, numBones);
 	return bones;
 }
@@ -3766,6 +3795,9 @@ modelBone_t *Model_Bayo_CreateBones(bayoWMBHdr<big> &hdr, BYTE *data, noeRAPI_t 
 	short *parentList = (short *)(data+hdr.ofsBoneHie);
 	float *posList = (float *)(data+hdr.ofsBoneDataB);
 	float *relPosList = (float *)(data+hdr.ofsBoneDataA); //actually relative positions
+	char *boneFlags = nullptr;
+	if(hdr.ofsBoneFlags)
+		boneFlags = (char *)(data + hdr.ofsBoneFlags);
 	animBoneTT = (short int *)(data+hdr.ofsBoneHieB);
 	std::map<short int, short int> boneMap;
 	for (short int i = 0; i < 0x1000; i++) {
@@ -3806,11 +3838,16 @@ modelBone_t *Model_Bayo_CreateBones(bayoWMBHdr<big> &hdr, BYTE *data, noeRAPI_t 
 			LITTLE_BIG_SWAP(pos[2]);
 		}
 		g_mfn->Math_VecCopy(pos, bone->mat.o);
+		if (boneFlags)
+			bone->userIndex = boneFlags[i];
+		else
+			bone->userIndex = 5;
 	}
 	bones[numBones].index = numBones;
 	bones[numBones].eData.parent = NULL;
 	sprintf_s(bones[numBones].name, 30, "bone-1");
 	bones[numBones].mat = g_identityMatrix;
+	bones[numBones].userIndex = 5;
 
 	DBGALOG("-------------------------------\n");
 	for(int bi = 0; bi < numBones; bi++) {
