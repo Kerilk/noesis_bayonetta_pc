@@ -2599,10 +2599,11 @@ static inline short int Model_Bayo_DecodeMotionIndex(const short int *table, con
 }
 //initialize motion matrix
 template <bool big, game_t game>
-static void Model_Bayo_InitMotions(modelMatrix_t * &matrixes, float * &tmpValues, modelBone_t *bones, const int boneNumber, const short int frameCount, noeRAPI_t *rapi, void * extraBoneInfo) {
+static void Model_Bayo_InitMotions(modelMatrix_t * &matrixes, float * &tmpValues, float * &tmpCumulScale, modelBone_t *bones, const int boneNumber, const short int frameCount, noeRAPI_t *rapi, void * extraBoneInfo) {
 	const int maxCoeffs = 16;
 	matrixes = (modelMatrix_t *)rapi->Noesis_UnpooledAlloc(sizeof(modelMatrix_t) * (boneNumber + 1) * frameCount);
 	tmpValues = (float *)rapi->Noesis_UnpooledAlloc(sizeof(float) * (boneNumber + 1) * frameCount * maxCoeffs);
+	tmpCumulScale = (float *)rapi->Noesis_UnpooledAlloc(sizeof(float) * (boneNumber + 1) * frameCount * 3);
 	memset(tmpValues, 0, sizeof(float) * (boneNumber + 1) * frameCount * maxCoeffs);
 
 	for (int i = 0; i < boneNumber; i++) {
@@ -2648,6 +2649,9 @@ static void Model_Bayo_InitMotions(modelMatrix_t * &matrixes, float * &tmpValues
 			for( int k = 7, l = 0; k < 10; k++, l++) {
 				tmpValues[j + k * frameCount + i *  frameCount * maxCoeffs] = scale[l];
 			}
+			for (int k = 0; k < 3; k++) {
+				tmpCumulScale[j + k * frameCount + i * frameCount * 3] = 1.0f;
+			}
 			//g_mfn->Math_TranslateMatrix(&matrixes[i + j*bone_number], bones[i].mat.o);
 			//float zero[3] = {0.0f, 0.0f, 0.0f};
 			//g_mfn->Math_RotationMatrix(0.0, 0, &matrixes[i + j*bone_number]);
@@ -2656,8 +2660,11 @@ static void Model_Bayo_InitMotions(modelMatrix_t * &matrixes, float * &tmpValues
 	// bone -1
 	for (int j = 0; j < frameCount; j++) {
 		matrixes[boneNumber + j * (boneNumber + 1)] = g_identityMatrix;
+		for (int k = 0; k < 3; k++) {
+			tmpCumulScale[j + k * frameCount + boneNumber * frameCount * 3] = 1.0f;
+		}
 		for (int k = 7, l = 0; k < 10; k++, l++) {
-			tmpValues[j + k * frameCount + boneNumber * frameCount * maxCoeffs] = 1.0;
+			tmpValues[j + k * frameCount + boneNumber * frameCount * maxCoeffs] = 1.0f;
 		}
 	}
 }
@@ -2904,7 +2911,7 @@ inline static void Model_Bayo_ApplyEXP(CArrayList<bayoDatFile_t *> & expfile, fl
 	}
 }
 //apply rotate/translate to model matrix
-static void Model_Bayo_ApplyMotions(modelMatrix_t * matrixes, float * tmpValues, modelBone_t *bones, const int boneNumber, const short int frameCount) {
+static void Model_Bayo_ApplyMotions(modelMatrix_t * matrixes, float * tmpValues, float *tmpCumulScale, modelBone_t *bones, const int boneNumber, const short int frameCount) {
 	const int maxCoeffs = 16;
 	DBGALOG("-------------------------------\n");
 	for(int bi = 0; bi < boneNumber + 1; bi++) {
@@ -2947,6 +2954,21 @@ static void Model_Bayo_ApplyMotions(modelMatrix_t * matrixes, float * tmpValues,
 
 			g_mfn->Math_TranslateMatrix(&matrixes[bi + (boneNumber + 1) * fi], translate);
 
+			if (bones[bi].eData.parent) {
+				int pi = bones[bi].eData.parent->index;
+				float parentCumulScale[3];
+				for (int i = 0; i < 3; i++)
+					parentCumulScale[i] = tmpCumulScale[fi + i * frameCount + pi * frameCount * 3];
+				for (int i = 0; i < 3; i++)
+					scale[i] *= parentCumulScale[i];
+				for (int i = 0; i < 3; i++) {
+					matrixes[bi + (boneNumber + 1) * fi].x1[i] /= parentCumulScale[i];
+					matrixes[bi + (boneNumber + 1) * fi].x2[i] /= parentCumulScale[i];
+					matrixes[bi + (boneNumber + 1) * fi].x3[i] /= parentCumulScale[i];
+				}
+			}
+			for (int i = 0; i < 3; i++)
+				tmpCumulScale[fi + i * frameCount + bi * frameCount * 3] = scale[i];
 			DBGALOG("\t\trotate: %f, %f, %f (order %d)\n", rotate[0], rotate[1], rotate[2], bones[bi].userIndex);
 			switch (bones[bi].userIndex) {
 			case 0:
@@ -3122,7 +3144,8 @@ static void Model_Bayo_CreateRestPoseAnim(CArrayList<noesisAnim_t *> &animList, 
 	const int maxCoeffs = 16;
 	modelMatrix_t * matrixes;
 	float * tmp_values;
-	Model_Bayo_InitMotions<big,game>(matrixes, tmp_values, bones, bone_number, frameCount, rapi, extraBoneInfo);
+	float * tmp_cumul_scale;
+	Model_Bayo_InitMotions<big,game>(matrixes, tmp_values, tmp_cumul_scale, bones, bone_number, frameCount, rapi, extraBoneInfo);
 	for (int bi = 0; bi < bone_number + 1; bi++) {
 		for (int fi = 0; fi < frameCount; fi++) {
 			// convert to degrees
@@ -3131,7 +3154,7 @@ static void Model_Bayo_CreateRestPoseAnim(CArrayList<noesisAnim_t *> &animList, 
 			tmp_values[fi + 5 * frameCount + bi * frameCount * maxCoeffs] *= g_flRadToDeg;
 		}
 	}
-	Model_Bayo_ApplyMotions(matrixes, tmp_values, bones, bone_number, frameCount);
+	Model_Bayo_ApplyMotions(matrixes, tmp_values, tmp_cumul_scale, bones, bone_number, frameCount);
 	noesisAnim_t *anim = rapi->rpgAnimFromBonesAndMatsFinish(bones, bone_number+1, matrixes, frameCount, 60);
 
 	anim->filename = rapi->Noesis_PooledString("restpose");
@@ -3147,6 +3170,7 @@ static void Model_Bayo_CreateRestPoseAnim(CArrayList<noesisAnim_t *> &animList, 
 	}
 	rapi->Noesis_UnpooledFree(matrixes);
 	rapi->Noesis_UnpooledFree(tmp_values);
+	rapi->Noesis_UnpooledFree(tmp_cumul_scale);
 }
 //loat motion file
 template <bool big, game_t game>
@@ -3204,7 +3228,8 @@ static void Model_Bayo_LoadMotions(CArrayList<noesisAnim_t *> &animList, CArrayL
 
 	modelMatrix_t * matrixes;
 	float * tmp_values;
-	Model_Bayo_InitMotions<big, game>(matrixes, tmp_values, bones, bone_number, frameCount, rapi, extraBoneInfo);
+	float * tmp_cumul_scale;
+	Model_Bayo_InitMotions<big, game>(matrixes, tmp_values, tmp_cumul_scale, bones, bone_number, frameCount, rapi, extraBoneInfo);
 
 	bayoMotItem_t * items = (bayoMotItem_t*)(data + ofsMotion);
 	DBGALOG("unknown flag: 0x%04x, frame count: %d, data offset: 0x%04x, record number: %d\n", unknownA, frameCount, ofsMotion, numEntries);
@@ -3399,7 +3424,7 @@ static void Model_Bayo_LoadMotions(CArrayList<noesisAnim_t *> &animList, CArrayL
 		}
 	}
 
-	Model_Bayo_ApplyMotions(matrixes, tmp_values, bones, bone_number, frameCount);
+	Model_Bayo_ApplyMotions(matrixes, tmp_values, tmp_cumul_scale, bones, bone_number, frameCount);
 
 	noesisAnim_t *anim = rapi->rpgAnimFromBonesAndMatsFinish(bones, bone_number + 1, matrixes, frameCount, 60);
 	if (!anim) {
@@ -3422,6 +3447,7 @@ static void Model_Bayo_LoadMotions(CArrayList<noesisAnim_t *> &animList, CArrayL
 	}
 	rapi->Noesis_UnpooledFree(matrixes);
 	rapi->Noesis_UnpooledFree(tmp_values);
+	rapi->Noesis_UnpooledFree(tmp_cumul_scale);
   }
 
 }
