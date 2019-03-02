@@ -3265,16 +3265,16 @@ static void Model_Bayo_LoadMotions(CArrayList<noesisAnim_t *> &animList, CArrayL
 		}
 		if ( it.flag == 1 ) {
 			float *fdata = (float *)(data + it.value.offset);
-			for(int frame_count=0; frame_count < it.elem_number; frame_count++) {
-				float f = fdata[frame_count];
+			for(int frame_number=0; frame_number < it.elem_number; frame_number++) {
+				float f = fdata[frame_number];
 				if (big) LITTLE_BIG_SWAP(f);
-				tmp_values[frame_count + it.index * frameCount + boneIndex *  frameCount * maxCoeffs] = f;
-				DBGALOG("\t%3d %+f\n", frame_count, f);
+				tmp_values[frame_number + it.index * frameCount + boneIndex *  frameCount * maxCoeffs] = f;
+				DBGALOG("\t%3d %+f\n", frame_number, f);
 			}
 			float v = tmp_values[it.elem_number - 1 + it.index * frameCount + boneIndex *  frameCount * maxCoeffs];
-			for (int j = it.elem_number; j < frameCount; j++) {
-				tmp_values[j + it.index * frameCount + boneIndex *  frameCount * maxCoeffs] = v;
-				DBGALOG("\t%d, %f\n", j, v);
+			for (int frame_number = it.elem_number; frame_number < frameCount; frame_number++) {
+				tmp_values[frame_number + it.index * frameCount + boneIndex *  frameCount * maxCoeffs] = v;
+				DBGALOG("\t%d, %f\n", frame_number, v);
 			}
 		} else if ( it.flag == 2 ) {
 			float *fData = (float *)(data + it.value.offset);
