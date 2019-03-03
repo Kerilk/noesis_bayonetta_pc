@@ -837,11 +837,11 @@ struct bayo2EXPRecord : public bayo2EXPRecord_s
 
 typedef struct bayoEXPRecord_s
 {
-	short int			unknownA;
+	short int			flags;
 	short int			boneIndex;
 	char				animationTrack;
-	char				entryType;
-	char				unknownB;
+	char				entryCount;
+	char				interpolationEntryCount;
 	char				interpolationType;
 	short int			numPoints;
 	short int			unknownC;
@@ -853,7 +853,7 @@ struct bayoEXPRecord : public bayoEXPRecord_s
 {
 	bayoEXPRecord(bayoEXPRecord_t * ptr) : bayoEXPRecord_s(*ptr) {
 		if (big) {
-			LITTLE_BIG_SWAP(unknownA);
+			LITTLE_BIG_SWAP(flags);
 			LITTLE_BIG_SWAP(boneIndex);
 			LITTLE_BIG_SWAP(numPoints);
 			LITTLE_BIG_SWAP(unknownC);
@@ -954,67 +954,33 @@ struct bayo2EXPInterpolationPoint : public bayo2EXPInterpolationPoint_s
 		LITTLE_BIG_SWAP(m1);
 	}
 };
-typedef struct bayoEXPCoef_s
-{
-	unsigned int		flag;
-	float				value;
-} bayoEXPCoef_t;
-typedef struct bayoEXPEntry1_s
-{
-	unsigned int		flag;
+
+typedef struct bayoExpEntryBoneTrackInfo_s {
 	short int			boneIndex;
 	char				animationTrack;
 	char				padding;
-} bayoEXPEntry1_t;
+} bayoExpEntryBoneTrackInfo_t;
+typedef union bayoExpEntryUnion_u {
+	float value;
+	bayoExpEntryBoneTrackInfo_t boneTrackInfo;
+} bayoExpEntryUnion_t;
+typedef struct bayoEXPEntry_s
+{
+	unsigned int		flags;
+	bayoExpEntryUnion_t entryUnion;
+} bayoEXPEntry_t;
 template <bool big>
-struct bayoEXPEntry1 : public bayoEXPEntry1_s
+struct bayoEXPEntry : public bayoEXPEntry_s
 {
-	bayoEXPEntry1(bayoEXPEntry1_t*ptr) : bayoEXPEntry1_s(*ptr) {
+	bayoEXPEntry(bayoEXPEntry_t*ptr) : bayoEXPEntry_s(*ptr) {
 		if (big) {
-			LITTLE_BIG_SWAP(flag);
-			LITTLE_BIG_SWAP(boneIndex);
-		}
-	}
-};
-typedef struct bayoEXPEntry2_s
-{
-	unsigned int		flag;
-	short int			boneIndex;
-	char				animationTrack;
-	char				padding;
-	bayoEXPCoef_t		coefficient;
-} bayoEXPEntry2_t;
-template <bool big>
-struct bayoEXPEntry2 : public bayoEXPEntry2_s
-{
-	bayoEXPEntry2(bayoEXPEntry2_t*ptr) : bayoEXPEntry2_s(*ptr) {
-		if (big) {
-			LITTLE_BIG_SWAP(flag);
-			LITTLE_BIG_SWAP(boneIndex);
-			LITTLE_BIG_SWAP(coefficient.flag);
-			LITTLE_BIG_SWAP(coefficient.value);
-		}
-	}
-};
-typedef struct bayoEXPEntry3_s
-{
-	unsigned int		flag;
-	short int			boneIndex;
-	char				animationTrack;
-	char				padding;
-	bayoEXPCoef_t		coefficients[2];
-} bayoEXPEntry3_t;
-template <bool big>
-struct bayoEXPEntry3 : public bayoEXPEntry3_s
-{
-	bayoEXPEntry3(bayoEXPEntry3_t*ptr) : bayoEXPEntry3_s(*ptr) {
-		if (big) {
-			LITTLE_BIG_SWAP(flag);
-			LITTLE_BIG_SWAP(boneIndex);
-			LITTLE_BIG_SWAP(coefficients[0].flag);
-			LITTLE_BIG_SWAP(coefficients[0].value);
-			LITTLE_BIG_SWAP(coefficients[1].flag);
-			LITTLE_BIG_SWAP(coefficients[1].value);
+			LITTLE_BIG_SWAP(flags);
+			if (flags & 0x80000000) {
+				LITTLE_BIG_SWAP(entryUnion.boneTrackInfo.boneIndex);
+			}
+			else {
+				LITTLE_BIG_SWAP(entryUnion.value);
+			}
 		}
 	}
 };
@@ -2690,7 +2656,207 @@ static float Model_Bayo_Interpolate4EXP_Value(float value, BYTE *interpol, short
 	}
 	return outValue;
 }
+
+struct expState_s {
+	float fArray[4];
+	int iArray[4];
+	BYTE fCount;
+	BYTE iCount;
+	short unknown;
+};
+
+static void init_expState(struct expState_s &expState) {
+	expState.fCount = 0;
+	expState.iCount = 0;
+	expState.unknown = 0;
+	for (int i = 0; i < 4; i++) {
+		expState.fArray[i] = 0.0;
+		expState.iArray[i] = 0;
+	}
+}
+template <bool big>
+static float getExpEntryValue(bayoEXPEntry<big> &entry, int fi, float * tmpValues, const short int frameCount, short int * animBoneTT) {
+	static int maxCoeffs = 16;
+	if (entry.flags & 0x80000000) {
+		short int sourceBone;
+		char sourceTrack;
+		sourceBone = Model_Bayo_DecodeMotionIndex<big>(animBoneTT, entry.entryUnion.boneTrackInfo.boneIndex);
+		sourceTrack = entry.entryUnion.boneTrackInfo.animationTrack;
+		if (fi == 0) {
+			DBGLOG("\t\t\t\t\tsrcBone: %d\n", sourceBone);
+			DBGLOG("\t\t\t\t\tsrcTrack: %d\n", sourceTrack);
+		}
+		return  tmpValues[fi + sourceTrack * frameCount + sourceBone * frameCount * maxCoeffs];
+	}
+	else {
+		return entry.entryUnion.value;
+	}
+}
+
+template <bool big>
+static float modifyExpEntryValue(struct expState_s &expState, float value, int fi) {
+	float res = value;
+	float tmp;
+	expState.iCount--;
+	int flags = expState.iArray[expState.iCount] & 0xFF00;
+	if (fi == 0)
+		DBGLOG("\t\t\t\t\tflags: %x\n", flags);
+	if (flags) {
+		if (flags & 0x100) {
+			res = fabsf(res);
+		}
+		else if (flags & 0x200) {
+			res = ceilf(res);
+		}
+		else if (flags & 0x400) {
+			res = floorf(res);
+		}
+		else if (flags & 0x800) {
+			res = roundf(res);
+		}
+	}
+	expState.fArray[expState.fCount] = res;
+	int fCount = expState.fCount;
+	int iCount = expState.iCount;
+
+	expState.fCount = expState.iCount;
+
+	res = expState.fArray[iCount];
+	if (fCount > iCount) {
+		do {
+			flags = expState.iArray[iCount];
+			tmp = expState.fArray[iCount + 1];
+			if (flags & 1) {
+				res = res + tmp;
+			}
+			else if (flags & 2) {
+				res = res - tmp;
+			}
+			else if (flags & 4) {
+				res = res * tmp;
+			}
+			else if ((flags & 8) && tmp != 0.0f) {
+				res = res / tmp;
+			}
+			iCount++;
+		} while (fCount > iCount);
+	}
+	return res;
+}
+
+template <bool big>
+static float applyExpEntry(struct expState_s &expState, bayoEXPEntry<big> &entry, int fi, float value, float * tmpValues, const short int frameCount, short int * animBoneTT) {
+	float res = 0.0;
+	if (fi == 0)
+		DBGLOG("\t\t\tentry flags: %x\n", entry.flags);
+	if (entry.flags & 0x1FF00) {
+		if (fi == 0)
+			DBGLOG("\t\t\t\tspecial:\n");
+		unsigned int flags = entry.flags;
+		unsigned int iValue = 0;
+		if (entry.flags & 0x40000 && flags & 0x8000)
+		{
+			iValue = entry.flags & 0xFF00;
+			flags = ~iValue & entry.flags;
+		}
+		expState.fArray[expState.fCount++] = value;
+		expState.iArray[expState.iCount++] = flags;
+		res = getExpEntryValue<big>(entry, fi, tmpValues, frameCount, animBoneTT);
+		if (fi == 0)
+			DBGLOG("\t\t\t\t\tvalue: %f\n", res);
+		if (entry.flags & 0x40000) {
+			expState.fArray[expState.fCount++] = 0.0;
+			expState.iArray[expState.iCount++] = iValue | 1;
+		}
+	}
+	else {
+		if (fi == 0)
+			DBGLOG("\t\t\t\tnormal:\n");
+		res = getExpEntryValue<big>(entry, fi, tmpValues, frameCount, animBoneTT);
+		if (fi == 0)
+			DBGLOG("\t\t\t\t\tvalue: %f\n", res);
+		if (entry.flags & 1) {
+			res = res + value;
+		}
+		else if (entry.flags & 2) {
+			res = res - value;
+		}
+		else if (entry.flags & 4) {
+			res = res * value;
+		}
+		else if ((entry.flags & 8) && value != 0.0f) {
+			res = res / value;
+		}
+		if (entry.flags & 0x20000) {
+			if (fi == 0)
+				DBGLOG("\t\t\t\tmodifying:\n");
+			res = modifyExpEntryValue<big>(expState, res, fi);
+			if (entry.flags & 0x80000) {
+				res = modifyExpEntryValue<big>(expState, res, fi);
+			}
+		}
+	}
+	return res;
+}
+
+template <bool big>
+static void Model_Bayo1_ApplyEXP(CArrayList<bayoDatFile_t *> & expfile, float * tmpValues, const int bone_number, const short int frameCount, short int * animBoneTT) {
+	static int maxCoeffs = 16;
+	if (expfile.Num() > 0) {
+		DBGLOG("\tapplying: %s\n", expfile[0]->name);
+		BYTE *data = expfile[0]->data;
+		size_t dataSize = expfile[0]->dataSize;
+		if (dataSize < sizeof(bayoEXPHdr_t))
+		{
+			return;
+		}
+		bayoEXPHdr<big> hdr((bayoEXPHdr_t *)data);
+		for (unsigned int i = 0; i < hdr.numRecords - 1; i++) {
+			DBGLOG("\t\trecord: %d\n", i);
+			bayoEXPRecord<big> record((bayoEXPRecord_t *)(data + hdr.offsetRecords + i * sizeof(bayoEXPRecord_t)));
+			short int targetBone = Model_Bayo_DecodeMotionIndex<big>(animBoneTT, record.boneIndex);
+			char targetTrack = record.animationTrack;
+			DBGLOG("\t\t\tbone: %d, track: %d\n", (int)targetBone, (int)targetTrack);
+			for (int fi = 0; fi < frameCount; fi++) {
+				struct expState_s expState;
+				init_expState(expState);
+				float res = 0.0f;
+				for (int j = 0; j < record.entryCount; j++) {
+					if (fi == 0)
+						DBGLOG("\t\t\t: entry: %d\n", j);
+					bayoEXPEntry<big> entry((bayoEXPEntry_t *)(data + record.offset + j * sizeof(bayoEXPEntry_t)));
+					res = applyExpEntry<big>(expState, entry, fi, res, tmpValues, frameCount, animBoneTT);
+					if (fi == 0)
+						DBGLOG("\t\t\tres: %f\n", res);
+				}
+				if (record.flags & 1) {
+					if (fi == 0)
+						DBGLOG("\t\t\t: interpolating\n");
+					if (record.interpolationType == 4) {
+						res = Model_Bayo_Interpolate4EXP_Value<big>(res, data + record.offsetInterpolation, record.numPoints);
+						if (fi == 0)
+							DBGLOG("\t\t\tres: %f\n", res);
+					}
+					if (record.flags & 2) {
+						for (int j = 0; j < record.interpolationEntryCount; j++) {
+							if (fi == 0)
+								DBGLOG("\t\t\t: interpolation entry: %d\n", j);
+							bayoEXPEntry<big> entry((bayoEXPEntry_t *)(data + record.offset + (record.entryCount + j) * sizeof(bayoEXPEntry_t)));
+							res = applyExpEntry<big>(expState, entry, fi, res, tmpValues, frameCount, animBoneTT);
+							if (fi == 0)
+								DBGLOG("\t\t\tres: %f\n", res);
+						}
+					}
+				}
+				if (fi == 0)
+					DBGLOG("\t\t\tvalue: %f\n", res);
+				tmpValues[fi + targetTrack * frameCount + targetBone * frameCount * maxCoeffs] = res;
+			}
+		}
+	}
+}
 //apply constrained bone motions
+/*
 template <bool big>
 static void Model_Bayo1_ApplyEXP(CArrayList<bayoDatFile_t *> & expfile, float * tmpValues, const int bone_number, const short int frameCount, short int * animBoneTT) {
 	static int maxCoeffs = 16;
@@ -2767,6 +2933,7 @@ static void Model_Bayo1_ApplyEXP(CArrayList<bayoDatFile_t *> & expfile, float * 
 		}
 	}
 }
+*/
 template <bool big>
 static float Model_Bayo2_InterpolateEXP_Value(short int interpolFunction, float value, BYTE *interpol) {
 	BYTE *data = interpol + interpolFunction * sizeof(bayo2EXPInterpolationData_t);
@@ -3402,9 +3569,9 @@ static void Model_Bayo_LoadMotions(CArrayList<noesisAnim_t *> &animList, CArrayL
 	for (int bi = 0; bi < bone_number + 1; bi++) {
 		for (int fi = 0; fi < frameCount; fi++) {
 			// convert to dm
-			tmp_values[fi + 0 * frameCount + bi * frameCount * maxCoeffs] *= 10.0f;
-			tmp_values[fi + 1 * frameCount + bi * frameCount * maxCoeffs] *= 10.0f;
-			tmp_values[fi + 2 * frameCount + bi * frameCount * maxCoeffs] *= 10.0f;
+			//tmp_values[fi + 0 * frameCount + bi * frameCount * maxCoeffs] *= 10.0f;
+			//tmp_values[fi + 1 * frameCount + bi * frameCount * maxCoeffs] *= 10.0f;
+			//tmp_values[fi + 2 * frameCount + bi * frameCount * maxCoeffs] *= 10.0f;
 			// convert to degrees
 			tmp_values[fi + 3 * frameCount + bi * frameCount * maxCoeffs] *= g_flRadToDeg;
 			tmp_values[fi + 4 * frameCount + bi * frameCount * maxCoeffs] *= g_flRadToDeg;
@@ -3415,14 +3582,14 @@ static void Model_Bayo_LoadMotions(CArrayList<noesisAnim_t *> &animList, CArrayL
 
 	Model_Bayo_ApplyEXP<big, game>(expfile, tmp_values, bone_number, frameCount, animBoneTT);
 
-	for (int bi = 0; bi < bone_number + 1; bi++) {
-		for (int fi = 0; fi < frameCount; fi++) {
+	//for (int bi = 0; bi < bone_number + 1; bi++) {
+		//for (int fi = 0; fi < frameCount; fi++) {
 			// convert back to m
-			tmp_values[fi + 0 * frameCount + bi * frameCount * maxCoeffs] *= 0.1f;
-			tmp_values[fi + 1 * frameCount + bi * frameCount * maxCoeffs] *= 0.1f;
-			tmp_values[fi + 2 * frameCount + bi * frameCount * maxCoeffs] *= 0.1f;
-		}
-	}
+			//tmp_values[fi + 0 * frameCount + bi * frameCount * maxCoeffs] *= 0.1f;
+			//tmp_values[fi + 1 * frameCount + bi * frameCount * maxCoeffs] *= 0.1f;
+			//tmp_values[fi + 2 * frameCount + bi * frameCount * maxCoeffs] *= 0.1f;
+		//}
+	//}
 
 	Model_Bayo_ApplyMotions(matrixes, tmp_values, tmp_cumul_scale, bones, bone_number, frameCount);
 
