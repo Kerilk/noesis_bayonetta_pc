@@ -862,6 +862,24 @@ struct bayoEXPRecord : public bayoEXPRecord_s
 		}
 	}
 };
+typedef struct bayoEXPInterpolationPoint2_s {
+	float value;
+	float p;
+	float m0;
+	float m1;
+}bayoEXPInterpolationPoint2_t;
+template <bool big>
+struct bayoEXPInterpolationPoint2 : public bayoEXPInterpolationPoint2_s
+{
+	bayoEXPInterpolationPoint2(bayoEXPInterpolationPoint2_t * ptr) : bayoEXPInterpolationPoint2_s(*ptr) {
+		if (big) {
+			LITTLE_BIG_SWAP(value);
+			LITTLE_BIG_SWAP(p);
+			LITTLE_BIG_SWAP(m0);
+			LITTLE_BIG_SWAP(m1);
+		}
+	}
+};
 typedef struct bayoEXPInterpolationData4_s
 {
 	float p;
@@ -903,6 +921,34 @@ struct bayoEXPInterpolationPoint4 : public bayoEXPInterpolationPoint4_s
 			LITTLE_BIG_SWAP(cm0);
 			LITTLE_BIG_SWAP(cm1);
 		}
+	}
+};
+typedef short unsigned int pghalf;
+typedef struct bayoEXPInterpolationData6_s
+{
+	pghalf p;
+	pghalf dp;
+	pghalf m0;
+	pghalf dm0;
+	pghalf m1;
+	pghalf dm1;
+} bayoEXPInterpolationData6_t;
+template <bool big>
+struct bayoEXPInterpolationData6 : public bayoEXPInterpolationData6_s
+{
+	bayoEXPInterpolationData6(bayoEXPInterpolationData6_t * ptr) : bayoEXPInterpolationData6_s(*ptr) {
+	}
+};
+typedef struct bayoEXPInterpolationPoint6_s {
+	unsigned char	v;
+	unsigned char	cp;
+	unsigned char	cm0;
+	unsigned char	cm1;
+} bayoEXPInterpolationPoint6_t;
+template <bool big>
+struct bayoEXPInterpolationPoint6 : public bayoEXPInterpolationPoint6_s
+{
+	bayoEXPInterpolationPoint6(bayoEXPInterpolationPoint6_t * ptr) : bayoEXPInterpolationPoint6_s(*ptr) {
 	}
 };
 typedef struct bayo2EXPValue_s
@@ -1086,7 +1132,6 @@ struct bayoInterpolKeyframe4 : public bayoInterpolKeyframe4_s {
 		}
 	}
 };
-typedef short unsigned int pghalf;
 typedef struct bayoInterpolHeader6_s {
 	pghalf values[6];
 } bayoInterpolHeader6_t;
@@ -2635,15 +2680,57 @@ static void Model_Bayo_InitMotions(modelMatrix_t * &matrixes, float * &tmpValues
 	}
 }
 template <bool big>
+static float Model_Bayo_Interpolate2EXP_Value(float value, BYTE *interpol, short int numPoints) {
+	BYTE *data = interpol;
+	float outValue = 0.0;
+	if (numPoints == 1) {
+		bayoEXPInterpolationPoint2<big> point((bayoEXPInterpolationPoint2_t *)(data));
+		outValue = point.value;
+		return outValue;
+	}
+	for (int i = 0; i < numPoints - 1; i++) {
+		bayoEXPInterpolationPoint2<big> leftPoint((bayoEXPInterpolationPoint2_t *)(data + i * sizeof(bayoEXPInterpolationPoint2_t)));
+		bayoEXPInterpolationPoint2<big> rightPoint((bayoEXPInterpolationPoint2_t *)(data + (i + 1) * sizeof(bayoEXPInterpolationPoint2_t)));
+		if (value <= leftPoint.value) {
+			outValue = leftPoint.value;
+			return outValue;
+		}
+		if (leftPoint.value < value && rightPoint.value > value) {
+			float p0, p1, m0, m1;
+			float t;
+			p0 = leftPoint.p;
+			p1 = rightPoint.p;
+			m0 = leftPoint.m1;
+			m1 = rightPoint.m0;
+			t = (value - leftPoint.value) / (rightPoint.value - leftPoint.value);
+			outValue = (2 * t*t*t - 3 * t*t + 1)*p0 + (t*t*t - 2 * t*t + t)*m0 + (-2 * t*t*t + 3 * t*t)*p1 + (t*t*t - t * t)*m1;
+			return outValue;
+		}
+		if (value >= rightPoint.value) {
+			outValue = rightPoint.value;
+		}
+	}
+	return outValue;
+}
+template <bool big>
 static float Model_Bayo_Interpolate4EXP_Value(float value, BYTE *interpol, short int numPoints) {
 	BYTE *data = interpol;
 	bayoEXPInterpolationData4<big> interpolData((bayoEXPInterpolationData4_t *)data);
 	float outValue = 0.0;
 	data += sizeof(bayoEXPInterpolationData4_t);
+	if (numPoints == 1) {
+		bayoEXPInterpolationPoint4<big> point((bayoEXPInterpolationPoint4_t *)(data));
+		outValue = interpolData.p + point.cp * interpolData.dp;
+		return outValue;
+	}
 	for (int i = 0; i < numPoints - 1; i++) {
 		bayoEXPInterpolationPoint4<big> leftPoint((bayoEXPInterpolationPoint4_t *)(data + i * sizeof(bayoEXPInterpolationPoint4_t)));
 		bayoEXPInterpolationPoint4<big> rightPoint((bayoEXPInterpolationPoint4_t *)(data + (i + 1) * sizeof(bayoEXPInterpolationPoint4_t)));
-		if (leftPoint.v <= value && rightPoint.v >= value) {
+		if (value <= leftPoint.v) {
+			outValue = interpolData.p + leftPoint.cp * interpolData.dp;
+			return outValue;
+		}
+		if (leftPoint.v < value && rightPoint.v > value) {
 			float p0, p1, m0, m1;
 			float t;
 			p0 = interpolData.p + leftPoint.cp * interpolData.dp;
@@ -2652,11 +2739,57 @@ static float Model_Bayo_Interpolate4EXP_Value(float value, BYTE *interpol, short
 			m1 = interpolData.m0 + rightPoint.cm0 * interpolData.dm0;
 			t = (value - leftPoint.v) / (rightPoint.v - leftPoint.v);
 			outValue = (2 * t*t*t - 3 * t*t + 1)*p0 + (t*t*t - 2 * t*t + t)*m0 + (-2 * t*t*t + 3 * t*t)*p1 + (t*t*t - t * t)*m1;
+			return outValue;
+		}
+		if (value >= rightPoint.v) {
+			outValue = interpolData.p + rightPoint.cp * interpolData.dp;
 		}
 	}
 	return outValue;
 }
-
+template <bool big>
+static float Model_Bayo_Interpolate6EXP_Value(float value, BYTE *interpol, short int numPoints) {
+	BYTE *data = interpol;
+	bayoEXPInterpolationData6<big> interpolData((bayoEXPInterpolationData6_t *)data);
+	float p = C.decompress(interpolData.p, big);
+	float dp = C.decompress(interpolData.dp, big);
+	float m_1 = C.decompress(interpolData.m1, big);
+	float dm_1 = C.decompress(interpolData.dm1, big);
+	float m_0 = C.decompress(interpolData.m0, big);
+	float dm_0 = C.decompress(interpolData.dm0, big);
+	float outValue = 0.0;
+	float pointValue = 0.0;
+	data += sizeof(bayoEXPInterpolationData6_t);
+	if (numPoints == 1) {
+		bayoEXPInterpolationPoint6<big> point((bayoEXPInterpolationPoint6_t *)(data));
+		outValue = p + point.cp * dp;
+		return outValue;
+	}
+	for (int i = 0; i < numPoints - 1; i++) {
+		bayoEXPInterpolationPoint6<big> leftPoint((bayoEXPInterpolationPoint6_t *)(data + i * sizeof(bayoEXPInterpolationPoint6_t)));
+		bayoEXPInterpolationPoint6<big> rightPoint((bayoEXPInterpolationPoint6_t *)(data + (i + 1) * sizeof(bayoEXPInterpolationPoint6_t)));
+		pointValue = pointValue + leftPoint.v;
+		if (value <= pointValue) {
+			outValue = p + leftPoint.cp * dp;
+			return outValue;
+		}
+		if (pointValue < value && (pointValue + rightPoint.v) > value) {
+			float p0, p1, m0, m1;
+			float t;
+			p0 = p + leftPoint.cp * dp;
+			p1 = p + rightPoint.cp * dp;
+			m0 = m_1 + leftPoint.cm1 * dm_1;
+			m1 = m_0 + rightPoint.cm0 * dm_0;
+			t = (value - pointValue) / (rightPoint.v);
+			outValue = (2 * t*t*t - 3 * t*t + 1)*p0 + (t*t*t - 2 * t*t + t)*m0 + (-2 * t*t*t + 3 * t*t)*p1 + (t*t*t - t * t)*m1;
+			return outValue;
+		}
+		if (value >= (pointValue + rightPoint.v)) {
+			outValue = p + rightPoint.cp * dp;
+		}
+	}
+	return outValue;
+}
 struct expState_s {
 	float fArray[4];
 	int iArray[4];
@@ -2831,12 +2964,18 @@ static void Model_Bayo1_ApplyEXP(CArrayList<bayoDatFile_t *> & expfile, float * 
 				}
 				if (record.flags & 1) {
 					if (fi == 0)
-						DBGLOG("\t\t\t: interpolating\n");
-					if (record.interpolationType == 4) {
-						res = Model_Bayo_Interpolate4EXP_Value<big>(res, data + record.offsetInterpolation, record.numPoints);
-						if (fi == 0)
-							DBGLOG("\t\t\tres: %f\n", res);
+						DBGLOG("\t\t\t: interpolating %d\n", record.interpolationType);
+					if (record.interpolationType == 2) {
+						res = Model_Bayo_Interpolate2EXP_Value<big>(res, data + record.offsetInterpolation, record.numPoints);
 					}
+					else if (record.interpolationType == 4) {
+						res = Model_Bayo_Interpolate4EXP_Value<big>(res, data + record.offsetInterpolation, record.numPoints);
+					}
+					else if (record.interpolationType == 6) {
+						res = Model_Bayo_Interpolate6EXP_Value<big>(res, data + record.offsetInterpolation, record.numPoints);
+					}
+					if (fi == 0)
+						DBGLOG("\t\t\tres: %f\n", res);
 					if (record.flags & 2) {
 						for (int j = 0; j < record.interpolationEntryCount; j++) {
 							if (fi == 0)
