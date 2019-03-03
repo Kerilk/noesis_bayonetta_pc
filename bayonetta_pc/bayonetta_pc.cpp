@@ -3568,10 +3568,6 @@ static void Model_Bayo_LoadMotions(CArrayList<noesisAnim_t *> &animList, CArrayL
 
 	for (int bi = 0; bi < bone_number + 1; bi++) {
 		for (int fi = 0; fi < frameCount; fi++) {
-			// convert to dm
-			//tmp_values[fi + 0 * frameCount + bi * frameCount * maxCoeffs] *= 10.0f;
-			//tmp_values[fi + 1 * frameCount + bi * frameCount * maxCoeffs] *= 10.0f;
-			//tmp_values[fi + 2 * frameCount + bi * frameCount * maxCoeffs] *= 10.0f;
 			// convert to degrees
 			tmp_values[fi + 3 * frameCount + bi * frameCount * maxCoeffs] *= g_flRadToDeg;
 			tmp_values[fi + 4 * frameCount + bi * frameCount * maxCoeffs] *= g_flRadToDeg;
@@ -3579,17 +3575,29 @@ static void Model_Bayo_LoadMotions(CArrayList<noesisAnim_t *> &animList, CArrayL
 		}
 	}
 
+	if (game == BAYONETTA2) {
+		for (int bi = 0; bi < bone_number + 1; bi++) {
+			for (int fi = 0; fi < frameCount; fi++) {
+				// convert to dm: ugly fix for animations, doubtfull to be legit...
+				tmp_values[fi + 0 * frameCount + bi * frameCount * maxCoeffs] *= 10.0f;
+				tmp_values[fi + 1 * frameCount + bi * frameCount * maxCoeffs] *= 10.0f;
+				tmp_values[fi + 2 * frameCount + bi * frameCount * maxCoeffs] *= 10.0f;
+			}
+		}
+	}
 
 	Model_Bayo_ApplyEXP<big, game>(expfile, tmp_values, bone_number, frameCount, animBoneTT);
 
-	//for (int bi = 0; bi < bone_number + 1; bi++) {
-		//for (int fi = 0; fi < frameCount; fi++) {
-			// convert back to m
-			//tmp_values[fi + 0 * frameCount + bi * frameCount * maxCoeffs] *= 0.1f;
-			//tmp_values[fi + 1 * frameCount + bi * frameCount * maxCoeffs] *= 0.1f;
-			//tmp_values[fi + 2 * frameCount + bi * frameCount * maxCoeffs] *= 0.1f;
-		//}
-	//}
+	if (game == BAYONETTA2) {
+		for (int bi = 0; bi < bone_number + 1; bi++) {
+			for (int fi = 0; fi < frameCount; fi++) {
+				// convert back to m
+				tmp_values[fi + 0 * frameCount + bi * frameCount * maxCoeffs] *= 0.1f;
+				tmp_values[fi + 1 * frameCount + bi * frameCount * maxCoeffs] *= 0.1f;
+				tmp_values[fi + 2 * frameCount + bi * frameCount * maxCoeffs] *= 0.1f;
+			}
+		}
+	}
 
 	Model_Bayo_ApplyMotions(matrixes, tmp_values, tmp_cumul_scale, bones, bone_number, frameCount);
 
@@ -4505,8 +4513,10 @@ static void Model_Nier_LoadMaterials(nierWMBHdr<big> &hdr,
 		nmat->noDefaultBlend = false;
 		nmat->texIdx = -1;
 		nmat->normalTexIdx = textures.Num() - 1;
+		nmat->specularTexIdx = -1;
 		int difTexId = 0;
 		int nrmTexId = 0;
+		int specTexId = 0;
 		DBGLOG("\tFound %d textures\n", mat.numTextures);
 		nierTexture_t * texPtr = (nierTexture_t *)(data + mat.ofsTextures);
 		for (unsigned int j = 0; j < mat.numTextures; j++) {
@@ -4516,6 +4526,9 @@ static void Model_Nier_LoadMaterials(nierWMBHdr<big> &hdr,
 			}
 			if (strcmp((char*)(data + tex.ofsName), "g_NormalMap") == 0 || strcmp((char*)(data + tex.ofsName), "g_NormalMap1") == 0) {
 				nrmTexId = tex.id;
+			}
+			if (strcmp((char*)(data + tex.ofsName), "g_MaskMap2") == 0) {
+				specTexId = tex.id;
 			}
 		}
 		for (int j = 0; j < textures.Num(); j++) {
@@ -4527,6 +4540,11 @@ static void Model_Nier_LoadMaterials(nierWMBHdr<big> &hdr,
 			if (nrmTexId && tex->globalIdx == nrmTexId) {
 				DBGLOG("Found matching normal %d\n", j);
 				nmat->normalTexIdx = j;
+			}
+			if (specTexId && tex->globalIdx == specTexId) {
+				DBGLOG("Found matching specular %d\n", j);
+				nmat->specularTexIdx = j;
+				nmat->flags |= NMATFLAG_PBR_SPEC_IR_RG;
 			}
 		}
 		matListLightMap.Append(NULL);
