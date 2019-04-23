@@ -978,9 +978,11 @@ template <bool big>
 struct bayo2EXPInterpolationData : public bayo2EXPInterpolationData_s
 {
 	bayo2EXPInterpolationData(bayo2EXPInterpolationData_t * ptr) : bayo2EXPInterpolationData_s(*ptr) {
-		LITTLE_BIG_SWAP(numPoints);
-		LITTLE_BIG_SWAP(unknownA);
-		LITTLE_BIG_SWAP(offset);
+		if (big) {
+			LITTLE_BIG_SWAP(numPoints);
+			LITTLE_BIG_SWAP(unknownA);
+			LITTLE_BIG_SWAP(offset);
+		}
 	}
 };
 typedef struct bayo2EXPInterpolationPoint_s
@@ -994,10 +996,12 @@ template <bool big>
 struct bayo2EXPInterpolationPoint : public bayo2EXPInterpolationPoint_s
 {
 	bayo2EXPInterpolationPoint(bayo2EXPInterpolationPoint_t *ptr) : bayo2EXPInterpolationPoint_s(*ptr) {
-		LITTLE_BIG_SWAP(v);
-		LITTLE_BIG_SWAP(p);
-		LITTLE_BIG_SWAP(m0);
-		LITTLE_BIG_SWAP(m1);
+		if (big) {
+			LITTLE_BIG_SWAP(v);
+			LITTLE_BIG_SWAP(p);
+			LITTLE_BIG_SWAP(m0);
+			LITTLE_BIG_SWAP(m1);
+		}
 	}
 };
 
