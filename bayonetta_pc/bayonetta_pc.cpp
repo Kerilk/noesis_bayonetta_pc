@@ -1755,6 +1755,12 @@ bool Model_Bayo_Check(BYTE *fileBuffer, int bufferLen, noeRAPI_t *rapi)
 					DBGLOG("Found Bayonetta 2 or Vanquish File!\n");
 					return false;
 				}
+
+				unsigned int vertexOffset = ((unsigned int*)(fileBuffer + offWmb))[6];
+				if (!big && game == BAYONETTA2 && vertexOffset == 0xa0) {
+					DBGLOG("Found Vanquish File!\n");
+					return false;
+				}
 			}
 		}
 		else if (game == BAYONETTA2 && rapi->Noesis_CheckFileExt(name, ".wtb"))
@@ -1762,9 +1768,14 @@ bool Model_Bayo_Check(BYTE *fileBuffer, int bufferLen, noeRAPI_t *rapi)
 			DBGLOG("Found Bayonetta or Vanquish File!\n");
 			return false;
 		}
-		else if ((game == BAYONETTA || game == VANQUISH) && (rapi->Noesis_CheckFileExt(name, ".wta") || rapi->Noesis_CheckFileExt(name, ".wtp") || rapi->Noesis_CheckFileExt(name, ".bxm")))
+		else if (game == BAYONETTA && (rapi->Noesis_CheckFileExt(name, ".wta") || rapi->Noesis_CheckFileExt(name, ".wtp") || rapi->Noesis_CheckFileExt(name, ".bxm")))
 		{
 			DBGLOG("Found Bayonetta 2 File!\n");
+			return false;
+		}
+		else if (game == VANQUISH && (rapi->Noesis_CheckFileExt(name, ".wta") || rapi->Noesis_CheckFileExt(name, ".wtp") || rapi->Noesis_CheckFileExt(name, ".scr")))
+		{
+			DBGLOG("Found Bayonetta 2 or MGRR File!\n");
 			return false;
 		}
 		else if ((game == BAYONETTA || game == BAYONETTA2) && rapi->Noesis_CheckFileExt(name, ".hkx"))
