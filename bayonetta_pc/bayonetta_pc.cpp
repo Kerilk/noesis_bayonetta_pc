@@ -36,7 +36,8 @@ typedef enum game_e {
 	BAYONETTA,
 	BAYONETTA2,
 	VANQUISH,
-	NIER_AUTOMATA
+	NIER_AUTOMATA,
+	MGRR
 } game_t;
 typedef struct bayoV4F_s
 {
@@ -1191,6 +1192,296 @@ typedef struct bayoVertexData_s {
 	unsigned char boneWeight[4];//1C
 } bayoVertexData_t;
 
+typedef struct MGRRWmbHdr_s {
+	char			id[4]; //WMB4
+	unsigned int	u_a;
+	unsigned int	vertexFormat;
+	unsigned short	u_b;
+	short			u_c;
+	float			position1[3];
+	float			position2[3];
+	unsigned int	offsetVertexGroups;
+	unsigned int	numVertexGroups;
+	unsigned int	offsetBatches;
+	unsigned int	numBatches;
+	unsigned int	offsetBatchDescription;
+	unsigned int	offsetBones;
+	unsigned int	numBones;
+	unsigned int	offsetBoneIndexTranslateTable;
+	unsigned int	sizeBoneIndexTranslateTable;
+	unsigned int	offsetBoneSets;
+	unsigned int	numBoneSets;
+	unsigned int	offsetMaterials;
+	unsigned int	numMaterials;
+	unsigned int	offsetTextures;
+	unsigned int	numTextures;
+	unsigned int	offsetMeshes;
+	unsigned int	numMeshes;
+} MGRRWmbHdr_t;
+
+template <bool big>
+struct MGRRWmbHdr : public MGRRWmbHdr_s {
+	MGRRWmbHdr(MGRRWmbHdr_t *ptr) : MGRRWmbHdr_s(*ptr) {
+		if (big) {
+			LITTLE_BIG_SWAP(u_a);
+			LITTLE_BIG_SWAP(vertexFormat);
+			LITTLE_BIG_SWAP(u_b);
+			LITTLE_BIG_SWAP(u_c);
+			for (int i = 0; i < 3; i++) {
+				LITTLE_BIG_SWAP(position1[i]);
+				LITTLE_BIG_SWAP(position2[i]);
+			}
+			LITTLE_BIG_SWAP(offsetVertexGroups);
+			LITTLE_BIG_SWAP(numVertexGroups);
+			LITTLE_BIG_SWAP(offsetBatches);
+			LITTLE_BIG_SWAP(numBatches);
+			LITTLE_BIG_SWAP(offsetBatchDescription);
+			LITTLE_BIG_SWAP(offsetBones);
+			LITTLE_BIG_SWAP(numBones);
+			LITTLE_BIG_SWAP(offsetBoneIndexTranslateTable);
+			LITTLE_BIG_SWAP(sizeBoneIndexTranslateTable);
+			LITTLE_BIG_SWAP(offsetBoneSets);
+			LITTLE_BIG_SWAP(numBoneSets);
+			LITTLE_BIG_SWAP(offsetMaterials);
+			LITTLE_BIG_SWAP(numMaterials);
+			LITTLE_BIG_SWAP(offsetTextures);
+			LITTLE_BIG_SWAP(numTextures);
+			LITTLE_BIG_SWAP(offsetMeshes);
+			LITTLE_BIG_SWAP(numMeshes);
+		}
+	}
+};
+
+typedef struct MGRRMaterial_s {
+	unsigned int	offsetShaderName;
+	unsigned int	offsetTextures;
+	unsigned int	u_a;
+	unsigned int	offsetParameters;
+	unsigned short	numTextures;
+	unsigned short	u_c;
+	unsigned short	u_d;
+	unsigned short	numParameters;
+} MGRRMaterial_t;
+
+template <bool big>
+struct MGRRMaterial : public MGRRMaterial_s {
+	MGRRMaterial(MGRRMaterial_t *ptr) : MGRRMaterial_s(*ptr) {
+		if (big) {
+			LITTLE_BIG_SWAP(offsetShaderName);
+			LITTLE_BIG_SWAP(offsetTextures);
+			LITTLE_BIG_SWAP(u_a);
+			LITTLE_BIG_SWAP(offsetParameters);
+			LITTLE_BIG_SWAP(numTextures);
+			LITTLE_BIG_SWAP(u_c);
+			LITTLE_BIG_SWAP(u_d);
+			LITTLE_BIG_SWAP(numParameters);
+		}
+	}
+};
+
+typedef struct MGRRTextures_s {
+	unsigned int	tex0;
+	unsigned int	albedoMap;
+	unsigned int	tex2;
+	unsigned int	tex3;
+	unsigned int	tex4;
+	unsigned int	tex5;
+	unsigned int	tex6;
+	unsigned int	normalMap;
+} MGRRTextures_t;
+
+template <bool big>
+struct MGRRTextures : public MGRRTextures_s {
+	MGRRTextures(MGRRTextures_t *ptr) : MGRRTextures_s(*ptr) {
+		if (big) {
+			LITTLE_BIG_SWAP(tex0);
+			LITTLE_BIG_SWAP(albedoMap);
+			LITTLE_BIG_SWAP(tex2);
+			LITTLE_BIG_SWAP(tex3);
+			LITTLE_BIG_SWAP(tex4);
+			LITTLE_BIG_SWAP(tex5);
+			LITTLE_BIG_SWAP(tex6);
+			LITTLE_BIG_SWAP(normalMap);
+		}
+	}
+};
+
+typedef struct MGRRTexture_s {
+	unsigned int flags;
+	int id;
+} MGRRTexture_t;
+template <bool big>
+struct MGRRTexture : public MGRRTexture_s {
+	MGRRTexture(MGRRTexture_t *ptr) : MGRRTexture_s(*ptr) {
+		if (big) {
+			LITTLE_BIG_SWAP(flags);
+			LITTLE_BIG_SWAP(id);
+		}
+	}
+};
+
+typedef struct MGRRVertexGroup_s{
+	unsigned int	offsetVertexes;
+	unsigned int	offsetVertexesExData;
+	unsigned int	unknownOffsets[2];
+	unsigned int	numVertexes;
+	unsigned int	offsetIndexes;
+	unsigned int	numIndexes;
+} MGRRVertexGroup_t;
+template <bool big>
+struct MGRRVertexGroup : public MGRRVertexGroup_s {
+	MGRRVertexGroup(MGRRVertexGroup_t *ptr) : MGRRVertexGroup_s(*ptr) {
+		if (big) {
+			LITTLE_BIG_SWAP(offsetVertexes);
+			LITTLE_BIG_SWAP(offsetVertexesExData);
+			LITTLE_BIG_SWAP(unknownOffsets[0]);
+			LITTLE_BIG_SWAP(unknownOffsets[1]);
+			LITTLE_BIG_SWAP(numVertexes);
+			LITTLE_BIG_SWAP(offsetIndexes);
+			LITTLE_BIG_SWAP(numIndexes);
+		}
+	}
+};
+
+typedef struct MGRRBone_s {
+	short	unknownNumber1;
+	short	unknownNumber2;
+	short	parentIndex;
+	short	u_a;
+	float	relativePosition[3];
+	float	position[3];
+} MGRRBone_t;
+template <bool big>
+struct MGRRBone : public MGRRBone_s {
+	MGRRBone(MGRRBone_t *ptr) : MGRRBone_s(*ptr) {
+		if (big) {
+			LITTLE_BIG_SWAP(unknownNumber1);
+			LITTLE_BIG_SWAP(unknownNumber2);
+			LITTLE_BIG_SWAP(parentIndex);
+			LITTLE_BIG_SWAP(u_a);
+			for (int i = 0; i < 3; i++) {
+				LITTLE_BIG_SWAP(relativePosition[i]);
+				LITTLE_BIG_SWAP(position[i]);
+			}
+		}
+	}
+};
+
+typedef struct MGRRBoneSet_s {
+	unsigned int	offsetBoneRefs;
+	unsigned int	numBones;
+} MGRRBoneSet_t;
+template <bool big>
+struct MGRRBoneSet : public MGRRBoneSet_s {
+	MGRRBoneSet(MGRRBoneSet_t * ptr) : MGRRBoneSet_s(*ptr) {
+		if (big) {
+			LITTLE_BIG_SWAP(offsetBoneRefs);
+			LITTLE_BIG_SWAP(numBones);
+		}
+	}
+};
+
+typedef struct MGRRMesh_s {
+	unsigned int	offsetName;
+	float			boundingBox[6];
+	unsigned int	offsetBatches;
+	unsigned int	numBatches;
+	unsigned int	offsetBatches1;
+	unsigned int	numBatches1;
+	unsigned int	offsetBatches2;
+	unsigned int	numBatches2;
+	unsigned int	offsetBatches3;
+	unsigned int	numBatches3;
+	unsigned int	offsetMaterials;
+	unsigned int	numMaterials;
+} MGRRMesh_t;
+template <bool big>
+struct MGRRMesh : public MGRRMesh_s {
+	MGRRMesh(MGRRMesh_t *ptr) : MGRRMesh_s(*ptr) {
+		if (big) {
+			LITTLE_BIG_SWAP(offsetName);
+			for (int i = 0; i < 6; i++) {
+				LITTLE_BIG_SWAP(boundingBox[i]);
+			}
+			LITTLE_BIG_SWAP(offsetBatches);
+			LITTLE_BIG_SWAP(numBatches);
+			LITTLE_BIG_SWAP(offsetBatches1);
+			LITTLE_BIG_SWAP(numBatches1);
+			LITTLE_BIG_SWAP(offsetBatches2);
+			LITTLE_BIG_SWAP(numBatches2);
+			LITTLE_BIG_SWAP(offsetBatches3);
+			LITTLE_BIG_SWAP(numBatches3);
+			LITTLE_BIG_SWAP(offsetMaterials);
+			LITTLE_BIG_SWAP(numMaterials);
+		}
+	}
+};
+
+typedef struct MGRRBatch_s {
+	unsigned int	vertexGroupIndex;
+	int				vertexStart;
+	int				indexStart;
+	unsigned int	numVertices;
+	unsigned int	numIndices;
+} MGRRBatch_t;
+template <bool big>
+struct MGRRBatch : public MGRRBatch_s {
+	MGRRBatch(MGRRBatch_t *ptr) : MGRRBatch_s(*ptr) {
+		if (big) {
+			LITTLE_BIG_SWAP(vertexGroupIndex);
+			LITTLE_BIG_SWAP(vertexStart);
+			LITTLE_BIG_SWAP(indexStart);
+			LITTLE_BIG_SWAP(numVertices);
+			LITTLE_BIG_SWAP(numIndices);
+		}
+	}
+};
+
+typedef struct MGRRBatchData_s {
+	unsigned int	batchIndex;
+	unsigned int	meshIndex;
+	unsigned short	materialIndex;
+	unsigned short	boneSetIndex;
+	unsigned int	u_a;
+} MGRRBatchData_t;
+template <bool big>
+struct MGRRBatchData : public MGRRBatchData_s {
+	MGRRBatchData(MGRRBatchData_t *ptr) : MGRRBatchData_s(*ptr) {
+		if (big) {
+			LITTLE_BIG_SWAP(batchIndex);
+			LITTLE_BIG_SWAP(meshIndex);
+			LITTLE_BIG_SWAP(materialIndex);
+			LITTLE_BIG_SWAP(boneSetIndex);
+			LITTLE_BIG_SWAP(u_a);
+		}
+	}
+};
+
+typedef struct MGRRBatchDescription_s {
+	unsigned int	offsetBatchData;
+	unsigned int	numBatchData;
+	unsigned int	offsetBatchData1;
+	unsigned int	numBatchData1;
+	unsigned int	offsetBatchData2;
+	unsigned int	numBatchData2;
+	unsigned int	offsetBatchData3;
+	unsigned int	numBatchData3;
+} MGRRBatchDescription_t;
+template <bool big>
+struct MGRRBatchDescription : public MGRRBatchDescription_s {
+	MGRRBatchDescription(MGRRBatchDescription_t *ptr) : MGRRBatchDescription_s(*ptr) {
+		if (big) {
+			LITTLE_BIG_SWAP(offsetBatchData);
+			LITTLE_BIG_SWAP(numBatchData);
+			LITTLE_BIG_SWAP(offsetBatchData1);
+			LITTLE_BIG_SWAP(numBatchData1);
+			LITTLE_BIG_SWAP(offsetBatchData2);
+			LITTLE_BIG_SWAP(numBatchData2);
+			LITTLE_BIG_SWAP(offsetBatchData3);
+			LITTLE_BIG_SWAP(numBatchData3);
+		}
+	}
+};
 //thanks Phernost (stackoverflow)
 class FloatDecompressor
 {
@@ -1361,7 +1652,27 @@ static void bayoSetMatTypes(void) {
 template <bool big, game_e game>
 bool Model_Bayo_Check(BYTE *fileBuffer, int bufferLen, noeRAPI_t *rapi)
 {
-	DBGLOG("Checking %s %s\n", big? "big" : "little", game == BAYONETTA ? "Bayonetta" : game == BAYONETTA2 ? "Bayonetta2" : game == VANQUISH ? "Vanquish" : "Nier Automata");
+	char * gameName;
+	switch (game) {
+	case BAYONETTA:
+		gameName = "Bayonetta";
+		break;
+	case BAYONETTA2:
+		gameName = "Bayonnetta 2";
+		break;
+	case VANQUISH:
+		gameName = "Vanquish";
+		break;
+	case NIER_AUTOMATA:
+		gameName = "Nier Automata";
+		break;
+	case MGRR:
+		gameName = "MGRR";
+		break;
+	default:
+		gameName = "Unknown";
+	}
+	DBGLOG("Checking %s %s\n", big? "big" : "little", gameName);
 	if (bufferLen < sizeof(bayoDat_t))
 	{
 		return false;
@@ -1414,9 +1725,19 @@ bool Model_Bayo_Check(BYTE *fileBuffer, int bufferLen, noeRAPI_t *rapi)
 				if (big) {
 					LITTLE_BIG_SWAP(offWmb);
 				}
+				unsigned int tag = ((unsigned int*)(fileBuffer + offWmb))[0];
 				unsigned int version = ((int*)(fileBuffer + offWmb))[1];
 				if (big) {
+					LITTLE_BIG_SWAP(tag);
 					LITTLE_BIG_SWAP(version);
+				}
+				if (game == MGRR && tag != 0x34424d57) {
+					DBGLOG("Found non MGRR File!\n");
+					return false;
+				}
+				if (game != MGRR && tag == 0x34424d57) {
+					DBGLOG("Found MGRR File!\n");
+					return false;
 				}
 				if (game != NIER_AUTOMATA && version == 0x20160116) {
 					DBGLOG("Found Nier Automata File!\n");
@@ -1441,7 +1762,7 @@ bool Model_Bayo_Check(BYTE *fileBuffer, int bufferLen, noeRAPI_t *rapi)
 			DBGLOG("Found Bayonetta or Vanquish File!\n");
 			return false;
 		}
-		else if ((game == BAYONETTA || game == VANQUISH) && (rapi->Noesis_CheckFileExt(name, ".wta") || rapi->Noesis_CheckFileExt(name, ".wtp")))
+		else if ((game == BAYONETTA || game == VANQUISH) && (rapi->Noesis_CheckFileExt(name, ".wta") || rapi->Noesis_CheckFileExt(name, ".wtp") || rapi->Noesis_CheckFileExt(name, ".bxm")))
 		{
 			DBGLOG("Found Bayonetta 2 File!\n");
 			return false;
@@ -1451,13 +1772,6 @@ bool Model_Bayo_Check(BYTE *fileBuffer, int bufferLen, noeRAPI_t *rapi)
 			DBGLOG("Found Vanquish File!\n");
 			return false;
 		}
-		//todo - figure out and add support for animation data
-		/*
-		else if (rapi->Noesis_CheckFileExt(name, ".mot"))
-		{
-			numMOT++;
-		}
-		*/
 		else if (rapi->Noesis_CheckFileExt(name, ".scr"))
 		{
 			numSCR++;
@@ -1543,6 +1857,10 @@ static void Model_Bayo_GetTextureBundle<BAYONETTA2>(CArrayList<bayoDatFile_t *> 
 }
 template <>
 static void Model_Bayo_GetTextureBundle<NIER_AUTOMATA>(CArrayList<bayoDatFile_t *> &texFiles, CArrayList<bayoDatFile_t> &dfiles, bayoDatFile_t &df, noeRAPI_t *rapi) {
+	Model_Bayo_GetTextureBundle<BAYONETTA2>(texFiles, dfiles, df, rapi);
+}
+template <>
+static void Model_Bayo_GetTextureBundle<MGRR>(CArrayList<bayoDatFile_t *> &texFiles, CArrayList<bayoDatFile_t> &dfiles, bayoDatFile_t &df, noeRAPI_t *rapi) {
 	Model_Bayo_GetTextureBundle<BAYONETTA2>(texFiles, dfiles, df, rapi);
 }
 static void Model_Bayo2_GetSCRTextureBundle(CArrayList<bayoDatFile_t *> &texFiles, CArrayList<bayoDatFile_t> &dfiles, bayoDatFile_t &df, noeRAPI_t *rapi)
@@ -2668,6 +2986,78 @@ static void Model_Bayo_LoadTextures<false, VANQUISH>(CArrayList<noesisTex_t *> &
 		textures.Append(nt);
 	}
 }
+template <>
+static void Model_Bayo_LoadTextures<false, MGRR>(CArrayList<noesisTex_t *> &textures, CArrayList<bayoDatFile_t *> &texFiles, noeRAPI_t *rapi)
+{
+	const bool big = false;
+	int dataSize = texFiles[0]->dataSize;
+	BYTE * data = texFiles[0]->data;
+	int dataSize2 = texFiles[1]->dataSize;
+	BYTE * data2 = texFiles[1]->data;
+	char texName[MAX_NOESIS_PATH];
+	rapi->Noesis_GetExtensionlessName(texName, texFiles[0]->name);
+	if (dataSize < sizeof(bayoWTAHdr_t))
+	{
+		return;
+	}
+	bayoWTAHdr<big> hdr((bayoWTAHdr_t *)data);
+	if (memcmp(hdr.id, "WTB\0", 4))
+	{ //not a valid texture bundle
+		return;
+	}
+	if (hdr.numTex <= 0 || hdr.ofsTexOfs <= 0 || hdr.ofsTexOfs >= dataSize ||
+		hdr.ofsTexSizes <= 0 || hdr.ofsTexSizes >= dataSize)
+	{
+		return;
+	}
+	DBGLOG("found valid texture header file, containing %d textures, headers offset: %x\n", hdr.numTex, hdr.texInfoOffset);
+	int *tofs = (int *)(data + hdr.ofsTexOfs);
+	int *tsizes = (int *)(data + hdr.ofsTexSizes);
+	for (int i = 0; i < hdr.numTex; i++)
+	{
+		int globalIdx;
+		char fname[8192];
+		char fnamedds[8192];
+		rapi->Noesis_GetDirForFilePath(fname, rapi->Noesis_GetOutputName());
+
+		char nameStr[MAX_NOESIS_PATH];
+		sprintf_s(nameStr, MAX_NOESIS_PATH, ".\\%s%s%03i", rapi->Noesis_GetOption("texpre"), texName, i);
+		strcat_s(fname, MAX_NOESIS_PATH, nameStr);
+		sprintf_s(fnamedds, MAX_NOESIS_PATH, "%s.dds", fname);
+
+		if (hdr.texIdxOffset)
+		{
+			int *ip = (int  *)(data + hdr.texIdxOffset + sizeof(int)*i);
+			globalIdx = *ip;
+		}
+		DBGLOG("%s: 0x%0x\n", fname, globalIdx);
+		FILE  * fdds = fopen(fnamedds, "wb");
+		fwrite(data2 + tofs[i], 1, tsizes[i], fdds);
+		fclose(fdds);
+
+		noesisTex_t	*nt = rapi->Noesis_LoadExternalTex(fnamedds);
+		if (nt) {
+			nt->filename = rapi->Noesis_PooledString(fname);
+			textures.Append(nt);
+		}
+		else {
+			DBGLOG("Could not load texture %s\n", fnamedds);
+			nt = rapi->Noesis_AllocPlaceholderTex(fname, 32, 32, false);
+			textures.Append(nt);
+		}
+		remove(fnamedds);
+		nt->globalIdx = globalIdx;
+
+	}
+	//insert a flat normal map placeholder
+	char fname[MAX_NOESIS_PATH];
+	rapi->Noesis_GetDirForFilePath(fname, rapi->Noesis_GetOutputName());
+	char nameStr[MAX_NOESIS_PATH];
+	sprintf_s(nameStr, MAX_NOESIS_PATH, ".\\%sbayoflatnormal", rapi->Noesis_GetOption("texpre"));
+	strcat_s(fname, MAX_NOESIS_PATH, nameStr);
+	noesisTex_t *nt = rapi->Noesis_AllocPlaceholderTex(fname, 32, 32, true);
+	textures.Append(nt);
+}
 //decode motion index (simpler thanks to Alquazar(zenhax))
 template <bool big>
 static inline short int Model_Bayo_DecodeMotionIndex(const short int *table, const short int boneIndex) {
@@ -2713,6 +3103,17 @@ static void Model_Bayo_InitMotions(modelMatrix_t * &matrixes, float * &tmpValues
 					LITTLE_BIG_SWAP(translate[k]);
 					LITTLE_BIG_SWAP(rotate[k]);
 					LITTLE_BIG_SWAP(scale[k]);
+				}
+			}
+		}
+		else if (game == MGRR) {
+			MGRRBone<big> mBone((MGRRBone_t *)((BYTE*)extraBoneInfo + i * sizeof(MGRRBone_t)));
+			translate[0] = mBone.relativePosition[0];
+			translate[1] = mBone.relativePosition[1];
+			translate[2] = mBone.relativePosition[2];
+			if (big) {
+				for (int k = 0; k < 3; k++) {
+					LITTLE_BIG_SWAP(translate[k]);
 				}
 			}
 		}
@@ -4006,6 +4407,20 @@ static void Model_Bayo_CreateNormal<false, BAYONETTA2>(char *src, float *dst) {
 	dst[2] = (float)SignedBits(z, zBits) / (float)((1 << (zBits - 1)) - 1);
 }
 template <>
+static void Model_Bayo_CreateNormal<false, MGRR>(char *src, float *dst) {
+	DWORD r;
+	memcpy(&r, src, sizeof(r));
+	int xBits = 11;
+	int yBits = 11;
+	int zBits = 10;
+	int x = ((r >> 0) & ((1 << xBits) - 1));
+	int y = ((r >> xBits) & ((1 << yBits) - 1));
+	int z = ((r >> (xBits + yBits)) & ((1 << zBits) - 1));
+	dst[0] = (float)SignedBits(x, xBits) / (float)((1 << (xBits - 1)) - 1);
+	dst[1] = (float)SignedBits(y, yBits) / (float)((1 << (yBits - 1)) - 1);
+	dst[2] = (float)SignedBits(z, zBits) / (float)((1 << (zBits - 1)) - 1);
+}
+template <>
 static void Model_Bayo_CreateNormal<true, BAYONETTA>(char *src, float *dst) {
 	return Model_Bayo_CreateNormal<true, BAYONETTA2>(src, dst);
 }
@@ -4147,6 +4562,23 @@ static void Model_Bayo_CreateTangents<false, BAYONETTA2>(BYTE *data, float *dsts
 	}
 }
 template <>
+static void Model_Bayo_CreateTangents<false, MGRR>(BYTE *data, float *dsts, int numVerts, int stride, modelMatrix_t *m) {
+	for (int i = 0; i < numVerts; i++)
+	{
+		BYTE *src = data + stride * i;
+		float tmp[3];
+		float *dst = dsts + i * 4;
+		for (int j = 0; j < 4; j++) {
+			dst[j] = (src[j] - (float)127) / (float)127;
+		}
+		// handedness is reverse here:
+		if (m) {
+			g_mfn->Math_TransformPointByMatrixNoTrans(m, dst, tmp);
+			g_mfn->Math_VecCopy(tmp, dst);
+		}
+	}
+}
+template <>
 static void Model_Bayo_CreateTangents<true, BAYONETTA>(BYTE *data, float *dsts, int numVerts, int stride, modelMatrix_t *m)
 {
 	for (int i = 0; i < numVerts; i++)
@@ -4228,6 +4660,54 @@ modelBone_t *Model_Nier_CreateBones(nierWMBHdr<big> &hdr, BYTE *data, noeRAPI_t 
 	bones[numBones].mat = g_identityMatrix;
 	bones[numBones].userIndex = 5;
 	rapi->rpgMultiplyBones(bones, numBones);
+	return bones;
+}
+template <bool big>
+modelBone_t *Model_MGRR_CreateBones(MGRRWmbHdr<big> &hdr, BYTE *data, noeRAPI_t *rapi, int &numBones, short int * &animBoneTT)
+{
+	numBones = 0;
+	if (hdr.numBones <= 0 || hdr.offsetBones == 0)
+	{
+		return NULL;
+	}
+	animBoneTT = (short int *)(data + hdr.offsetBoneIndexTranslateTable);
+	std::map<short int, short int> boneMap;
+	for (short int i = 0; i < 0x1000; i++) {
+		short int decoded_index = Model_Bayo_DecodeMotionIndex<big>(animBoneTT, i);
+		if (decoded_index != 0x0fff) {
+			boneMap.insert(std::pair <short int, short int>(decoded_index, i));
+		}
+	}
+
+	numBones = hdr.numBones;
+	DBGLOG("Found %d bones\n", numBones);
+	modelBone_t *bones = rapi->Noesis_AllocBones(numBones + 1);
+
+	for (int i = 0; i < numBones; i++)
+	{
+		modelBone_t *bone = bones + i;
+		MGRRBone<big> mgrrBone((MGRRBone_t*)(data + hdr.offsetBones + i * sizeof(MGRRBone_t)));
+		bone->index = i;
+		short parent = mgrrBone.parentIndex;
+		if (parent == -1) {
+			bone->eData.parent = bones + numBones;
+		} else if(parent >= 0) {
+			bone->eData.parent = bones + parent;
+		} else {
+			bone->eData.parent = NULL;
+		}
+		sprintf_s(bone->name, 30, "bone%03i", boneMap.at((short int)i));
+		bone->mat = g_identityMatrix;
+		g_mfn->Math_VecCopy(mgrrBone.position, bone->mat.o);
+		bone->userIndex = 5;
+	}
+
+	bones[numBones].index = numBones;
+	bones[numBones].eData.parent = NULL;
+	sprintf_s(bones[numBones].name, 30, "bone-1");
+	bones[numBones].mat = g_identityMatrix;
+	bones[numBones].userIndex = 5;
+
 	return bones;
 }
 //convert the bones
@@ -4798,6 +5278,75 @@ static void Model_Nier_LoadMaterials(nierWMBHdr<big> &hdr,
 		totMatList.Append(nmat);
 	}
 }
+template <bool big, game_t game>
+static void Model_MGRR_LoadMaterials(MGRRWmbHdr<big> &hdr,
+	CArrayList<noesisTex_t *> &textures,
+	CArrayList<noesisMaterial_t *> &matList,
+	CArrayList<noesisMaterial_t *> &matListLightMap,
+	CArrayList<noesisMaterial_t *> &totMatList,
+	BYTE *data,
+	noeRAPI_t *rapi) {
+
+	MGRRMaterial_t *matPtr = (MGRRMaterial_t *)(data + hdr.offsetMaterials);
+
+	DBGLOG("Found %d materials\n", hdr.numMaterials);
+	for (unsigned int i = 0; i < hdr.numMaterials; i++)
+	{
+		char name[256];
+		MGRRMaterial<big> mat(matPtr + i);
+		sprintf_s(name, 256, "%s_%d", data + mat.offsetShaderName, i);
+		DBGLOG("\tFound %s\n", name);
+		noesisMaterial_t *nmat = rapi->Noesis_GetMaterialList(1, true);
+		nmat->name = rapi->Noesis_PooledString(name);
+		nmat->noDefaultBlend = true;
+		nmat->texIdx = -1;
+		nmat->normalTexIdx = textures.Num() - 1;
+		nmat->specularTexIdx = -1;
+		unsigned int difTexIndex = 0;
+		unsigned int nrmTexIndex = 0;
+		//int specTexIndex = 0;
+		DBGLOG("\tFound %d textures\n", mat.numTextures);
+		MGRRTextures<big> texs((MGRRTextures_t*)(data + mat.offsetTextures));
+		difTexIndex = texs.albedoMap;
+		nrmTexIndex = texs.normalMap;
+
+
+		int difTexId = 0;
+		int nrmTexId = 0;
+		if (difTexIndex < hdr.numTextures) {
+			MGRRTexture<big> difTex((MGRRTexture_t*)(data + hdr.offsetTextures + difTexIndex * sizeof(MGRRTexture_t)));
+			difTexId = difTex.id;
+		}
+		if (nrmTexIndex < hdr.numTextures) {
+			MGRRTexture<big> nrmTex((MGRRTexture_t*)(data + hdr.offsetTextures + nrmTexIndex * sizeof(MGRRTexture_t)));
+			nrmTexId = nrmTex.id;
+		}
+
+		for (int j = 0; j < textures.Num(); j++) {
+			noesisTex_t *tex = textures[j];
+			if (difTexId && tex->globalIdx == difTexId) {
+				DBGLOG("Found matching texture %d\n", j);
+				nmat->texIdx = j;
+			}
+			if (nrmTexId && tex->globalIdx == nrmTexId) {
+				DBGLOG("Found matching normal %d\n", j);
+				nmat->normalTexIdx = j;
+			}
+/*			if (specTexId && tex->globalIdx == specTexId) {
+				DBGLOG("Found matching specular %d\n", j);
+				nmat->specularTexIdx = j;
+				nmat->flags |= NMATFLAG_PBR_SPEC_IR_RG;
+			}*/
+		}
+		if (nmat->texIdx == -1 && strncmp(name,"cnm21", 5) == 0) {
+			nmat->skipRender = true;
+		}
+		matListLightMap.Append(NULL);
+		matList.Append(nmat);
+		totMatList.Append(nmat);
+	}
+}
+
 typedef struct buffer_s {
 	BYTE				*address = NULL;
 	unsigned int		stride = 0;
@@ -4820,6 +5369,9 @@ typedef struct nierBuffers_s : public buffers_s {
 	buffer_t mapping4;
 	buffer_t mapping5;
 } nierBuffers_t;
+typedef struct MGRRBuffers_s : public buffers_s {
+	buffer_t indices;
+} MGRRBuffers_t;
 template <bool big, game_t game>
 static void __set_position(buffer_t &position, BYTE *address, unsigned int stride, unsigned int count, modelMatrix_t * pretransform = NULL) {
 	position.address = address;
@@ -5337,6 +5889,110 @@ static void Model_Nier_SetBuffers(bayoDatFile_t &df, noeRAPI_t *rapi, nierWMBHdr
 		}
 	}
 }
+template <bool big, game_t game>
+static void Model_MGRR_SetBuffers(bayoDatFile_t &df, noeRAPI_t *rapi, MGRRWmbHdr<false> &hdr, MGRRBuffers_t *buffers, modelMatrix_t * pretransform) {
+	BYTE *data = df.data;
+	for (unsigned int i = 0; i < hdr.numVertexGroups; i++) {
+		MGRRVertexGroup<big> vg((MGRRVertexGroup_t*)(data + hdr.offsetVertexGroups + i * sizeof(MGRRVertexGroup_t)));
+		
+		int numVerts = vg.numVertexes;
+		BYTE *indices = data + vg.offsetIndexes;
+		BYTE *verts = data + vg.offsetVertexes;
+		BYTE *vertsEx = data + vg.offsetVertexesExData;
+		DBGLOG("Found format %x\n", hdr.vertexFormat);
+		if (hdr.vertexFormat == 0x10337) {
+			int bayoVertSize = 0x20;
+			int bayoVertExSize = 0x8;
+			__set_sindices<big, game>(buffers[i].indices, indices, 2);
+
+			__set_position<big, game>(buffers[i].position, verts, bayoVertSize, numVerts, pretransform);
+			__set_mapping<big, game>(buffers[i].mapping, verts + 12, bayoVertSize);
+			__set_normal<big, game>(buffers[i].normal, verts + 16, bayoVertSize, numVerts, rapi, pretransform);
+			__set_tangents<big, game>(buffers[i].tangents, verts + 20, bayoVertSize, numVerts, rapi, pretransform);
+			__set_bone_infos<big, game>(buffers[i].bone_indexes, verts + 24, bayoVertSize);
+			__set_bone_infos<big, game>(buffers[i].bone_weights, verts + 28, bayoVertSize);
+
+			__set_color<big, game>(buffers[i].color, vertsEx, bayoVertExSize);
+			__set_mapping<big, game>(buffers[i].mapping2, vertsEx + 4, bayoVertExSize);
+		} else if (hdr.vertexFormat == 0x337) {
+			int bayoVertSize = 0x20;
+			int bayoVertExSize = 0x8;
+			__set_sindices<big, game>(buffers[i].indices, indices, 2);
+
+			__set_position<big, game>(buffers[i].position, verts, bayoVertSize, numVerts, pretransform);
+			__set_mapping<big, game>(buffers[i].mapping, verts + 12, bayoVertSize);
+			__set_normal<big, game>(buffers[i].normal, verts + 16, bayoVertSize, numVerts, rapi, pretransform);
+			__set_tangents<big, game>(buffers[i].tangents, verts + 20, bayoVertSize, numVerts, rapi, pretransform);
+			__set_bone_infos<big, game>(buffers[i].bone_indexes, verts + 24, bayoVertSize);
+			__set_bone_infos<big, game>(buffers[i].bone_weights, verts + 28, bayoVertSize);
+
+			__set_color<big, game>(buffers[i].color, vertsEx, bayoVertExSize);
+			__set_mapping<big, game>(buffers[i].mapping2, vertsEx + 4, bayoVertExSize);
+		}
+		else if (hdr.vertexFormat == 0x10307) {
+			int bayoVertSize = 0x20;
+			__set_sindices<big, game>(buffers[i].indices, indices, 2);
+
+			__set_position<big, game>(buffers[i].position, verts, bayoVertSize, numVerts, pretransform);
+			__set_mapping<big, game>(buffers[i].mapping, verts + 12, bayoVertSize);
+			__set_normal<big, game>(buffers[i].normal, verts + 16, bayoVertSize, numVerts, rapi, pretransform);
+			__set_tangents<big, game>(buffers[i].tangents, verts + 20, bayoVertSize, numVerts, rapi, pretransform);
+			__set_color<big, game>(buffers[i].color, verts + 24, bayoVertSize);
+			__set_mapping<big, game>(buffers[i].mapping2, verts + 28, bayoVertSize);
+		}
+		else if (hdr.vertexFormat == 0x10137) {
+			int bayoVertSize = 0x20;
+			int bayoVertExSize = 0x4;
+			__set_sindices<big, game>(buffers[i].indices, indices, 2);
+
+			__set_position<big, game>(buffers[i].position, verts, bayoVertSize, numVerts, pretransform);
+			__set_mapping<big, game>(buffers[i].mapping, verts + 12, bayoVertSize);
+			__set_normal<big, game>(buffers[i].normal, verts + 16, bayoVertSize, numVerts, rapi, pretransform);
+			__set_tangents<big, game>(buffers[i].tangents, verts + 20, bayoVertSize, numVerts, rapi, pretransform);
+			__set_bone_infos<big, game>(buffers[i].bone_indexes, verts + 24, bayoVertSize);
+			__set_bone_infos<big, game>(buffers[i].bone_weights, verts + 28, bayoVertSize);
+
+			__set_color<big, game>(buffers[i].color, vertsEx, bayoVertExSize);
+		}
+		else if (hdr.vertexFormat == 0x10107) {
+			int bayoVertSize = 0x1c;
+			__set_sindices<big, game>(buffers[i].indices, indices, 2);
+
+			__set_position<big, game>(buffers[i].position, verts, bayoVertSize, numVerts, pretransform);
+			__set_mapping<big, game>(buffers[i].mapping, verts + 12, bayoVertSize);
+			__set_normal<big, game>(buffers[i].normal, verts + 16, bayoVertSize, numVerts, rapi, pretransform);
+			__set_tangents<big, game>(buffers[i].tangents, verts + 20, bayoVertSize, numVerts, rapi, pretransform);
+			__set_color<big, game>(buffers[i].color, verts + 24, bayoVertSize);
+		}
+		else if (hdr.vertexFormat == 0x137) {
+			int bayoVertSize = 0x20;
+			__set_sindices<big, game>(buffers[i].indices, indices, 2);
+
+			__set_position<big, game>(buffers[i].position, verts, bayoVertSize, numVerts, pretransform);
+			__set_mapping<big, game>(buffers[i].mapping, verts + 12, bayoVertSize);
+			__set_normal<big, game>(buffers[i].normal, verts + 16, bayoVertSize, numVerts, rapi, pretransform);
+			__set_tangents<big, game>(buffers[i].tangents, verts + 20, bayoVertSize, numVerts, rapi, pretransform);
+			__set_bone_infos<big, game>(buffers[i].bone_indexes, verts + 24, bayoVertSize);
+			__set_bone_infos<big, game>(buffers[i].bone_weights, verts + 28, bayoVertSize);
+		}
+		else if (hdr.vertexFormat == 0x107) {
+			int bayoVertSize = 0x18;
+			__set_sindices<big, game>(buffers[i].indices, indices, 2);
+
+			__set_position<big, game>(buffers[i].position, verts, bayoVertSize, numVerts, pretransform);
+			__set_mapping<big, game>(buffers[i].mapping, verts + 12, bayoVertSize);
+			__set_normal<big, game>(buffers[i].normal, verts + 16, bayoVertSize, numVerts, rapi, pretransform);
+			__set_tangents<big, game>(buffers[i].tangents, verts + 20, bayoVertSize, numVerts, rapi, pretransform);
+		}
+		else {
+			DBGLOG("Unknown vertex format: %x!!!\n", hdr.vertexFormat);
+#ifdef _DEBUG
+			g_nfn->NPAPI_PopupDebugLog(0);
+#endif
+			continue;
+		}
+	}
+}
 
 //load a single model from a dat set
 template <bool big, game_t game>
@@ -5591,6 +6247,7 @@ static void Model_Bayo_LoadModel<false, NIER_AUTOMATA>(CArrayList<bayoDatFile_t>
 	CArrayList<noesisAnim_t *> animList;
 
 	nierBuffers_t *buffers = (nierBuffers_t *)rapi->Noesis_UnpooledAlloc( hdr.numVertexGroups * sizeof(nierBuffers_t));
+	memset(buffers, 0, hdr.numVertexGroups * sizeof(MGRRBuffers_t));
 
 	if (givenTextures.Num() == 0) {
 		Model_Bayo_GetTextureBundle<game>(texFiles, dfiles, df, rapi);
@@ -5729,6 +6386,175 @@ static void Model_Bayo_LoadModel<false, NIER_AUTOMATA>(CArrayList<bayoDatFile_t>
 	matListLightMap.Clear();
 	totMatList.Clear();
 }
+
+template <>
+static void Model_Bayo_LoadModel<false, MGRR>(CArrayList<bayoDatFile_t> &dfiles, bayoDatFile_t &df, noeRAPI_t *rapi, CArrayList<noesisModel_t *> &models, CArrayList<noesisTex_t *> &givenTextures, modelMatrix_t * pretransform, int sharedtextureoffset) {
+	static const bool big = false;
+	static const game_t game = MGRR;
+	DBGLOG("Loading %s\n", df.name);
+	BYTE *data = df.data;
+	int dataSize = df.dataSize;
+	if (dataSize < sizeof(MGRRWmbHdr_t))
+	{
+		return;
+	}
+	MGRRWmbHdr<big> hdr((MGRRWmbHdr_t *)data);
+	if (memcmp(hdr.id, "WMB4", 4) || hdr.numVertexGroups == 0)
+	{ //invalid header
+		return;
+	}
+
+	CArrayList<bayoDatFile_t *> motfiles;
+	CArrayList<bayoDatFile_t *> texFiles;
+	CArrayList<bayoDatFile_t *> expfile;
+	CArrayList<noesisTex_t *> textures;
+	CArrayList<noesisMaterial_t *> matList;
+	CArrayList<noesisMaterial_t *> matListLightMap;
+	CArrayList<noesisMaterial_t *> totMatList;
+	CArrayList<noesisAnim_t *> animList;
+
+	MGRRBuffers_t *buffers = (MGRRBuffers_t *)rapi->Noesis_UnpooledAlloc(hdr.numVertexGroups * sizeof(MGRRBuffers_t));
+	memset(buffers, 0, hdr.numVertexGroups * sizeof(MGRRBuffers_t));
+
+	if (givenTextures.Num() == 0) {
+		Model_Bayo_GetTextureBundle<game>(texFiles, dfiles, df, rapi);
+		if (texFiles.Num() > 0)
+		{
+			for (int i = 0; i < texFiles.Num(); i++) {
+				DBGLOG("Found texture bundle %s\n", texFiles[i]->name);
+			}
+
+			CArrayList<bayoDatFile_t *> newTexFiles;
+			for (int i = 0; i < texFiles.Num(); i += 2) {
+				CArrayList<bayoDatFile_t *> newTexFiles;
+				newTexFiles.Append(texFiles[i]);
+				newTexFiles.Append(texFiles[i + 1]);
+				Model_Bayo_LoadTextures<big, game>(textures, newTexFiles, rapi);
+			}
+		}
+	}
+	else {
+		for (int i = 0; i < givenTextures.Num(); i++) {
+			textures.Append(givenTextures[i]);
+		}
+	}
+
+	Model_MGRR_LoadMaterials<big, game>(hdr, textures, matList, matListLightMap, totMatList, data, rapi);
+	Model_MGRR_SetBuffers<big, game>(df, rapi, hdr, buffers, pretransform);
+	if (!buffers[0].position.address) {
+		rapi->Noesis_UnpooledFree(buffers);
+		return;
+	}
+
+	void *pgctx = rapi->rpgCreateContext();
+	rapi->rpgSetOption(RPGOPT_BIGENDIAN, big);
+	rapi->rpgSetOption(RPGOPT_TRIWINDBACKWARD, true);
+
+	int numBones = 0;
+	short int * animBoneTT = NULL;
+	modelBone_t *bones = Model_MGRR_CreateBones<big>(hdr, data, rapi, numBones, animBoneTT);
+	Model_Bayo_GetMotionFiles(dfiles, df, rapi, motfiles);
+	Model_Bayo_GetEXPFile(dfiles, df, rapi, expfile);
+	if (bones) {
+		Model_Bayo_LoadMotions<big, game>(animList, motfiles, expfile, bones, numBones, rapi, animBoneTT, data + hdr.offsetBones);
+		Model_Bayo_LoadExternalMotions<big, game>(animList, df, expfile, bones, numBones, rapi, animBoneTT, data + hdr.offsetBones);
+	}
+
+	DBGLOG("Found %d meshes\n", hdr.numMeshes);
+	DBGLOG("Found %d batches\n", hdr.numBatches);
+
+	MGRRMesh_t *meshes = (MGRRMesh_t *)(data + hdr.offsetMeshes);
+	MGRRBatch_t *batches = (MGRRBatch_t *)(data + hdr.offsetBatches);
+	MGRRBoneSet_t *boneSets = NULL;
+	if (hdr.offsetBoneSets != 0) {
+		boneSets = (MGRRBoneSet_t *)(data + hdr.offsetBoneSets);
+	}
+	MGRRBatchDescription<big> batchDescription((MGRRBatchDescription_t *)(data + hdr.offsetBatchDescription));
+
+	for (unsigned int i = 0; i < hdr.numMeshes; i++) {
+		MGRRMesh<big> mesh(meshes + i);
+		for (unsigned int j = 0; j < mesh.numBatches; j++) {
+			char batch_name[256];
+			sprintf_s(batch_name, 256, "%d_%s", j, (char *)(data + mesh.offsetName));
+			DBGLOG("\t%s\n", batch_name);
+
+			short batchDataIndex = *(short *)(data + mesh.offsetBatches + j*sizeof(short));
+			if (big) {
+				LITTLE_BIG_SWAP(batchDataIndex);
+			}
+			MGRRBatchData<big> batchData((MGRRBatchData_t*)(data + batchDescription.offsetBatchData + batchDataIndex * sizeof(MGRRBatchData_t)));
+			MGRRBatch<big> batch(batches + batchData.batchIndex);
+
+			unsigned int vertexGroupIndex = batch.vertexGroupIndex;
+			unsigned int materialIndex = batchData.materialIndex;
+			int vertexStart = batch.vertexStart;
+
+			int *boneIndices = NULL;
+			if (bones && batchData.boneSetIndex != 0xffff) {
+				MGRRBoneSet<big> boneSet(boneSets + batchData.boneSetIndex);
+				boneIndices = (int *)rapi->Noesis_UnpooledAlloc(boneSet.numBones * sizeof(int));
+				BYTE* boneRefs = (BYTE*)(data + boneSet.offsetBoneRefs);
+				for (unsigned int k = 0; k < boneSet.numBones; k++) {
+					boneIndices[k] = boneRefs[k];
+				}
+			}
+			rapi->rpgSetName(rapi->Noesis_PooledString(batch_name));
+			rapi->rpgSetBoneMap(boneIndices);
+			if (bones && buffers[vertexGroupIndex].bone_indexes.address)
+			{
+				rapi->rpgBindBoneIndexBuffer(buffers[vertexGroupIndex].bone_indexes.address + vertexStart * buffers[vertexGroupIndex].bone_indexes.stride, buffers[vertexGroupIndex].bone_indexes.type, buffers[vertexGroupIndex].bone_indexes.stride, 4);
+				rapi->rpgBindBoneWeightBuffer(buffers[vertexGroupIndex].bone_weights.address + vertexStart * buffers[vertexGroupIndex].bone_weights.stride, buffers[vertexGroupIndex].bone_weights.type, buffers[vertexGroupIndex].bone_weights.stride, 4);
+			}
+			rapi->rpgBindPositionBuffer(buffers[vertexGroupIndex].position.address + vertexStart * buffers[vertexGroupIndex].position.stride, buffers[vertexGroupIndex].position.type, buffers[vertexGroupIndex].position.stride);
+			rapi->rpgBindNormalBuffer(buffers[vertexGroupIndex].normal.address + vertexStart * buffers[vertexGroupIndex].normal.stride, buffers[vertexGroupIndex].normal.type, buffers[vertexGroupIndex].normal.stride);
+			rapi->rpgBindUV1Buffer(buffers[vertexGroupIndex].mapping.address + vertexStart * buffers[vertexGroupIndex].mapping.stride, buffers[vertexGroupIndex].mapping.type, buffers[vertexGroupIndex].mapping.stride);
+			rapi->rpgSetMaterial(matList[materialIndex]->name);
+			rapi->rpgCommitTriangles(buffers[vertexGroupIndex].indices.address + batch.indexStart * buffers[vertexGroupIndex].indices.stride, buffers[vertexGroupIndex].indices.type, batch.numIndices, RPGEO_TRIANGLE, true);
+
+			if (bones && batchData.boneSetIndex != 0xffff) {
+				rapi->rpgSetBoneMap(NULL);
+				rapi->Noesis_UnpooledFree(boneIndices);
+			}
+		}
+	}
+
+	noesisMatData_t *md = rapi->Noesis_GetMatDataFromLists(totMatList, textures);
+	rapi->rpgSetExData_Materials(md);
+	if (bones) {
+		rapi->rpgSetExData_Bones(bones, numBones + 1);
+	}
+	int anims_num = animList.Num();
+	DBGLOG("Found %d anims\n", anims_num);
+	if (anims_num > 700) {
+		DBGLOG("Only displaying 700 first animations");
+		anims_num = 700;
+	}
+
+	noesisAnim_t *anims = rapi->Noesis_AnimFromAnimsList(animList, anims_num);
+	if (anims) {
+		rapi->rpgSetExData_AnimsNum(anims, 1);
+	}
+	else if (animList.Num() > 0) {
+		DBGLOG("Could not create animation block\n");
+	}
+
+	noesisModel_t *mdl = rapi->rpgConstructModel();
+	if (mdl) {
+		models.Append(mdl);
+	}
+
+	rapi->rpgDestroyContext(pgctx);
+
+	rapi->Noesis_UnpooledFree(buffers);
+	animList.Clear();
+	matList.Clear();
+	motfiles.Clear();
+	texFiles.Clear();
+	textures.Clear();
+	matListLightMap.Clear();
+	totMatList.Clear();
+}
+
 static void Model_Bayo_CreatePreTransformMatrix(float * transform, modelMatrix_t &m) {
 	float translate[3];
 	float rotate[3];
@@ -5906,6 +6732,9 @@ static void Model_Bayo_LoadScenery<false, VANQUISH>(CArrayList<bayoDatFile_t> &o
 template <>
 static void Model_Bayo_LoadScenery<false, NIER_AUTOMATA>(CArrayList<bayoDatFile_t> &olddfiles, bayoDatFile_t &df, noeRAPI_t *rapi, CArrayList<noesisModel_t *> &models) {
 }
+template <>
+static void Model_Bayo_LoadScenery<false, MGRR>(CArrayList<bayoDatFile_t> &olddfiles, bayoDatFile_t &df, noeRAPI_t *rapi, CArrayList<noesisModel_t *> &models) {
+}
 //load it
 template <bool big, game_t game>
 noesisModel_t *Model_Bayo_Load(BYTE *fileBuffer, int bufferLen, int &numMdl, noeRAPI_t *rapi)
@@ -6000,7 +6829,12 @@ bool NPAPI_InitLocal(void)
 		return false;
 	}
 	int fh_n = g_nfn->NPAPI_Register("Nier Automata PC Model", ".dtt");
-	if (fh_v < 0)
+	if (fh_n < 0)
+	{
+		return false;
+	}
+	int fh_m = g_nfn->NPAPI_Register("MGRR PC Model", ".dat");
+	if (fh_m < 0)
 	{
 		return false;
 	}
@@ -6019,6 +6853,8 @@ bool NPAPI_InitLocal(void)
 	g_nfn->NPAPI_SetTypeHandler_LoadModel(fh_v, Model_Bayo_Load<false, VANQUISH>);
 	g_nfn->NPAPI_SetTypeHandler_TypeCheck(fh_n, Model_Bayo_Check<false, NIER_AUTOMATA>);
 	g_nfn->NPAPI_SetTypeHandler_LoadModel(fh_n, Model_Bayo_Load<false, NIER_AUTOMATA>);
+	g_nfn->NPAPI_SetTypeHandler_TypeCheck(fh_m, Model_Bayo_Check<false, MGRR>);
+	g_nfn->NPAPI_SetTypeHandler_LoadModel(fh_m, Model_Bayo_Load<false, MGRR>);
 	//g_nfn->NPAPI_PopupDebugLog(0);
 	return true;
 }
