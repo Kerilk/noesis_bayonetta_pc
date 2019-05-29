@@ -3493,7 +3493,9 @@ static float applyExpEntry(struct expState_s &expState, bayoEXPEntry<big> &entry
 	}
 	return res;
 }
-
+/* em0600 exp entries 15 and 20 seem to lead to buffer underrun
+   in the state struct, flag is used instead of a value from fArray.
+   Similarly the last value of fArray is used instead of a value from iArray...*/
 template <bool big>
 static void Model_Bayo1_ApplyEXP(CArrayList<bayoDatFile_t *> & expfile, float * tmpValues, const int bone_number, const short int frameCount, short int * animBoneTT) {
 	static int maxCoeffs = 16;
