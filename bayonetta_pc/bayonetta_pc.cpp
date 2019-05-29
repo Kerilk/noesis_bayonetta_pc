@@ -1727,6 +1727,7 @@ bool Model_Bayo_Check(BYTE *fileBuffer, int bufferLen, noeRAPI_t *rapi)
 				}
 				unsigned int tag = ((unsigned int*)(fileBuffer + offWmb))[0];
 				unsigned int version = ((int*)(fileBuffer + offWmb))[1];
+
 				if (big) {
 					LITTLE_BIG_SWAP(tag);
 					LITTLE_BIG_SWAP(version);
@@ -3350,6 +3351,7 @@ static float Model_Bayo_Interpolate6EXP_Value(float value, BYTE *interpol, short
 	return outValue;
 }
 struct expState_s {
+	unsigned int flags;
 	float fArray[4];
 	int iArray[4];
 	BYTE fCount;
@@ -3358,6 +3360,7 @@ struct expState_s {
 };
 
 static void init_expState(struct expState_s &expState) {
+	expState.flags = 0;
 	expState.fCount = 0;
 	expState.iCount = 0;
 	expState.unknown = 0;
@@ -3479,13 +3482,13 @@ static float applyExpEntry(struct expState_s &expState, bayoEXPEntry<big> &entry
 		else if ((entry.flags & 8) && value != 0.0f) {
 			res = res / value;
 		}
-		if (entry.flags & 0x20000) {
-			if (fi == 0)
-				DBGLOG("\t\t\t\tmodifying:\n");
+	}
+	if (entry.flags & 0x20000) {
+		if (fi == 0)
+			DBGLOG("\t\t\t\tmodifying:\n");
+		res = modifyExpEntryValue<big>(expState, res, fi);
+		if (entry.flags & 0x80000) {
 			res = modifyExpEntryValue<big>(expState, res, fi);
-			if (entry.flags & 0x80000) {
-				res = modifyExpEntryValue<big>(expState, res, fi);
-			}
 		}
 	}
 	return res;
