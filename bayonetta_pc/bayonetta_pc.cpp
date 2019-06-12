@@ -4924,7 +4924,7 @@ static void Model_Bayo_SetTile(BYTE * matData, int tileOffset, noesisMaterial_t 
 }
 template<bool big>
 static int Model_Bayo_ReadTextureIndex(wmbMat<big> &mat, CArrayList<noesisTex_t *> &textures, int textureOffset, int &sharedtextureoffset, bool default0, noeRAPI_t * rapi) {
-	DBGLOG("texture offset %d ", textureOffset);
+	//DBGLOG("texture offset %d ", textureOffset);
 	if (textureOffset != -1 || default0) {
 		int offset;
 		if (textureOffset != -1) {
@@ -4933,7 +4933,7 @@ static int Model_Bayo_ReadTextureIndex(wmbMat<big> &mat, CArrayList<noesisTex_t 
 		else {
 			offset = 0;
 		}
-		DBGLOG(" offset %d ", offset);
+		//DBGLOG(" offset %d ", offset);
 		if ((mat.texs[offset].tex_flagB & 0xff00) == 0xa000) {
 			if (sharedtextureoffset == -1) {
 				sharedtextureoffset = textures.Num();
@@ -5198,8 +5198,9 @@ static void Model_Bayo_LoadMaterials(bayoWMBHdr<big> &hdr,
 				nmat->expr->v_clrExpr[3] = rapi->Express_Parse("1.0");*/
 				Model_Bayo_SetTile<big>(matData, bayoMatTypes[mat.matFlags].color_1_tile, nmat, rapi);
 			}
-			if (bayoMatTypes[mat.matFlags].shader_name && strstr(bayoMatTypes[mat.matFlags].shader_name, "modelshaderpls06_bxnxx")) {
+			if (mat.matFlags == 0x87 || mat.matFlags == 0x6b) { //"modelshaderpls06_bxnxx" || "modelshaderobs07_bxnxx"
 				//nmat->flags |= NMATFLAG_NORMAL_UV1;
+				//DBGLOG(", normal use UV2");
 			}
 			if (bayoMatTypes[mat.matFlags].shader_name && strstr(bayoMatTypes[mat.matFlags].shader_name, "modelshaderbgs")) {
 				nmat->bumpTexIdx = Model_Bayo_ReadTextureIndex(mat, textures, bayoMatTypes[mat.matFlags].reliefmap_sampler, sharedtextureoffset, false, rapi);
@@ -6240,6 +6241,7 @@ static void Model_Bayo_LoadModel(CArrayList<bayoDatFile_t> &dfiles, bayoDatFile_
 			rapi->rpgBindUV1Buffer(buffers.mapping.address + vertOfs * buffers.mapping.stride, buffers.mapping.type, buffers.mapping.stride);
 			if (buffers.mapping2.address) {
 				rapi->rpgBindUV2Buffer(buffers.mapping2.address + vertOfs * buffers.mapping2.stride, buffers.mapping2.type, buffers.mapping2.stride);
+				DBGLOG("binding UV2, ");
 			}
 			else {
 				rapi->rpgBindUV2Buffer(NULL, RPGEODATA_HALFFLOAT, 0);
