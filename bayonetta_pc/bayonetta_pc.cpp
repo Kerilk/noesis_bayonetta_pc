@@ -5200,7 +5200,11 @@ static void Model_Bayo_LoadMaterials(bayoWMBHdr<big> &hdr,
 			}
 			if (mat.matFlags == 0x87 || mat.matFlags == 0x6b) { //"modelshaderpls06_bxnxx" || "modelshaderobs07_bxnxx"
 				//nmat->flags |= NMATFLAG_NORMAL_UV1;
+				//nmat->ex->flags2 |= NMATFLAG2_PREFERPPL;
 				//DBGLOG(", normal use UV2");
+			}
+			if (mat.matFlags == 0x69) { //"modelshaderbil04_xxxxx"
+				//nmat->flags |= NMATFLAG_SPRITE_FACINGXY; //no effect
 			}
 			if (bayoMatTypes[mat.matFlags].shader_name && strstr(bayoMatTypes[mat.matFlags].shader_name, "modelshaderbgs")) {
 				nmat->bumpTexIdx = Model_Bayo_ReadTextureIndex(mat, textures, bayoMatTypes[mat.matFlags].reliefmap_sampler, sharedtextureoffset, false, rapi);
