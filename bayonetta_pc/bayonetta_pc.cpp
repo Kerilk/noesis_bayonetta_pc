@@ -5519,6 +5519,46 @@ static void __set_normal(buffer_t &normal, BYTE *address, unsigned int stride, u
 	normal.stride = 12;
 	normal.type = RPGEODATA_FLOAT;
 }
+template <typename T>
+static void __set_static_info_helper(buffer_t &info, unsigned int count, unsigned int stride, void * data, noeRAPI_t *rapi) {
+	info.address = (BYTE *)rapi->Noesis_PooledAlloc(sizeof(T) * stride * count);
+	for (unsigned int i = 0; i < count; i++)
+		memcpy(info.address + sizeof(T) * stride * i, data, sizeof(T) * stride);
+	info.stride = sizeof(T) * stride;
+}
+template <bool big, game_t game, rpgeoDataType_e type>
+static void __set_static_info(buffer_t &info, unsigned int count, unsigned int stride, void * data, noeRAPI_t *rapi) {
+	switch (type) {
+	case RPGEODATA_FLOAT:
+		__set_static_info_helper<float>(info, count, stride, data, rapi);
+		break;
+	case RPGEODATA_INT:
+		__set_static_info_helper<int>(info, count, stride, data, rapi);
+		break;
+	case RPGEODATA_UINT:
+		__set_static_info_helper<unsigned int>(info, count, stride, data, rapi);
+		break;
+	case RPGEODATA_SHORT:
+		__set_static_info_helper<short>(info, count, stride, data, rapi);
+		break;
+	case RPGEODATA_USHORT:
+		__set_static_info_helper<unsigned short>(info, count, stride, data, rapi);
+		break;
+	case RPGEODATA_HALFFLOAT:
+		__set_static_info_helper<unsigned short>(info, count, stride, data, rapi);
+		break;
+	case RPGEODATA_DOUBLE:
+		__set_static_info_helper<double>(info, count, stride, data, rapi);
+		break;
+	case RPGEODATA_BYTE:
+		__set_static_info_helper<char>(info, count, stride, data, rapi);
+		break;
+	case RPGEODATA_UBYTE:
+		__set_static_info_helper<unsigned char>(info, count, stride, data, rapi);
+		break;
+	}
+	info.type = type;
+}
 template <bool big, game_t game>
 static void __set_tangents(buffer_t &tangents, BYTE *address, unsigned int stride, unsigned int count, noeRAPI_t *rapi, modelMatrix_t * pretransform = NULL) {
 	tangents.address = (BYTE *)rapi->Noesis_PooledAlloc(sizeof(float) * 4 * count);
@@ -5867,6 +5907,7 @@ static void Model_Bayo_SetBuffers(bayoDatFile_t &df, noeRAPI_t *rapi, bayoWMBHdr
 template <bool big, game_t game>
 static void Model_Nier_SetBuffers(bayoDatFile_t &df, noeRAPI_t *rapi, nierWMBHdr<false> &hdr, nierBuffers_t *buffers, modelMatrix_t * pretransform ) {
 	BYTE *data = df.data;
+	bool bHasBones = ((hdr.numBones > 0) && (hdr.ofsBones != 0));
 	for (int i = 0; i < hdr.numVertexGroups; i++) {
 		nierVertexGroup<big> vg((nierVertexGroup_t*)(data + hdr.ofsVertexGroups + i * sizeof(nierVertexGroup_t)));
 		int bayoVertSize = vg.sizeVert;
@@ -5940,6 +5981,15 @@ static void Model_Nier_SetBuffers(bayoDatFile_t &df, noeRAPI_t *rapi, nierWMBHdr
 
 			__set_hnormal<big, game>(buffers[i].normal, vertsEx, bayoVertExSize, numVerts, rapi, pretransform);
 			__set_mapping<big, game>(buffers[i].mapping3, vertsEx + 8, bayoVertExSize);
+
+			//bond to first bone if it exists
+			if (bHasBones) {
+				DBGLOG("Binding vertexes to first bone.\n");
+				unsigned char indexes[4] = { 0, 0, 0, 0 };
+				unsigned char weights[4] = { 255, 0, 0, 0 };
+				__set_static_info<big, game, RPGEODATA_UBYTE>(buffers[i].bone_indexes, numVerts, 4, indexes, rapi);
+				__set_static_info<big, game, RPGEODATA_UBYTE>(buffers[i].bone_weights, numVerts, 4, weights, rapi);
+			}
 		}
 		else if (bayoVertExSize == 8 && vg.vertExDataFlag == 0x4) {
 			__set_position<big, game>(buffers[i].position, verts, bayoVertSize, numVerts, pretransform);
@@ -5949,6 +5999,15 @@ static void Model_Nier_SetBuffers(bayoDatFile_t &df, noeRAPI_t *rapi, nierWMBHdr
 			__set_color<big, game>(buffers[i].color, verts + 24, bayoVertSize);
 
 			__set_hnormal<big, game>(buffers[i].normal, vertsEx, bayoVertExSize, numVerts, rapi, pretransform);
+
+			//bond to first bone if it exists
+			if (bHasBones) {
+				DBGLOG("Binding vertexes to first bone.\n");
+				unsigned char indexes[4] = { 0, 0, 0, 0 };
+				unsigned char weights[4] = { 255, 0, 0, 0 };
+				__set_static_info<big, game, RPGEODATA_UBYTE>(buffers[i].bone_indexes, numVerts, 4, indexes, rapi);
+				__set_static_info<big, game, RPGEODATA_UBYTE>(buffers[i].bone_weights, numVerts, 4, weights, rapi);
+			}
 		} 
 		else if (bayoVertExSize == 16 && vg.vertExDataFlag == 0xe) {
 			__set_position<big, game>(buffers[i].position, verts, bayoVertSize, numVerts, pretransform);
@@ -6375,6 +6434,7 @@ static void Model_Bayo_LoadModel<false, NIER_AUTOMATA>(CArrayList<bayoDatFile_t>
 	int numBones;
 	short int * animBoneTT;
 	modelBone_t *bones = Model_Nier_CreateBones<big>(hdr, data, rapi, numBones, animBoneTT);
+
 	Model_Bayo_GetMotionFiles(dfiles, df, rapi, motfiles);
 	Model_Bayo_GetEXPFile(dfiles, df, rapi, expfile);
 	if (bones) {
