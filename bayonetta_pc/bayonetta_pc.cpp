@@ -5203,6 +5203,11 @@ static void Model_Bayo_LoadMaterials(bayoWMBHdr<big> &hdr,
 				//nmat->ex->flags2 |= NMATFLAG2_PREFERPPL;
 				DBGLOG(", normal use UV2");
 			}
+			if (mat.matFlags == 0x6b) { //"modelshaderobs07_bxnxx"
+				//nmat->flags |= NMATFLAG_PBR_SPEC | NMATFLAG_PBR_ROUGHNESS_NRMALPHA;
+				//nmat->ex->roughnessScale = -1.0;
+				//nmat->ex->roughnessBias = 1.0;
+			}
 			if (mat.matFlags == 0x69) { //"modelshaderbil04_xxxxx"
 				//nmat->flags |= NMATFLAG_SPRITE_FACINGXY; //no effect
 			}
@@ -5335,6 +5340,7 @@ static void Model_Nier_LoadMaterials(nierWMBHdr<big> &hdr,
 		int difTexId = 0;
 		int nrmTexId = 0;
 		int specTexId = 0;
+		int maskTexId = 0;
 		DBGLOG("\tFound %d textures\n", mat.numTextures);
 		nierTexture_t * texPtr = (nierTexture_t *)(data + mat.ofsTextures);
 		for (unsigned int j = 0; j < mat.numTextures; j++) {
@@ -5344,6 +5350,9 @@ static void Model_Nier_LoadMaterials(nierWMBHdr<big> &hdr,
 			}
 			if (strcmp((char*)(data + tex.ofsName), "g_NormalMap") == 0 || strcmp((char*)(data + tex.ofsName), "g_NormalMap1") == 0) {
 				nrmTexId = tex.id;
+			}
+			if (strcmp((char*)(data + tex.ofsName), "g_MaskMap") == 0) {
+				maskTexId = tex.id;
 			}
 			if (strcmp((char*)(data + tex.ofsName), "g_MaskMap2") == 0) {
 				specTexId = tex.id;
@@ -5363,6 +5372,10 @@ static void Model_Nier_LoadMaterials(nierWMBHdr<big> &hdr,
 				DBGLOG("Found matching specular %d\n", j);
 				nmat->specularTexIdx = j;
 				nmat->flags |= NMATFLAG_PBR_SPEC_IR_RG;
+			}
+			if (maskTexId && tex->globalIdx == maskTexId) {
+				DBGLOG("Found matching mask %d\n", j);
+				//nmat->ex->occlTexIdx = j;
 			}
 		}
 		matListLightMap.Append(NULL);
@@ -6243,11 +6256,14 @@ static void Model_Bayo_LoadModel(CArrayList<bayoDatFile_t> &dfiles, bayoDatFile_
 			BYTE *batchData = (BYTE *)batchOfsList + batchOfs;
 			wmbBatch<big> batch((wmbBatch_t *)batchData);
 			DBGLOG("%d, %x, %x, %x, %x, %x, ", batch.id, batch.unknownB, batch.unknownC, batch.unknownDB, batch.unknownE1, batch.unknownE2);
+			bool bShadow;
 			if ((game == BAYONETTA && batch.unknownE1 == 0x20 && batch.unknownE2 == 0x0f) || (game == BAYONETTA2 && batch.unknownE1 == 0x30)) {
 				sprintf_s(batch_name, 256, "%02d(%s)_%02d_s", i, mesh.name, j);
+				bShadow = true;
 			}
 			else {
 				sprintf_s(batch_name, 256, "%02d(%s)_%02d", i, mesh.name, j);
+				bShadow = false;
 			}
 			rapi->rpgSetName(rapi->Noesis_PooledString(batch_name));
 			/*if (batch.unknownE == 0xf20) {
@@ -6361,6 +6377,10 @@ static void Model_Bayo_LoadModel(CArrayList<bayoDatFile_t> &dfiles, bayoDatFile_
 	if( mdl ) {
 		models.Append(mdl);
 	}
+	//sharedModel_t *shMdl = rapi->rpgGetSharedModel(mdl, 0);
+	//for (int i = 0; i < shMdl->numMeshes; i++) {
+	//	shMdl->meshes[i].
+	//}
 	
 	rapi->rpgDestroyContext(pgctx);
 
