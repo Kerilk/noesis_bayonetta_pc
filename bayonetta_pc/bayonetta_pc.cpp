@@ -5199,9 +5199,9 @@ static void Model_Bayo_LoadMaterials(bayoWMBHdr<big> &hdr,
 				Model_Bayo_SetTile<big>(matData, bayoMatTypes[mat.matFlags].color_1_tile, nmat, rapi);
 			}
 			if (mat.matFlags == 0x87 || mat.matFlags == 0x6b) { //"modelshaderpls06_bxnxx" || "modelshaderobs07_bxnxx"
-				//nmat->flags |= NMATFLAG_NORMAL_UV1;
+				nmat->flags |= NMATFLAG_NORMAL_UV1;
 				//nmat->ex->flags2 |= NMATFLAG2_PREFERPPL;
-				//DBGLOG(", normal use UV2");
+				DBGLOG(", normal use UV2");
 			}
 			if (mat.matFlags == 0x69) { //"modelshaderbil04_xxxxx"
 				//nmat->flags |= NMATFLAG_SPRITE_FACINGXY; //no effect
@@ -6894,6 +6894,13 @@ template <bool big, game_t game>
 noesisModel_t *Model_Bayo_Load(BYTE *fileBuffer, int bufferLen, int &numMdl, noeRAPI_t *rapi)
 {
 	CArrayList<bayoDatFile_t> dfiles;
+
+	int version = g_nfn->NPAPI_GetAPIVersion();
+	if (version < 74) {
+		DBGLOG("Outdated Noesis\n");
+		g_nfn->NPAPI_MessagePrompt(L"Please update Noesis!");
+		return NULL;
+	}
 	DBGLOG("Loading model\n");
 	//create a list of resources
 	Model_Bayo_GetDATEntries<big>(dfiles, fileBuffer, bufferLen);
