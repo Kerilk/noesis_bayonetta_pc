@@ -6299,7 +6299,7 @@ static void Model_Bayo_LoadModel(CArrayList<bayoDatFile_t> &dfiles, bayoDatFile_
 					DBGLOG("%d nb: %f %f %f\n", k, bt.x, bt.y, bt.z);
 				}
 			}
-			rapi->rpgBindTangentBuffer(buffers.tangents.address + vertOfs * buffers.tangents.stride, buffers.tangents.type, buffers.tangents.stride);
+			//rapi->rpgBindTangentBuffer(buffers.tangents.address + vertOfs * buffers.tangents.stride, buffers.tangents.type, buffers.tangents.stride);
 			//bind uv's
 			rapi->rpgBindUV1Buffer(buffers.mapping.address + vertOfs * buffers.mapping.stride, buffers.mapping.type, buffers.mapping.stride);
 			if (buffers.mapping2.address) {
@@ -6334,7 +6334,7 @@ static void Model_Bayo_LoadModel(CArrayList<bayoDatFile_t> &dfiles, bayoDatFile_
 			DBGLOG("primType: %d, numIndices: %d\n", batch.primType, batch.numIndices);
 			rpgeoPrimType_e primType = (batch.primType == 4) ? RPGEO_TRIANGLE : RPGEO_TRIANGLE_STRIP;
 			rapi->rpgCommitTriangles(batchData+batch.ofsIndices, RPGEODATA_USHORT, batch.numIndices, primType, true);
-			rapi->rpgSmoothTangents(NULL);
+			//rapi->rpgSmoothTangents(NULL);
 			if (boneRefDst)
 			{ //reference map is no longer needed once triangles have been committed
 				rapi->rpgSetBoneMap(NULL);
