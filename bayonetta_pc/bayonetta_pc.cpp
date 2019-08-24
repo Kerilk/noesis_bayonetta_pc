@@ -331,7 +331,7 @@ typedef struct nierWMBHdr_s
 	BYTE				id[4];				// 0
 	unsigned int		version;			// 4
 	int					unknownA;			// 8
-	short				unknownB;			// C Seems related to vertex index size
+	short				flags;			// C Seems related to vertex index size
 	short				unknownC;			// E
 	float				boundingBox[6];		//10
 	unsigned int		ofsBones;			//28
@@ -366,7 +366,7 @@ struct nierWMBHdr : public nierWMBHdr_s {
 			LITTLE_BIG_SWAP(*((int *)id));
 			LITTLE_BIG_SWAP(version);
 			LITTLE_BIG_SWAP(unknownA);
-			LITTLE_BIG_SWAP(unknownB);
+			LITTLE_BIG_SWAP(flags);
 			LITTLE_BIG_SWAP(unknownC);
 			for (int i = 0; i < 6; i++) {
 				LITTLE_BIG_SWAP(boundingBox[i]);
@@ -5937,19 +5937,12 @@ static void Model_Nier_SetBuffers(bayoDatFile_t &df, noeRAPI_t *rapi, nierWMBHdr
 			continue;
 		}
 		DBGLOG("Found vertex groups %d %d %x\n", bayoVertSize, bayoVertExSize, vg.vertExDataFlag);
-		DBGLOG("Found unknownB %x\n", hdr.unknownB);
-		if (hdr.unknownB == 0xa || hdr.unknownB == 0x8) {
+		DBGLOG("Found flags %x\n", hdr.flags);
+		if (hdr.flags & 0x8) {
 			__set_indices<big, game>(buffers[i].indices, indices, 4);
 		}
-		else if (hdr.unknownB == 0x2) {
-			__set_sindices<big, game>(buffers[i].indices, indices, 2);
-		}
 		else {
-			DBGLOG("Found unknown unknownB %x!!!\n", hdr.unknownB);
-#ifdef _DEBUG
-			g_nfn->NPAPI_PopupDebugLog(0);
-#endif
-			continue;
+			__set_sindices<big, game>(buffers[i].indices, indices, 2);
 		}
 		DBGLOG("Found vertex groups %d %d %x\n", bayoVertSize, bayoVertExSize, vg.vertExDataFlag);
 		if (bayoVertExSize == 20 && vg.vertExDataFlag == 0xb) {
