@@ -485,7 +485,7 @@ typedef struct nierVertexGroup_s {
 	unsigned int	unknownD;
 	unsigned int	unknownE;
 	unsigned int	numVerts;
-	unsigned int	vertExDataFlag;
+	unsigned int	vertFlags;
 	unsigned int	ofsIndexBuffer;
 	unsigned int	numIndexes;
 } nierVertexGroup_t;
@@ -502,7 +502,7 @@ struct nierVertexGroup : public nierVertexGroup_s {
 			LITTLE_BIG_SWAP(unknownD);
 			LITTLE_BIG_SWAP(unknownE);
 			LITTLE_BIG_SWAP(numVerts);
-			LITTLE_BIG_SWAP(vertExDataFlag);
+			LITTLE_BIG_SWAP(vertFlags);
 			LITTLE_BIG_SWAP(ofsIndexBuffer);
 			LITTLE_BIG_SWAP(numIndexes);
 		}
@@ -5936,7 +5936,7 @@ static void Model_Nier_SetBuffers(bayoDatFile_t &df, noeRAPI_t *rapi, nierWMBHdr
 #endif
 			continue;
 		}
-		DBGLOG("Found vertex groups %d %d %x\n", bayoVertSize, bayoVertExSize, vg.vertExDataFlag);
+		DBGLOG("Found vertex groups %d %d %x\n", bayoVertSize, bayoVertExSize, vg.vertFlags);
 		DBGLOG("Found flags %x\n", hdr.flags);
 		if (hdr.flags & 0x8) {
 			__set_indices<big, game>(buffers[i].indices, indices, 4);
@@ -5944,8 +5944,8 @@ static void Model_Nier_SetBuffers(bayoDatFile_t &df, noeRAPI_t *rapi, nierWMBHdr
 		else {
 			__set_sindices<big, game>(buffers[i].indices, indices, 2);
 		}
-		DBGLOG("Found vertex groups %d %d %x\n", bayoVertSize, bayoVertExSize, vg.vertExDataFlag);
-		if (bayoVertExSize == 20 && vg.vertExDataFlag == 0xb) {
+		DBGLOG("Found vertex groups %d %d %x\n", bayoVertSize, bayoVertExSize, vg.vertFlags);
+		if (bayoVertExSize == 20 && vg.vertFlags == 0xb) {
 			__set_position<big, game>(buffers[i].position, verts, bayoVertSize, numVerts, pretransform);
 			__set_tangents<big, game>(buffers[i].tangents, verts + 12, bayoVertSize, numVerts, rapi, pretransform);
 			__set_mapping<big, game>(buffers[i].mapping, verts + 16, bayoVertSize);
@@ -5957,7 +5957,7 @@ static void Model_Nier_SetBuffers(bayoDatFile_t &df, noeRAPI_t *rapi, nierWMBHdr
 			__set_hnormal<big, game>(buffers[i].normal, vertsEx + 8, bayoVertExSize, numVerts, rapi, pretransform);
 			__set_mapping<big, game>(buffers[i].mapping3, vertsEx + 16, bayoVertExSize);
 		}
-		else if (bayoVertExSize == 12 && vg.vertExDataFlag == 0x7) {
+		else if (bayoVertExSize == 12 && vg.vertFlags == 0x7) {
 			__set_position<big, game>(buffers[i].position, verts, bayoVertSize, numVerts, pretransform);
 			__set_tangents<big, game>(buffers[i].tangents, verts + 12, bayoVertSize, numVerts, rapi, pretransform);
 			__set_mapping<big, game>(buffers[i].mapping, verts + 16, bayoVertSize);
@@ -5967,7 +5967,7 @@ static void Model_Nier_SetBuffers(bayoDatFile_t &df, noeRAPI_t *rapi, nierWMBHdr
 			__set_mapping<big, game>(buffers[i].mapping2, vertsEx, bayoVertExSize);
 			__set_hnormal<big, game>(buffers[i].normal, vertsEx + 4, bayoVertExSize, numVerts, rapi, pretransform);
 		}
-		else if (bayoVertExSize == 16 && vg.vertExDataFlag == 0xa) {
+		else if (bayoVertExSize == 16 && vg.vertFlags == 0xa) {
 			__set_position<big, game>(buffers[i].position, verts, bayoVertSize, numVerts, pretransform);
 			__set_tangents<big, game>(buffers[i].tangents, verts + 12, bayoVertSize, numVerts, rapi, pretransform);
 			__set_mapping<big, game>(buffers[i].mapping, verts + 16, bayoVertSize);
@@ -5978,7 +5978,7 @@ static void Model_Nier_SetBuffers(bayoDatFile_t &df, noeRAPI_t *rapi, nierWMBHdr
 			__set_color<big, game>(buffers[i].color, vertsEx + 4, bayoVertExSize);
 			__set_hnormal<big, game>(buffers[i].normal, vertsEx + 8, bayoVertExSize, numVerts, rapi, pretransform);
 		}
-		else if (bayoVertExSize == 12 && vg.vertExDataFlag == 0x5) {
+		else if (bayoVertExSize == 12 && vg.vertFlags == 0x5) {
 			__set_position<big, game>(buffers[i].position, verts, bayoVertSize, numVerts, pretransform);
 			__set_tangents<big, game>(buffers[i].tangents, verts + 12, bayoVertSize, numVerts, rapi, pretransform);
 			__set_mapping<big, game>(buffers[i].mapping, verts + 16, bayoVertSize);
@@ -5997,7 +5997,7 @@ static void Model_Nier_SetBuffers(bayoDatFile_t &df, noeRAPI_t *rapi, nierWMBHdr
 				__set_static_info<big, game, RPGEODATA_UBYTE>(buffers[i].bone_weights, numVerts, 4, weights, rapi);
 			}
 		}
-		else if (bayoVertExSize == 8 && vg.vertExDataFlag == 0x4) {
+		else if (bayoVertExSize == 8 && vg.vertFlags == 0x4) {
 			__set_position<big, game>(buffers[i].position, verts, bayoVertSize, numVerts, pretransform);
 			__set_tangents<big, game>(buffers[i].tangents, verts + 12, bayoVertSize, numVerts, rapi, pretransform);
 			__set_mapping<big, game>(buffers[i].mapping, verts + 16, bayoVertSize);
@@ -6015,7 +6015,7 @@ static void Model_Nier_SetBuffers(bayoDatFile_t &df, noeRAPI_t *rapi, nierWMBHdr
 				__set_static_info<big, game, RPGEODATA_UBYTE>(buffers[i].bone_weights, numVerts, 4, weights, rapi);
 			}
 		} 
-		else if (bayoVertExSize == 16 && vg.vertExDataFlag == 0xe) {
+		else if (bayoVertExSize == 16 && vg.vertFlags == 0xe) {
 			__set_position<big, game>(buffers[i].position, verts, bayoVertSize, numVerts, pretransform);
 			__set_tangents<big, game>(buffers[i].tangents, verts + 12, bayoVertSize, numVerts, rapi, pretransform);
 			__set_mapping<big, game>(buffers[i].mapping, verts + 16, bayoVertSize);
@@ -6026,7 +6026,7 @@ static void Model_Nier_SetBuffers(bayoDatFile_t &df, noeRAPI_t *rapi, nierWMBHdr
 			__set_mapping<big, game>(buffers[i].mapping3, vertsEx + 8, bayoVertExSize);
 			__set_mapping<big, game>(buffers[i].mapping4, vertsEx + 12, bayoVertExSize);
 		}
-		else if (bayoVertExSize == 20 && vg.vertExDataFlag == 0xc) {
+		else if (bayoVertExSize == 20 && vg.vertFlags == 0xc) {
 			__set_position<big, game>(buffers[i].position, verts, bayoVertSize, numVerts, pretransform);
 			__set_tangents<big, game>(buffers[i].tangents, verts + 12, bayoVertSize, numVerts, rapi, pretransform);
 			__set_mapping<big, game>(buffers[i].mapping, verts + 16, bayoVertSize);
@@ -6039,7 +6039,7 @@ static void Model_Nier_SetBuffers(bayoDatFile_t &df, noeRAPI_t *rapi, nierWMBHdr
 			__set_mapping<big, game>(buffers[i].mapping5, vertsEx + 16, bayoVertExSize);
 		}
 		else {
-			DBGLOG("Unknown vertex EX size format: %d %x!!!\n", bayoVertExSize, vg.vertExDataFlag);
+			DBGLOG("Unknown vertex EX size format: %d %x!!!\n", bayoVertExSize, vg.vertFlags);
 #ifdef _DEBUG
 			g_nfn->NPAPI_PopupDebugLog(0);
 #endif
