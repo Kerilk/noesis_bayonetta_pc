@@ -37,7 +37,8 @@ typedef enum game_e {
 	BAYONETTA2,
 	VANQUISH,
 	NIER_AUTOMATA,
-	MGRR
+	MGRR,
+	ASTRAL_CHAIN
 } game_t;
 typedef struct bayoV4F_s
 {
@@ -1669,6 +1670,9 @@ bool Model_Bayo_Check(BYTE *fileBuffer, int bufferLen, noeRAPI_t *rapi)
 	case MGRR:
 		gameName = "MGRR";
 		break;
+	case ASTRAL_CHAIN:
+		gameName = "Astral Chain";
+		break;
 	default:
 		gameName = "Unknown";
 	}
@@ -1740,12 +1744,12 @@ bool Model_Bayo_Check(BYTE *fileBuffer, int bufferLen, noeRAPI_t *rapi)
 					DBGLOG("Found MGRR File!\n");
 					return false;
 				}
-				if (game != NIER_AUTOMATA && version == 0x20160116) {
-					DBGLOG("Found Nier Automata File!\n");
+				if ((game != NIER_AUTOMATA && game != ASTRAL_CHAIN) && version == 0x20160116) {
+					DBGLOG("Found Nier Automata or Astral Chain File!\n");
 					return false;
 				}
-				if (game == NIER_AUTOMATA && version != 0x20160116) {
-					DBGLOG("Found non Nier Automata File!\n");
+				if ((game == NIER_AUTOMATA || game == ASTRAL_CHAIN) && version != 0x20160116) {
+					DBGLOG("Found non Nier Automata or Astral Chain File!\n");
 					return false;
 				}
 				unsigned int vertex_type = ((int*)(fileBuffer + offWmb))[2];
@@ -1760,6 +1764,32 @@ bool Model_Bayo_Check(BYTE *fileBuffer, int bufferLen, noeRAPI_t *rapi)
 				unsigned int vertexOffset = ((unsigned int*)(fileBuffer + offWmb))[6];
 				if (!big && game == BAYONETTA2 && vertexOffset == 0xa0) {
 					DBGLOG("Found Vanquish File!\n");
+					return false;
+				}
+			}
+		}
+		else if ((game == ASTRAL_CHAIN || game == NIER_AUTOMATA) && rapi->Noesis_CheckFileExt(name, ".wta"))
+		{
+			int sizeWta = ((int*)(fileBuffer + dat.ofsSizes))[i];
+			if (big) {
+				LITTLE_BIG_SWAP(sizeWta);
+			}
+			if (sizeWta > 0x20) {
+				unsigned int offWta = ((unsigned int*)(fileBuffer + dat.ofsRes))[i];
+				if (big) {
+					LITTLE_BIG_SWAP(offWta);
+				}
+				unsigned int offsetTextureInfo = ((unsigned int*)(fileBuffer + offWta))[7];
+				if (game == ASTRAL_CHAIN && !offsetTextureInfo) {
+					DBGLOG("Not an Astral Chain file (no texture infos)!\n");
+					return false;
+				}
+				unsigned int tag = ((unsigned int*)(fileBuffer + offWta + offsetTextureInfo))[0];
+				if (game == ASTRAL_CHAIN && tag != 0x315458) { //XT1 texture
+					DBGLOG("Not an Astral Chain file wrong tag (%x)!\n", tag);
+					return false;
+				} else if (game == NIER_AUTOMATA && tag == 0x315458) {
+					DBGLOG("Found Astral Chain File");
 					return false;
 				}
 			}
@@ -1869,6 +1899,10 @@ static void Model_Bayo_GetTextureBundle<BAYONETTA2>(CArrayList<bayoDatFile_t *> 
 }
 template <>
 static void Model_Bayo_GetTextureBundle<NIER_AUTOMATA>(CArrayList<bayoDatFile_t *> &texFiles, CArrayList<bayoDatFile_t> &dfiles, bayoDatFile_t &df, noeRAPI_t *rapi) {
+	Model_Bayo_GetTextureBundle<BAYONETTA2>(texFiles, dfiles, df, rapi);
+}
+template <>
+static void Model_Bayo_GetTextureBundle<ASTRAL_CHAIN>(CArrayList<bayoDatFile_t *> &texFiles, CArrayList<bayoDatFile_t> &dfiles, bayoDatFile_t &df, noeRAPI_t *rapi) {
 	Model_Bayo_GetTextureBundle<BAYONETTA2>(texFiles, dfiles, df, rapi);
 }
 template <>
@@ -2453,6 +2487,16 @@ static void Model_Bayo_LoadTextures<true, BAYONETTA>(CArrayList<noesisTex_t *> &
 	noesisTex_t *nt = rapi->Noesis_AllocPlaceholderTex(fname, 32, 32, true);
 	textures.Append(nt);
 }*/
+template <>
+static void Model_Bayo_LoadTextures<false, ASTRAL_CHAIN>(CArrayList<noesisTex_t *> &textures, CArrayList<bayoDatFile_t *> &texFiles, noeRAPI_t *rapi) {
+	char fname[MAX_NOESIS_PATH];
+	rapi->Noesis_GetDirForFilePath(fname, rapi->Noesis_GetOutputName());
+	char nameStr[MAX_NOESIS_PATH];
+	sprintf_s(nameStr, MAX_NOESIS_PATH, ".\\%sbayoflatnormal", rapi->Noesis_GetOption("texpre"));
+	strcat_s(fname, MAX_NOESIS_PATH, nameStr);
+	noesisTex_t *nt = rapi->Noesis_AllocPlaceholderTex(fname, 32, 32, true);
+	textures.Append(nt);
+}
 template <>
 static void Model_Bayo_LoadTextures<false, NIER_AUTOMATA>(CArrayList<noesisTex_t *> &textures, CArrayList<bayoDatFile_t *> &texFiles, noeRAPI_t *rapi) {
 	const bool big = true;
@@ -3170,7 +3214,7 @@ static void Model_Bayo_InitMotions(modelMatrix_t * &matrixes, float * &tmpValues
 		float translate[3] = { 0.0, 0.0, 0.0 };
 		float rotate[3] = { 0.0, 0.0, 0.0 };
 		float scale[3] = { 1.0, 1.0, 1.0 };
-		if (game == NIER_AUTOMATA) {
+		if (game == NIER_AUTOMATA || game == ASTRAL_CHAIN) {
 			nierBone<big> nBone((nierBone_t *)((BYTE*)extraBoneInfo + i * sizeof(nierBone_t)));
 			translate[0] = nBone.localPosition.x;
 			translate[1] = nBone.localPosition.y;
@@ -4612,6 +4656,10 @@ static void Model_Bayo_CreateTangents<false, NIER_AUTOMATA>(BYTE *data, float *d
 	Model_Bayo_CreateTangents<false, BAYONETTA>(data, dsts, numVerts, stride, m);
 }
 template <>
+static void Model_Bayo_CreateTangents<false, ASTRAL_CHAIN>(BYTE *data, float *dsts, int numVerts, int stride, modelMatrix_t *m) {
+	Model_Bayo_CreateTangents<false, BAYONETTA>(data, dsts, numVerts, stride, m);
+}
+template <>
 static void Model_Bayo_CreateTangents<true, BAYONETTA2>(BYTE *data, float *dsts, int numVerts, int stride, modelMatrix_t *m) {
 	for (int i = 0; i < numVerts; i++)
 	{
@@ -5383,6 +5431,7 @@ static void Model_Nier_LoadMaterials(nierWMBHdr<big> &hdr,
 		totMatList.Append(nmat);
 	}
 }
+
 template <bool big, game_t game>
 static void Model_MGRR_LoadMaterials(MGRRWmbHdr<big> &hdr,
 	CArrayList<noesisTex_t *> &textures,
@@ -6190,7 +6239,7 @@ static void Model_Bayo_LoadModel(CArrayList<bayoDatFile_t> &dfiles, bayoDatFile_
 			for (int i = 0; i < texFiles.Num(); i++) {
 				DBGLOG("Found texture bundle %s\n", texFiles[i]->name);
 			}
-			if (game == BAYONETTA2 || game == NIER_AUTOMATA) {
+			if (game == BAYONETTA2) {
 				CArrayList<bayoDatFile_t *> newTexFiles;
 				for (int i = 0; i < texFiles.Num(); i += 2) {
 					CArrayList<bayoDatFile_t *> newTexFiles;
@@ -6385,10 +6434,8 @@ static void Model_Bayo_LoadModel(CArrayList<bayoDatFile_t> &dfiles, bayoDatFile_
 	matListLightMap.Clear();
 	totMatList.Clear();
 }
-template <>
-static void Model_Bayo_LoadModel<false, NIER_AUTOMATA>(CArrayList<bayoDatFile_t> &dfiles, bayoDatFile_t &df, noeRAPI_t *rapi, CArrayList<noesisModel_t *> &models, CArrayList<noesisTex_t *> &givenTextures, modelMatrix_t * pretransform, int sharedtextureoffset) {
-	static const bool big = false;
-	static const game_t game = NIER_AUTOMATA;
+template <bool big, game_t game>
+static void Model_Bayo_LoadWMB3Model(CArrayList<bayoDatFile_t> &dfiles, bayoDatFile_t &df, noeRAPI_t *rapi, CArrayList<noesisModel_t *> &models, CArrayList<noesisTex_t *> &givenTextures, modelMatrix_t * pretransform, int sharedtextureoffset) {
 	DBGLOG("Loading %s\n", df.name);
 	BYTE *data = df.data;
 	int dataSize = df.dataSize;
@@ -6551,6 +6598,16 @@ static void Model_Bayo_LoadModel<false, NIER_AUTOMATA>(CArrayList<bayoDatFile_t>
 	textures.Clear();
 	matListLightMap.Clear();
 	totMatList.Clear();
+}
+
+template <>
+static void Model_Bayo_LoadModel<false, NIER_AUTOMATA>(CArrayList<bayoDatFile_t> &dfiles, bayoDatFile_t &df, noeRAPI_t *rapi, CArrayList<noesisModel_t *> &models, CArrayList<noesisTex_t *> &givenTextures, modelMatrix_t * pretransform, int sharedtextureoffset) {
+	Model_Bayo_LoadWMB3Model<false, NIER_AUTOMATA>(dfiles, df, rapi, models, givenTextures, pretransform, sharedtextureoffset);
+}
+
+template <>
+static void Model_Bayo_LoadModel<false, ASTRAL_CHAIN>(CArrayList<bayoDatFile_t> &dfiles, bayoDatFile_t &df, noeRAPI_t *rapi, CArrayList<noesisModel_t *> &models, CArrayList<noesisTex_t *> &givenTextures, modelMatrix_t * pretransform, int sharedtextureoffset) {
+	Model_Bayo_LoadWMB3Model<false, ASTRAL_CHAIN>(dfiles, df, rapi, models, givenTextures, pretransform, sharedtextureoffset);
 }
 
 template <>
@@ -6898,6 +6955,9 @@ static void Model_Bayo_LoadScenery<false, VANQUISH>(CArrayList<bayoDatFile_t> &o
 template <>
 static void Model_Bayo_LoadScenery<false, NIER_AUTOMATA>(CArrayList<bayoDatFile_t> &olddfiles, bayoDatFile_t &df, noeRAPI_t *rapi, CArrayList<noesisModel_t *> &models) {
 }
+template <>
+static void Model_Bayo_LoadScenery<false, ASTRAL_CHAIN>(CArrayList<bayoDatFile_t> &olddfiles, bayoDatFile_t &df, noeRAPI_t *rapi, CArrayList<noesisModel_t *> &models) {
+}
 template <bool big>
 static void Model_MGRR_LoadScenery(CArrayList<bayoDatFile_t> &olddfiles, bayoDatFile_t &df, noeRAPI_t *rapi, CArrayList<noesisModel_t *> &models) {
 	const bool big = false;
@@ -6977,7 +7037,7 @@ noesisModel_t *Model_Bayo_Load(BYTE *fileBuffer, int bufferLen, int &numMdl, noe
 	DBGLOG("Loading model\n");
 	//create a list of resources
 	Model_Bayo_GetDATEntries<big>(dfiles, fileBuffer, bufferLen);
-	//for vanquish, append any matching dtt files (they're just paired dat files)
+	//for Vanquish or Astral Chain, append any matching dtt files (they're just paired dat files)
 	char *inFile = rapi->Noesis_GetInputName();
 	BYTE *dttFile = NULL;
 	if (inFile && inFile[0] && game != NIER_AUTOMATA)
@@ -7067,6 +7127,11 @@ bool NPAPI_InitLocal(void)
 	{
 		return false;
 	}
+	int fh_a = g_nfn->NPAPI_Register("Astral Chain Switch Model", ".dat");
+	if (fh_a < 0)
+	{
+		return false;
+	}
 	int fh_m = g_nfn->NPAPI_Register("MGRR PC Model", ".dat");
 	if (fh_m < 0)
 	{
@@ -7087,6 +7152,8 @@ bool NPAPI_InitLocal(void)
 	g_nfn->NPAPI_SetTypeHandler_LoadModel(fh_v, Model_Bayo_Load<false, VANQUISH>);
 	g_nfn->NPAPI_SetTypeHandler_TypeCheck(fh_n, Model_Bayo_Check<false, NIER_AUTOMATA>);
 	g_nfn->NPAPI_SetTypeHandler_LoadModel(fh_n, Model_Bayo_Load<false, NIER_AUTOMATA>);
+	g_nfn->NPAPI_SetTypeHandler_TypeCheck(fh_a, Model_Bayo_Check<false, ASTRAL_CHAIN>);
+	g_nfn->NPAPI_SetTypeHandler_LoadModel(fh_a, Model_Bayo_Load<false, ASTRAL_CHAIN>);
 	g_nfn->NPAPI_SetTypeHandler_TypeCheck(fh_m, Model_Bayo_Check<false, MGRR>);
 	g_nfn->NPAPI_SetTypeHandler_LoadModel(fh_m, Model_Bayo_Load<false, MGRR>);
 	//g_nfn->NPAPI_PopupDebugLog(0);
