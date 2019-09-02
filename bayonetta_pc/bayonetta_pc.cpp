@@ -6087,13 +6087,19 @@ static void Model_Nier_SetBuffers(bayoDatFile_t &df, noeRAPI_t *rapi, nierWMBHdr
 			__set_mapping<big, game>(buffers[i].mapping4, vertsEx + 12, bayoVertExSize);
 			__set_mapping<big, game>(buffers[i].mapping5, vertsEx + 16, bayoVertExSize);
 		}
-		else if (bayoVertExSize == 8 && vg.vertFlags == 0x1) {
+		else if (bayoVertSize == 24 && bayoVertExSize == 8 && vg.vertFlags == 0x1) {
 			__set_position<big, game>(buffers[i].position, verts, bayoVertSize, numVerts, pretransform);
 			__set_tangents<big, game>(buffers[i].tangents, verts + 12, bayoVertSize, numVerts, rapi, pretransform);
 			__set_mapping<big, game>(buffers[i].mapping, verts + 16, bayoVertSize);
 			__set_mapping<big, game>(buffers[i].mapping2, verts + 20, bayoVertSize);
 
 			__set_hnormal<big, game>(buffers[i].normal, vertsEx, bayoVertExSize, numVerts, rapi, pretransform);
+		}
+		else if (bayoVertSize == 28 && bayoVertExSize == 0 && vg.vertFlags == 0x0) {
+			__set_position<big, game>(buffers[i].position, verts, bayoVertSize, numVerts, pretransform);
+			__set_tangents<big, game>(buffers[i].tangents, verts + 12, bayoVertSize, numVerts, rapi, pretransform);
+			__set_mapping<big, game>(buffers[i].mapping, verts + 16, bayoVertSize);
+			__set_hnormal<big, game>(buffers[i].normal, verts + 20, bayoVertSize, numVerts, rapi, pretransform);
 		}
 		else {
 			DBGLOG("Unknown vertex EX size format: %d %x!!!\n", bayoVertExSize, vg.vertFlags);
