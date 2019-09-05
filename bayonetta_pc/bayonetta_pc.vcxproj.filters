@@ -47,6 +47,9 @@
     <ClInclude Include="bayonetta_materials.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="TD.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
     <ClInclude Include="Nier.h">
       <Filter>Header Files</Filter>
     </ClInclude>

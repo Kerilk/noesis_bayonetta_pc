@@ -49,6 +49,7 @@ typedef enum game_e {
 #include "Bayo2.h"
 #include "Nier.h"
 #include "AstralChain.h"
+#include "TD.h"
 #include "MGRR.h"
 
 #include "MotionBayo.h"

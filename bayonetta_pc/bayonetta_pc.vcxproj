@@ -127,6 +127,7 @@
     <ClInclude Include="MotionBayo2.h" />
     <ClInclude Include="Nier.h" />
     <ClInclude Include="stdafx.h" />
+    <ClInclude Include="TD.h" />
     <ClInclude Include="Vanquish.h" />
   </ItemGroup>
   <ItemGroup>
