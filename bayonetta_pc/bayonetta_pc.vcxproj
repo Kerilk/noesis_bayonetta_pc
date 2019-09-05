@@ -117,8 +117,17 @@
   <ItemGroup>
     <ClInclude Include="..\..\pluginclasses.h" />
     <ClInclude Include="..\..\pluginshare.h" />
+    <ClInclude Include="AstralChain.h" />
+    <ClInclude Include="Bayo.h" />
     <ClInclude Include="bayonetta_materials.h" />
+    <ClInclude Include="Bayo2.h" />
+    <ClInclude Include="FloatDecompressor.h" />
+    <ClInclude Include="MGRR.h" />
+    <ClInclude Include="MotionBayo.h" />
+    <ClInclude Include="MotionBayo2.h" />
+    <ClInclude Include="Nier.h" />
     <ClInclude Include="stdafx.h" />
+    <ClInclude Include="Vanquish.h" />
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="noesisplugin.def">

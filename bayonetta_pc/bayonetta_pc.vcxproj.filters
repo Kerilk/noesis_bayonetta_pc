@@ -47,6 +47,33 @@
     <ClInclude Include="bayonetta_materials.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="Nier.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Bayo.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Bayo2.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="MotionBayo.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="MotionBayo2.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="MGRR.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Vanquish.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="AstralChain.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="FloatDecompressor.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Text Include="ReadMe.txt" />
