@@ -785,7 +785,7 @@ static void Model_Bayo_LoadWMB3Model(CArrayList<bayoDatFile_t> &dfiles, bayoDatF
 	CArrayList<noesisAnim_t *> animList;
 
 	nierBuffers_t *buffers = (nierBuffers_t *)rapi->Noesis_UnpooledAlloc(hdr.numVertexGroups * sizeof(nierBuffers_t));
-	memset(buffers, 0, hdr.numVertexGroups * sizeof(MGRRBuffers_t));
+	memset(buffers, 0, hdr.numVertexGroups * sizeof(nierBuffers_t));
 
 	if (givenTextures.Num() == 0) {
 		Model_Bayo_GetTextureBundle<game>(texFiles, dfiles, df, rapi);
