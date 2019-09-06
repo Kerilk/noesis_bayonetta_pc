@@ -324,7 +324,7 @@ static void Model_Bayo_InitMotions(modelMatrix_t * &matrixes, float * &tmpValues
 				}
 			}
 		}
-		else if (game == MGRR) {
+		else if (game == MGRR || game == TD) {
 			MGRRBone<big> mBone((MGRRBone_t *)((BYTE*)extraBoneInfo + i * sizeof(MGRRBone_t)));
 			translate[0] = mBone.relativePosition[0];
 			translate[1] = mBone.relativePosition[1];

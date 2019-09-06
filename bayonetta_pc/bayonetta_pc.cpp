@@ -315,6 +315,11 @@ bool NPAPI_InitLocal(void)
 	{
 		return false;
 	}
+	int fh_td = g_nfn->NPAPI_Register("Transformer Devastation PC Model", ".dat");
+	if (fh_td < 0)
+	{
+		return false;
+	}
 	OPENLOG();
 	bayoSetMatTypes();
 	//set the data handlers for this format
@@ -334,6 +339,8 @@ bool NPAPI_InitLocal(void)
 	g_nfn->NPAPI_SetTypeHandler_LoadModel(fh_a, Model_Bayo_Load<false, ASTRAL_CHAIN>);
 	g_nfn->NPAPI_SetTypeHandler_TypeCheck(fh_m, Model_Bayo_Check<false, MGRR>);
 	g_nfn->NPAPI_SetTypeHandler_LoadModel(fh_m, Model_Bayo_Load<false, MGRR>);
+	g_nfn->NPAPI_SetTypeHandler_TypeCheck(fh_td, Model_Bayo_Check<false, TD>);
+	g_nfn->NPAPI_SetTypeHandler_LoadModel(fh_td, Model_Bayo_Load<false, TD>);
 	//g_nfn->NPAPI_PopupDebugLog(0);
 	return true;
 }

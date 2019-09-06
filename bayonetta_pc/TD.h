@@ -110,31 +110,19 @@ struct TDBatch : public TDBatch_s {
 	}
 };
 typedef struct TDBatcGroups_s {
-	unsigned int ofsBatchGroup0;
-	unsigned int numBatch0;
-	unsigned int ofsBatchGroup1;
-	unsigned int numBatch1;
-	unsigned int ofsBatchGroup2;
-	unsigned int numBatch2;
-	unsigned int ofsBatchGroup3;
-	unsigned int numBatch3;
-	unsigned int ofsBatchGroup4;
-	unsigned int numBatch4;
+	struct {
+		unsigned int ofsBatchGroup;
+		unsigned int numBatch;
+	} groups[5];
 } TDBatchGroups_t;
 template <bool big>
 struct TDBatchGroups : public TDBatcGroups_s {
 	TDBatchGroups(TDBatchGroups_t * ptr) : TDBatcGroups_s(*ptr) {
 		if (big) {
-			LITTLE_BIG_SWAP(ofsBatchGroup0);
-			LITTLE_BIG_SWAP(numBatch0);
-			LITTLE_BIG_SWAP(ofsBatchGroup1);
-			LITTLE_BIG_SWAP(numBatch1);
-			LITTLE_BIG_SWAP(ofsBatchGroup2);
-			LITTLE_BIG_SWAP(numBatch2);
-			LITTLE_BIG_SWAP(ofsBatchGroup3);
-			LITTLE_BIG_SWAP(numBatch3);
-			LITTLE_BIG_SWAP(ofsBatchGroup4);
-			LITTLE_BIG_SWAP(numBatch4);
+			for (int i = 0; i < 5; i++) {
+				LITTLE_BIG_SWAP(groups[i].ofsBatchGroup);
+				LITTLE_BIG_SWAP(groups[i].numBatch);
+			}
 		}
 	}
 };
@@ -142,8 +130,8 @@ typedef struct TDBatchInfo_s
 {
 	unsigned int	batchIndex;
 	unsigned int	meshIndex;
-	unsigned int	materialIndex;
-	int				boneSetIndex;
+	unsigned short	materialIndex;
+	short			boneSetIndex;
 	int				unknown;
 } TDBatchInfo_t;
 template <bool big>
@@ -200,10 +188,10 @@ typedef struct TDMaterial_s
 	unsigned int	ofsTextures;
 	unsigned int	unknownA;
 	unsigned int	ofsParameters;
-	unsigned int	unknownB;
-	unsigned int	numTextures;
-	unsigned int	unknownC;
-	unsigned int	numParameters;
+	unsigned short	unknownB;
+	unsigned short	numTextures;
+	unsigned short	unknownC;
+	unsigned short	numParameters;
 } TDMaterial_t;
 template <bool big>
 struct TDMaterial : public TDMaterial_s {
@@ -237,16 +225,10 @@ struct TDTexture : public TDTexture_s {
 typedef struct TDMesh_s {
 	unsigned int	ofsName;
 	float			boundingBox[6];
-	unsigned int	ofsBatchGroup0Index;
-	unsigned int	numBatchGroup0Indices;
-	unsigned int	ofsBatchGroup1Index;
-	unsigned int	numBatchGroup1Indices;
-	unsigned int	ofsBatchGroup2Index;
-	unsigned int	numBatchGroup2Indices;
-	unsigned int	ofsBatchGroup3Index;
-	unsigned int	numBatchGroup3Indices;
-	unsigned int	ofsBatchGroup4Index;
-	unsigned int	numBatchGroup4Indices;
+	struct {
+		unsigned int	ofsBatchGroupIndex;
+		unsigned int	numBatchGroupIndices;
+	} groups[5];
 	unsigned int	ofsMaterials;
 	unsigned int	numMaterials;
 } TDMesh_t;
@@ -258,18 +240,392 @@ struct TDMesh : public TDMesh_s {
 			for (int i = 0; i < 6; i++) {
 				LITTLE_BIG_SWAP(boundingBox[i]);
 			}
-			LITTLE_BIG_SWAP(ofsBatchGroup0Index);
-			LITTLE_BIG_SWAP(numBatchGroup0Indices);
-			LITTLE_BIG_SWAP(ofsBatchGroup1Index);
-			LITTLE_BIG_SWAP(numBatchGroup1Indices);
-			LITTLE_BIG_SWAP(ofsBatchGroup2Index);
-			LITTLE_BIG_SWAP(numBatchGroup2Indices);
-			LITTLE_BIG_SWAP(ofsBatchGroup3Index);
-			LITTLE_BIG_SWAP(numBatchGroup3Indices);
-			LITTLE_BIG_SWAP(ofsBatchGroup4Index);
-			LITTLE_BIG_SWAP(numBatchGroup4Indices);
+			for (int i = 0; i < 5; i++) {
+				LITTLE_BIG_SWAP(groups[i].ofsBatchGroupIndex);
+				LITTLE_BIG_SWAP(groups[i].numBatchGroupIndices);
+			}
 			LITTLE_BIG_SWAP(ofsMaterials);
 			LITTLE_BIG_SWAP(numMaterials);
 		}
 	}
 };
+
+template <>
+static void Model_Bayo_GetTextureBundle<TD>(CArrayList<bayoDatFile_t *> &texFiles, CArrayList<bayoDatFile_t> &dfiles, bayoDatFile_t &df, noeRAPI_t *rapi) {
+	Model_Bayo_GetTextureBundle<BAYONETTA2>(texFiles, dfiles, df, rapi);
+}
+
+template <>
+static void Model_Bayo_LoadTextures<false, TD>(CArrayList<noesisTex_t *> &textures, CArrayList<bayoDatFile_t *> &texFiles, noeRAPI_t *rapi) {
+	Model_Bayo_LoadTextures<false, NIER_AUTOMATA>(textures, texFiles, rapi);
+}
+
+template <bool big, game_t game>
+static void Model_TD_LoadMaterials(
+	TDWMBHdr<big> &hdr,
+	CArrayList<noesisTex_t *> &textures,
+	CArrayList<noesisMaterial_t *> &matList,
+	CArrayList<noesisMaterial_t *> &matListLightMap,
+	CArrayList<noesisMaterial_t *> &totMatList,
+	BYTE *data,
+	noeRAPI_t *rapi) {
+
+	TDMaterial_t *matPtr = (TDMaterial_t *)(data + hdr.ofsMaterials);
+	unsigned int *textureIDs = (unsigned int *)(data + hdr.ofsTextureIDs);
+
+	DBGLOG("Found %d materials\n", hdr.numMaterials);
+	for (int i = 0; i < hdr.numMaterials; i++)
+	{
+		TDMaterial<big> mat(matPtr + i);
+		DBGLOG("\tFound %s\n", data + mat.ofsShaderName);
+		noesisMaterial_t *nmat = rapi->Noesis_GetMaterialList(1, true);
+		char matName[128];
+		sprintf_s(matName, 128, "bayomat%i", i);
+		DBGLOG(" name: %s,", matName);
+		nmat->name = rapi->Noesis_PooledString(matName);
+		nmat->noDefaultBlend = false;
+		nmat->texIdx = -1;
+		nmat->normalTexIdx = textures.Num() - 1;
+		nmat->specularTexIdx = -1;
+		int difTexId = 0;
+		int nrmTexId = 0;
+		int specTexId = 0;
+		int maskTexId = 0;
+		DBGLOG("\tFound %d textures\n", mat.numTextures);
+		TDTexture_t * texPtr = (TDTexture_t *)(data + mat.ofsTextures);
+		for (unsigned int j = 0; j < mat.numTextures; j++) {
+			TDTexture<big> tex(texPtr + j);
+			if (strcmp((char*)(data + tex.ofsName), "Albedo0") == 0) {
+				difTexId = textureIDs[tex.textureIndex];
+			}
+			if (strcmp((char*)(data + tex.ofsName), "NormalMap0") == 0) {
+				nrmTexId = textureIDs[tex.textureIndex];
+			}
+		}
+		for (int j = 0; j < textures.Num(); j++) {
+			noesisTex_t *tex = textures[j];
+			if (difTexId && tex->globalIdx == difTexId) {
+				DBGLOG("Found matching texture %d\n", j);
+				nmat->texIdx = j;
+			}
+			if (nrmTexId && tex->globalIdx == nrmTexId) {
+				DBGLOG("Found matching normal %d\n", j);
+				nmat->normalTexIdx = j;
+			}
+		}
+		matListLightMap.Append(NULL);
+		matList.Append(nmat);
+		totMatList.Append(nmat);
+	}
+}
+
+template <>
+static void Model_Bayo_CreateTangents<false, TD>(BYTE *data, float *dsts, int numVerts, int stride, modelMatrix_t *m) {
+	Model_Bayo_CreateTangents<false, BAYONETTA>(data, dsts, numVerts, stride, m);
+}
+
+typedef struct TDBuffers_s : public buffers_s {
+	buffer_t indices;
+} TDBuffers_t;
+
+template <bool big, game_t game>
+static void Model_TD_SetBuffers(bayoDatFile_t &df, noeRAPI_t *rapi, TDWMBHdr<false> &hdr, TDBuffers_t *buffers, modelMatrix_t * pretransform) {
+	BYTE *data = df.data;
+	bool bHasBones = ((hdr.numBones > 0) && (hdr.ofsBones != 0));
+	for (int i = 0; i < hdr.numVertexGroups; i++) {
+		TDVertexGroup<big> vg((TDVertexGroup_t*)(data + hdr.ofsVertexGroups + i * sizeof(TDVertexGroup_t)));
+		int bayoVertSize = vg.sizeVert;
+		int bayoVertExSize = vg.sizeVertExData;
+		int numVerts = vg.numVerts;
+		BYTE *indices = data + vg.ofsIndexBuffer;
+		BYTE *verts = data + vg.ofsVerts;
+		BYTE *vertsEx = data + vg.ofsVertsExData;
+		if (bayoVertSize != 0x14 && bayoVertSize != 0x18 && bayoVertSize != 0x1C) {
+			DBGLOG("Unknown vertex size format: %d!!!\n", bayoVertSize);
+#ifdef _DEBUG
+			g_nfn->NPAPI_PopupDebugLog(0);
+#endif
+			continue;
+		}
+		DBGLOG("Found vertex groups %d %d\n", bayoVertSize, bayoVertExSize);
+		DBGLOG("Found flags %x\n", hdr.vertexFormat);
+		__set_sindices<big, game>(buffers[i].indices, indices, 2);
+		DBGLOG("Found vertex groups %d %d\n", bayoVertSize, bayoVertExSize);
+		if (bayoVertSize == 0x14 && bayoVertExSize == 0x14 && hdr.vertexFormat == 0x10137) {
+			__set_position<big, game>(buffers[i].position, verts, bayoVertSize, numVerts, pretransform);
+			__set_mapping<big, game>(buffers[i].mapping, verts + 12, bayoVertSize);
+			__set_tangents<big, game>(buffers[i].tangents, verts + 16, bayoVertSize, numVerts, rapi, pretransform);
+
+			__set_hnormal<big, game>(buffers[i].normal, vertsEx, bayoVertExSize, numVerts, rapi, pretransform);
+			__set_bone_infos<big, game>(buffers[i].bone_indexes, vertsEx + 8, bayoVertExSize);
+			__set_bone_infos<big, game>(buffers[i].bone_weights, vertsEx + 12, bayoVertExSize);
+			__set_color<big, game>(buffers[i].color, vertsEx + 16, bayoVertExSize);
+		} else if (bayoVertSize == 0x14 && bayoVertExSize == 0x18 && hdr.vertexFormat == 0x10337) {
+			__set_position<big, game>(buffers[i].position, verts, bayoVertSize, numVerts, pretransform);
+			__set_mapping<big, game>(buffers[i].mapping, verts + 12, bayoVertSize);
+			__set_tangents<big, game>(buffers[i].tangents, verts + 16, bayoVertSize, numVerts, rapi, pretransform);
+
+			__set_hnormal<big, game>(buffers[i].normal, vertsEx, bayoVertExSize, numVerts, rapi, pretransform);
+			__set_bone_infos<big, game>(buffers[i].bone_indexes, vertsEx + 8, bayoVertExSize);
+			__set_bone_infos<big, game>(buffers[i].bone_weights, vertsEx + 12, bayoVertExSize);
+			__set_color<big, game>(buffers[i].color, vertsEx + 16, bayoVertExSize);
+			__set_mapping<big, game>(buffers[i].mapping2, vertsEx + 20, bayoVertExSize);
+		}
+		else if (bayoVertSize == 0x18 && bayoVertExSize == 8 && hdr.vertexFormat == 0x10107) {
+			__set_position<big, game>(buffers[i].position, verts, bayoVertSize, numVerts, pretransform);
+			__set_mapping<big, game>(buffers[i].mapping, verts + 12, bayoVertSize);
+			__set_tangents<big, game>(buffers[i].tangents, verts + 16, bayoVertSize, numVerts, rapi, pretransform);
+			__set_color<big, game>(buffers[i].color, verts + 20, bayoVertSize);
+
+			__set_hnormal<big, game>(buffers[i].normal, vertsEx, bayoVertExSize, numVerts, rapi, pretransform);
+
+			//bond to first bone if it exists
+			if (bHasBones) {
+				DBGLOG("Binding vertexes to first bone.\n");
+				unsigned char indexes[4] = { 0, 0, 0, 0 };
+				unsigned char weights[4] = { 255, 0, 0, 0 };
+				__set_static_info<big, game, RPGEODATA_UBYTE>(buffers[i].bone_indexes, numVerts, 4, indexes, rapi);
+				__set_static_info<big, game, RPGEODATA_UBYTE>(buffers[i].bone_weights, numVerts, 4, weights, rapi);
+			}
+		}
+		else if (bayoVertSize == 0x1C && bayoVertExSize == 8 && hdr.vertexFormat == 0x10307) {
+			__set_position<big, game>(buffers[i].position, verts, bayoVertSize, numVerts, pretransform);
+			__set_mapping<big, game>(buffers[i].mapping, verts + 12, bayoVertSize);
+			__set_tangents<big, game>(buffers[i].tangents, verts + 16, bayoVertSize, numVerts, rapi, pretransform);
+			__set_color<big, game>(buffers[i].color, verts + 20, bayoVertSize);
+			__set_mapping<big, game>(buffers[i].mapping2, verts + 24, bayoVertSize);
+
+			__set_hnormal<big, game>(buffers[i].normal, vertsEx, bayoVertExSize, numVerts, rapi, pretransform);
+
+			//bond to first bone if it exists
+			if (bHasBones) {
+				DBGLOG("Binding vertexes to first bone.\n");
+				unsigned char indexes[4] = { 0, 0, 0, 0 };
+				unsigned char weights[4] = { 255, 0, 0, 0 };
+				__set_static_info<big, game, RPGEODATA_UBYTE>(buffers[i].bone_indexes, numVerts, 4, indexes, rapi);
+				__set_static_info<big, game, RPGEODATA_UBYTE>(buffers[i].bone_weights, numVerts, 4, weights, rapi);
+			}
+		}
+		else {
+			DBGLOG("Unknown vertex EX size format: %d %x!!!\n", bayoVertExSize, hdr.vertexFormat);
+#ifdef _DEBUG
+			g_nfn->NPAPI_PopupDebugLog(0);
+#endif
+		}
+	}
+}
+
+template <bool big>
+modelBone_t *Model_TD_CreateBones(TDWMBHdr<big> &hdr, BYTE *data, noeRAPI_t *rapi, int &numBones, short int * &animBoneTT)
+{
+	numBones = 0;
+	if (hdr.numBones <= 0 || hdr.ofsBones <= 0 || hdr.ofsBoneIndexTT <= 0) {
+		return NULL;
+	}
+	numBones = hdr.numBones;
+	animBoneTT = (short int *)(data + hdr.ofsBoneIndexTT);
+	DBGLOG("Found %d bones\n", numBones);
+	modelBone_t *bones = rapi->Noesis_AllocBones(numBones + 1);
+	for (int i = 0; i < numBones; i++)
+	{
+		TDBone<big> nBone((TDBone_t *)(data + hdr.ofsBones + i * sizeof(TDBone_t)));
+		modelBone_t *bone = bones + i;
+		short parent = nBone.parentIndex;
+		assert(parent < numBones);
+		bone->index = i;
+		if (parent == -1) {
+			bone->eData.parent = bones + numBones;
+		}
+		else if (parent >= 0) {
+			bone->eData.parent = bones + parent;
+		}
+		else {
+			bone->eData.parent = NULL;
+		}
+		sprintf_s(bone->name, 30, "bone%03i", nBone.globalId);
+		bone->mat = g_identityMatrix;
+
+		bone->userIndex = 5;
+
+		float pos[3];
+		pos[0] = nBone.position.x;
+		pos[1] = nBone.position.y;
+		pos[2] = nBone.position.z;
+		g_mfn->Math_VecCopy(pos, bone->mat.o);
+	}
+	bones[numBones].index = numBones;
+	bones[numBones].eData.parent = NULL;
+	sprintf_s(bones[numBones].name, 30, "bone-1");
+	bones[numBones].mat = g_identityMatrix;
+	bones[numBones].userIndex = 5;
+	return bones;
+}
+
+template <>
+static void Model_Bayo_LoadModel<false, TD>(CArrayList<bayoDatFile_t> &dfiles, bayoDatFile_t &df, noeRAPI_t *rapi, CArrayList<noesisModel_t *> &models, CArrayList<noesisTex_t *> &givenTextures, modelMatrix_t * pretransform, int sharedtextureoffset) {
+	const bool big = false;
+	const game_t game = TD;
+	DBGLOG("Loading %s\n", df.name);
+	BYTE *data = df.data;
+	int dataSize = df.dataSize;
+	if (dataSize < sizeof(TDWMBHdr_t))
+	{
+		return;
+	}
+	TDWMBHdr<big> hdr((TDWMBHdr_t *)data);
+	if (memcmp(hdr.id, "WMB3", 4))
+	{ //invalid header
+		return;
+	}
+
+	CArrayList<bayoDatFile_t *> motfiles;
+	CArrayList<bayoDatFile_t *> texFiles;
+	CArrayList<bayoDatFile_t *> expfile;
+	CArrayList<noesisTex_t *> textures;
+	CArrayList<noesisMaterial_t *> matList;
+	CArrayList<noesisMaterial_t *> matListLightMap;
+	CArrayList<noesisMaterial_t *> totMatList;
+	CArrayList<noesisAnim_t *> animList;
+
+	TDBuffers_t *buffers = (TDBuffers_t *)rapi->Noesis_UnpooledAlloc(hdr.numVertexGroups * sizeof(TDBuffers_t));
+	memset(buffers, 0, hdr.numVertexGroups * sizeof(TDBuffers_t));
+
+	if (givenTextures.Num() == 0) {
+		Model_Bayo_GetTextureBundle<game>(texFiles, dfiles, df, rapi);
+		if (texFiles.Num() > 0)
+		{
+			for (int i = 0; i < texFiles.Num(); i++) {
+				DBGLOG("Found texture bundle %s\n", texFiles[i]->name);
+			}
+
+			CArrayList<bayoDatFile_t *> newTexFiles;
+			for (int i = 0; i < texFiles.Num(); i += 2) {
+				CArrayList<bayoDatFile_t *> newTexFiles;
+				newTexFiles.Append(texFiles[i]);
+				newTexFiles.Append(texFiles[i + 1]);
+				Model_Bayo_LoadTextures<big, game>(textures, newTexFiles, rapi);
+			}
+		}
+	}
+	else {
+		for (int i = 0; i < givenTextures.Num(); i++) {
+			textures.Append(givenTextures[i]);
+		}
+	}
+
+	Model_TD_LoadMaterials<big, game>(hdr, textures, matList, matListLightMap, totMatList, data, rapi);
+	Model_TD_SetBuffers<big, game>(df, rapi, hdr, buffers, pretransform);
+
+	void *pgctx = rapi->rpgCreateContext();
+	rapi->rpgSetOption(RPGOPT_BIGENDIAN, big);
+	rapi->rpgSetOption(RPGOPT_TRIWINDBACKWARD, true);
+
+	int numBones;
+	short int * animBoneTT;
+	modelBone_t *bones = Model_TD_CreateBones<big>(hdr, data, rapi, numBones, animBoneTT);
+
+	Model_Bayo_GetMotionFiles(dfiles, df, rapi, motfiles);
+	Model_Bayo_GetEXPFile(dfiles, df, rapi, expfile);
+	if (bones) {
+		Model_Bayo_LoadMotions<big, game>(animList, motfiles, expfile, bones, numBones, rapi, animBoneTT, data + hdr.ofsBones);
+		Model_Bayo_LoadExternalMotions<big, game>(animList, df, expfile, bones, numBones, rapi, animBoneTT, data + hdr.ofsBones);
+	}
+
+	DBGLOG("Found %d meshes\n", hdr.numMeshes);
+	DBGLOG("Found %d batches\n", hdr.numBatches);
+
+	TDMesh_t *meshes = (TDMesh_t *)(data + hdr.ofsMeshes);
+	TDBatchGroups<big> batchGroups((TDBatchGroups_t *)(data + hdr.ofsBatchGroups));
+	TDBatch_t *batches = (TDBatch_t *)(data + hdr.ofsBatches);
+	TDBoneSet_t *boneSets = (TDBoneSet_t *)(data + hdr.ofsBoneSets);
+	if (!hdr.numBatches)
+		return;
+	for (int i = 0; i < 1; i++)
+	{
+		TDBatchInfo_t * batchInfos = (TDBatchInfo_t *)(data + batchGroups.groups[i].ofsBatchGroup);
+		for (unsigned int j = 0; j < batchGroups.groups[i].numBatch; j++) {
+			char batch_name[256];
+			TDBatchInfo<big> batchInfo(batchInfos + j);
+			TDBatch<big> batch(batches + batchInfo.batchIndex);
+			TDMesh<big> mesh(meshes + batchInfo.meshIndex);
+			TDBoneSet<big> boneSet(boneSets + batchInfo.boneSetIndex);
+
+			unsigned int vertexGroupIndex = batch.vertexGroupIndex;
+			unsigned int materialIndex = batchInfo.materialIndex;
+
+			sprintf_s(batch_name, 256, "%d_%d_%s", i, j, (char *)(data + mesh.ofsName));
+			DBGLOG("\t%s\n", batch_name);
+			DBGFLUSH();
+			int *boneIndices = NULL;
+			if (bones && batchInfo.boneSetIndex >= 0) {
+				boneIndices = (int *)rapi->Noesis_UnpooledAlloc(boneSet.numBoneIndices * sizeof(int));
+				unsigned char *originalBoneIndices = (unsigned char *)(data + boneSet.ofsBoneSet);
+				for (unsigned int j = 0; j < boneSet.numBoneIndices; j++) {
+					unsigned char sourceIndex;
+					sourceIndex = originalBoneIndices[j];
+					if (big) {
+						LITTLE_BIG_SWAP(sourceIndex);
+					}
+					boneIndices[j] = sourceIndex;
+				}
+			}
+			rapi->rpgSetName(rapi->Noesis_PooledString(batch_name));
+			rapi->rpgSetBoneMap(boneIndices);
+			if (bones && buffers[vertexGroupIndex].bone_indexes.address)
+			{
+				rapi->rpgBindBoneIndexBuffer(buffers[vertexGroupIndex].bone_indexes.address + batch.vertexStart * buffers[vertexGroupIndex].bone_indexes.stride, buffers[vertexGroupIndex].bone_indexes.type, buffers[vertexGroupIndex].bone_indexes.stride, 4);
+				rapi->rpgBindBoneWeightBuffer(buffers[vertexGroupIndex].bone_weights.address + batch.vertexStart * buffers[vertexGroupIndex].bone_weights.stride, buffers[vertexGroupIndex].bone_weights.type, buffers[vertexGroupIndex].bone_weights.stride, 4);
+			}
+			rapi->rpgBindPositionBuffer(buffers[vertexGroupIndex].position.address + batch.vertexStart * buffers[vertexGroupIndex].position.stride, buffers[vertexGroupIndex].position.type, buffers[vertexGroupIndex].position.stride);
+			rapi->rpgBindNormalBuffer(buffers[vertexGroupIndex].normal.address + batch.vertexStart * buffers[vertexGroupIndex].normal.stride, buffers[vertexGroupIndex].normal.type, buffers[vertexGroupIndex].normal.stride);
+			rapi->rpgBindUV1Buffer(buffers[vertexGroupIndex].mapping.address + batch.vertexStart * buffers[vertexGroupIndex].mapping.stride, buffers[vertexGroupIndex].mapping.type, buffers[vertexGroupIndex].mapping.stride);
+			rapi->rpgSetMaterial(matList[materialIndex]->name);
+			rapi->rpgCommitTriangles(buffers[vertexGroupIndex].indices.address + batch.indexStart * buffers[vertexGroupIndex].indices.stride, buffers[vertexGroupIndex].indices.type, batch.numIndices, RPGEO_TRIANGLE, true);
+
+			if (bones) {
+				rapi->rpgSetBoneMap(NULL);
+				rapi->Noesis_UnpooledFree(boneIndices);
+			}
+		}
+	}
+
+	noesisMatData_t *md = rapi->Noesis_GetMatDataFromLists(totMatList, textures);
+	rapi->rpgSetExData_Materials(md);
+	if (bones) {
+		rapi->rpgSetExData_Bones(bones, numBones + 1);
+	}
+	int anims_num = animList.Num();
+	DBGLOG("Found %d anims\n", anims_num);
+	if (anims_num > 700) {
+		DBGLOG("Only displaying 700 first animations");
+		anims_num = 700;
+	}
+
+	noesisAnim_t *anims = rapi->Noesis_AnimFromAnimsList(animList, anims_num);
+	if (anims) {
+		rapi->rpgSetExData_AnimsNum(anims, 1);
+	}
+	else if (animList.Num() > 0) {
+		DBGLOG("Could not create animation block\n");
+	}
+
+	noesisModel_t *mdl = rapi->rpgConstructModel();
+	if (mdl) {
+		models.Append(mdl);
+	}
+
+	rapi->rpgDestroyContext(pgctx);
+
+	rapi->Noesis_UnpooledFree(buffers);
+	animList.Clear();
+	matList.Clear();
+	motfiles.Clear();
+	texFiles.Clear();
+	textures.Clear();
+	matListLightMap.Clear();
+	totMatList.Clear();
+}
+
+template <>
+static void Model_Bayo_LoadScenery<false, TD>(CArrayList<bayoDatFile_t> &olddfiles, bayoDatFile_t &df, noeRAPI_t *rapi, CArrayList<noesisModel_t *> &models) {
+}

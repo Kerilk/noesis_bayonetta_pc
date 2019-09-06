@@ -2281,7 +2281,7 @@ noesisModel_t *Model_Bayo_Load(BYTE *fileBuffer, int bufferLen, int &numMdl, noe
 	DBGLOG("Loading model\n");
 	//create a list of resources
 	Model_Bayo_GetDATEntries<big>(dfiles, fileBuffer, bufferLen);
-	//for Vanquish or Astral Chain, append any matching dtt files (they're just paired dat files)
+	//for Vanquish, Transformer Devastation or Astral Chain, append any matching dtt files (they're just paired dat files)
 	char *inFile = rapi->Noesis_GetInputName();
 	BYTE *dttFile = NULL;
 	if (inFile && inFile[0] && game != NIER_AUTOMATA)
