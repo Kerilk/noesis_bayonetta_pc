@@ -617,13 +617,13 @@ static float applyExpEntry(struct expState_s &expState, bayoEXPEntry<big> &entry
 		else if ((entry.flags & 8) && value != 0.0f) {
 			res = res / value;
 		}
-	}
-	if (entry.flags & 0x20000) {
-		if (fi == 0)
-			DBGLOG("\t\t\t\tmodifying:\n");
-		res = modifyExpEntryValue<big>(expState, res, fi);
-		if (entry.flags & 0x80000) {
+		if (entry.flags & 0x20000) {
+			if (fi == 0)
+				DBGLOG("\t\t\t\tmodifying:\n");
 			res = modifyExpEntryValue<big>(expState, res, fi);
+			if (entry.flags & 0x80000) {
+				res = modifyExpEntryValue<big>(expState, res, fi);
+			}
 		}
 	}
 	return res;
