@@ -117,6 +117,7 @@
   <ItemGroup>
     <ClInclude Include="..\..\pluginclasses.h" />
     <ClInclude Include="..\..\pluginshare.h" />
+    <ClInclude Include="AnarchyReigns.h" />
     <ClInclude Include="AstralChain.h" />
     <ClInclude Include="Bayo.h" />
     <ClInclude Include="bayonetta_materials.h" />

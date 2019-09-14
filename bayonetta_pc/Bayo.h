@@ -1126,7 +1126,7 @@ static void Model_Bayo_LoadMaterials(bayoWMBHdr<big> &hdr,
 	int sharedtextureoffset = -1) {
 	char *inFile = rapi->Noesis_GetInputName();
 	char texDir[MAX_NOESIS_PATH] = "";
-	if (game == VANQUISH) {
+	if (game == VANQUISH || game == ANARCHY_REIGNS) {
 		rapi->Noesis_GetDirForFilePath(texDir, inFile);
 		strcat_s(texDir, MAX_NOESIS_PATH, "\\..\\HTextures\\");
 	}
@@ -1141,6 +1141,21 @@ static void Model_Bayo_LoadMaterials(bayoWMBHdr<big> &hdr,
 		matIDs++;
 	}
 	DBGLOG("Found %d materials, shared textures offset: %d\n", hdr.numMaterials, sharedtextureoffset);
+	if ((game == VANQUISH || game == ANARCHY_REIGNS) && numMatIDs > 0) {
+		for (int j = 0; j < numMatIDs; j++) {
+			int texId = *(matIDs + j * 2);
+			if (big) LITTLE_BIG_SWAP(texId);
+			Model_Vanquish_LoadExtraTex<big, game>(texDir, texId, rapi, textures);
+		}
+		//insert a flat normal map placeholder
+		char fname[MAX_NOESIS_PATH];
+		rapi->Noesis_GetDirForFilePath(fname, rapi->Noesis_GetOutputName());
+		char nameStr[MAX_NOESIS_PATH];
+		sprintf_s(nameStr, MAX_NOESIS_PATH, ".\\%sbayoflatnormal", rapi->Noesis_GetOption("texpre"));
+		strcat_s(fname, MAX_NOESIS_PATH, nameStr);
+		noesisTex_t *nt = rapi->Noesis_AllocPlaceholderTex(fname, 32, 32, true);
+		textures.Append(nt);
+	}
 	for (int i = 0; i < hdr.numMaterials; i++)
 	{
 		DBGLOG("\t%03d:", i);
@@ -1172,8 +1187,10 @@ static void Model_Bayo_LoadMaterials(bayoWMBHdr<big> &hdr,
 			bool isLBT = (_strnicmp(shaderName, "lbt00", 5) == 0);
 			bool raSwap = (_strnicmp(shaderName, "max32", 5) == 0); //hacky way to see if the normal needs red and alpha swapped, probably not reliable
 			int difTexId = *((int *)(matData + 4));
+			if (big) { LITTLE_BIG_SWAP(difTexId); }
 			int nrmOfs = (isPHG || isLBT) ? 8 : 16;
 			int nrmTexId = *((int *)(matData + nrmOfs)); //this is kinda happenstance, i think the only right way to know what to do is to check the pixel shader
+			if (big) { LITTLE_BIG_SWAP(nrmTexId); }
 			DBGLOG("\t\tshader: %s, diff: 0x%0x, nrm: 0x%0x\n", shaderName, difTexId, nrmTexId);
 			for (int j = 0; j < textures.Num(); j++)
 			{
@@ -1181,14 +1198,6 @@ static void Model_Bayo_LoadMaterials(bayoWMBHdr<big> &hdr,
 				if (tex && tex->globalIdx == difTexId)
 				{
 					nmat->texIdx = j;
-				}
-			}
-			if (game == VANQUISH && nmat->texIdx == -1) {
-				//Try to load from texture directory
-				int numTex = textures.Num();
-				Model_Vanquish_LoadExtraTex<big, game>(texDir, difTexId, rapi, textures);
-				if (numTex < textures.Num()) {
-					nmat->texIdx = textures.Num() - 1;
 				}
 			}
 			for (int j = 0; j < textures.Num(); j++)
@@ -1203,15 +1212,7 @@ static void Model_Bayo_LoadMaterials(bayoWMBHdr<big> &hdr,
 					}
 				}
 			}
-			if (game == VANQUISH && nmat->normalTexIdx == -1) {
-				//Try to load from texture directory
-				int numTex = textures.Num();
-				Model_Vanquish_LoadExtraTex<big, game>(texDir, nrmTexId, rapi, textures);
-				if (numTex < textures.Num()) {
-					nmat->normalTexIdx = textures.Num() - 1;
-				}
-			}
-			else if (nmat->normalTexIdx == -1) {
+			if (nmat->normalTexIdx == -1) {
 				nmat->normalTexIdx = textures.Num() - 1;
 			}
 		}

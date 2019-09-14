@@ -41,7 +41,8 @@ typedef enum game_e {
 	NIER_AUTOMATA,
 	MGRR,
 	ASTRAL_CHAIN,
-	TD
+	TD,
+	ANARCHY_REIGNS
 } game_t;
 
 #include "Bayo.h"
@@ -51,6 +52,7 @@ typedef enum game_e {
 #include "AstralChain.h"
 #include "TD.h"
 #include "MGRR.h"
+#include "AnarchyReigns.h"
 
 #include "MotionBayo.h"
 #include "MotionBayo2.h"
@@ -91,6 +93,9 @@ bool Model_Bayo_Check(BYTE *fileBuffer, int bufferLen, noeRAPI_t *rapi)
 		break;
 	case TD:
 		gameName = "Transformer Devastation";
+		break;
+	case ANARCHY_REIGNS:
+		gameName = "Anarchy Reigns";
 		break;
 	default:
 		gameName = "Unknown";
@@ -189,6 +194,12 @@ bool Model_Bayo_Check(BYTE *fileBuffer, int bufferLen, noeRAPI_t *rapi)
 				}
 
 				unsigned int vertexOffset = ((unsigned int*)(fileBuffer + offWmb))[6];
+				if (big) LITTLE_BIG_SWAP(vertexOffset);
+				if (big && game != ANARCHY_REIGNS && vertexOffset == 0xa0) {
+					DBGLOG("Found Anarchy Reigns File!\n");
+					return false;
+				}
+
 				if (!big && game == BAYONETTA2 && vertexOffset == 0xa0) {
 					DBGLOG("Found Vanquish File!\n");
 					return false;
@@ -223,7 +234,7 @@ bool Model_Bayo_Check(BYTE *fileBuffer, int bufferLen, noeRAPI_t *rapi)
 		}
 		else if (game == BAYONETTA2 && rapi->Noesis_CheckFileExt(name, ".wtb"))
 		{
-			DBGLOG("Found Bayonetta or Vanquish File!\n");
+			DBGLOG("Found Bayonetta, Vanquish or Anarchy Reigns File!\n");
 			return false;
 		}
 		else if (game == BAYONETTA && (rapi->Noesis_CheckFileExt(name, ".wta") || rapi->Noesis_CheckFileExt(name, ".wtp") || rapi->Noesis_CheckFileExt(name, ".bxm")))
@@ -231,14 +242,14 @@ bool Model_Bayo_Check(BYTE *fileBuffer, int bufferLen, noeRAPI_t *rapi)
 			DBGLOG("Found Bayonetta 2 File!\n");
 			return false;
 		}
-		else if (game == VANQUISH && (rapi->Noesis_CheckFileExt(name, ".wta") || rapi->Noesis_CheckFileExt(name, ".wtp") || rapi->Noesis_CheckFileExt(name, ".scr")))
+		else if ((game == VANQUISH || game == ANARCHY_REIGNS) && (rapi->Noesis_CheckFileExt(name, ".wta") || rapi->Noesis_CheckFileExt(name, ".wtp") || rapi->Noesis_CheckFileExt(name, ".scr")))
 		{
 			DBGLOG("Found Bayonetta 2 or MGRR File!\n");
 			return false;
 		}
 		else if ((game == BAYONETTA || game == BAYONETTA2) && rapi->Noesis_CheckFileExt(name, ".hkx"))
 		{
-			DBGLOG("Found Vanquish File!\n");
+			DBGLOG("Found Vanquish or Anarchy Reigns File!\n");
 			return false;
 		}
 		else if (rapi->Noesis_CheckFileExt(name, ".scr"))
@@ -320,6 +331,11 @@ bool NPAPI_InitLocal(void)
 	{
 		return false;
 	}
+	int fh_ar = g_nfn->NPAPI_Register("Anarchy Reigns X360 Model", ".dat");
+	if (fh_ar < 0)
+	{
+		return false;
+	}
 	OPENLOG();
 	bayoSetMatTypes();
 	//set the data handlers for this format
@@ -341,6 +357,8 @@ bool NPAPI_InitLocal(void)
 	g_nfn->NPAPI_SetTypeHandler_LoadModel(fh_m, Model_Bayo_Load<false, MGRR>);
 	g_nfn->NPAPI_SetTypeHandler_TypeCheck(fh_td, Model_Bayo_Check<false, TD>);
 	g_nfn->NPAPI_SetTypeHandler_LoadModel(fh_td, Model_Bayo_Load<false, TD>);
+	g_nfn->NPAPI_SetTypeHandler_TypeCheck(fh_ar, Model_Bayo_Check<true, ANARCHY_REIGNS>);
+	g_nfn->NPAPI_SetTypeHandler_LoadModel(fh_ar, Model_Bayo_Load<true, ANARCHY_REIGNS>);
 	//g_nfn->NPAPI_PopupDebugLog(0);
 	return true;
 }
