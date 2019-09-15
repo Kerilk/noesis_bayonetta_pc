@@ -309,6 +309,7 @@ static void Model_Bayo_LoadTextures<true, BAYONETTA2>(CArrayList<noesisTex_t *> 
 		{
 			int *ip = (int  *)(data + hdr.texIdxOffset + sizeof(int)*i);
 			globalIdx = *ip;
+			LITTLE_BIG_SWAP(globalIdx);
 		}
 		DBGLOG("%s: 0x%0x\n", fname, globalIdx);
 		//GX2_SURFACE_FORMAT_T_BC1_UNORM = 0x31
