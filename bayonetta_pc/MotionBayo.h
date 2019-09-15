@@ -1273,6 +1273,7 @@ static void Model_Bayo_LoadMotions(CArrayList<noesisAnim_t *> &animList, CArrayL
 
 template <bool big, game_t game>
 static void Model_Bayo_LoadExternalMotions(CArrayList<noesisAnim_t *> &animList, bayoDatFile_t &df, CArrayList<bayoDatFile_t *> &expfile, modelBone_t *bones, int bone_number, noeRAPI_t *rapi, short int * animBoneTT, void* extraBoneInfo) {
+	if(game==VANQUISH || game == ANARCHY_REIGNS) return;
 	noeUserPromptParam_t promptParams;
 	char wmbName[MAX_NOESIS_PATH];
 	char motionPrompt[MAX_NOESIS_PATH];
