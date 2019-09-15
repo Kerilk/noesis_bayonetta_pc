@@ -455,6 +455,9 @@ template <bool big, game_t game>
 static void Model_Bayo_LoadTextures(CArrayList<noesisTex_t *> &textures, CArrayList<bayoDatFile_t *> &texFiles, noeRAPI_t *rapi);
 
 template <>
+static void Model_Bayo_LoadTextures<true, ANARCHY_REIGNS>(CArrayList<noesisTex_t *> &textures, CArrayList<bayoDatFile_t *> &texFiles, noeRAPI_t *rapi);
+
+template <>
 static void Model_Bayo_LoadTextures<true, BAYONETTA>(CArrayList<noesisTex_t *> &textures, CArrayList<bayoDatFile_t *> &texFiles, noeRAPI_t *rapi)
 {
 	const bool big = true;
@@ -478,6 +481,26 @@ static void Model_Bayo_LoadTextures<true, BAYONETTA>(CArrayList<noesisTex_t *> &
 	DBGLOG("found valid texture header file, containing %d textures\n", hdr.numTex);
 	int *tofs = (int *)(data + hdr.ofsTexOfs);
 	int *tsizes = (int *)(data + hdr.ofsTexSizes);
+
+	for (int i = 0; i < hdr.numTex; i++)
+	{
+		int sz = *(tsizes + i);
+		int of = *(tofs + i);
+		LITTLE_BIG_SWAP(sz);
+		LITTLE_BIG_SWAP(of);
+		if (sz >= 4 && memcmp(data + of, "Gfx2", 4)) {
+			//Found X360 Bayo
+			Model_Bayo_LoadTextures<true, ANARCHY_REIGNS>(textures, texFiles, rapi);
+			char fname[MAX_NOESIS_PATH];
+			rapi->Noesis_GetDirForFilePath(fname, rapi->Noesis_GetOutputName());
+			char nameStr[MAX_NOESIS_PATH];
+			sprintf_s(nameStr, MAX_NOESIS_PATH, ".\\%sbayoflatnormal", rapi->Noesis_GetOption("texpre"));
+			strcat_s(fname, MAX_NOESIS_PATH, nameStr);
+			noesisTex_t *nt = rapi->Noesis_AllocPlaceholderTex(fname, 32, 32, true);
+			textures.Append(nt);
+			return;
+		}
+	}
 	for (int i = 0; i < hdr.numTex; i++)
 	{
 		int globalIdx = 0;
