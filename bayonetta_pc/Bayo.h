@@ -832,8 +832,8 @@ static void Model_Bayo_LoadSharedTextures(CArrayList<noesisTex_t *> &textures, c
 				texfiles.Clear();
 			}
 			datfiles.Clear();
+			rapi->Noesis_UnpooledFree(data);
 		}
-		rapi->Noesis_UnpooledFree(data);
 	}
 	SetCurrentDirectory(noepath);
 }
@@ -1142,6 +1142,9 @@ static void Model_Bayo_LoadMaterials(bayoWMBHdr<big> &hdr,
 	}
 	DBGLOG("Found %d materials, shared textures offset: %d\n", hdr.numMaterials, sharedtextureoffset);
 	if ((game == VANQUISH || game == ANARCHY_REIGNS) && numMatIDs > 0) {
+		if (game == ANARCHY_REIGNS) {
+			Model_AnarachyReigns_LoadSharedTextures<big, game>(textures, rapi);
+		}
 		for (int j = 0; j < numMatIDs; j++) {
 			int texId = *(matIDs + j * 2);
 			if (big) LITTLE_BIG_SWAP(texId);

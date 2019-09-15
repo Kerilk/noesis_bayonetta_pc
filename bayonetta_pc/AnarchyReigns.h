@@ -215,3 +215,130 @@ static void Model_Bayo_GetTextureBundle<ANARCHY_REIGNS>(CArrayList<bayoDatFile_t
 template <>
 static void Model_Bayo_LoadScenery<true, ANARCHY_REIGNS>(CArrayList<bayoDatFile_t> &olddfiles, bayoDatFile_t &df, noeRAPI_t *rapi, CArrayList<noesisModel_t *> &models) {
 }
+
+template <bool big, game_t game>
+static void Model_AnarachyReigns_LoadTexturesMap(bayoDatFile_t &bxmFile, std::map<int, int> &texIdxMap, noeRAPI_t *rapi) {
+	BYTE *data = bxmFile.data;
+	bayo2BXMHdr<big> header((bayo2BXMHdr_t *)data);
+	bayo2BXMNode_t * nodes = ((bayo2BXMNode_t *)(data + 0x10));
+	bayo2BXMOffsets_t * offsets = ((bayo2BXMOffsets_t *)(data + 0x10 + header.numNodes * 0x8));
+	char *datas = (char*)data + 0x10 + header.numNodes * 0x8 + header.numData * 0x4;
+
+	bayo2BXMNode<big> root(nodes);
+	bayo2BXMOffsets<big> rootOffsets(offsets + root.indexData);
+	if (rootOffsets.ofsName != -1 && strcmp(datas + rootOffsets.ofsName, "TextureData") == 0) {
+		for (int i = 0; i < root.numChildren; i++) {
+			bayo2BXMNode<big> child(nodes + root.indexFisrtChild + i);
+			bayo2BXMOffsets<big> childOffsets(offsets + child.indexData);
+			if (childOffsets.ofsName != -1 && strcmp(datas + childOffsets.ofsName, "Textures") == 0) {
+				for (int j = 0; j < child.numChildren; j++) {
+					bayo2BXMNode<big> texture(nodes + child.indexFisrtChild + j);
+					bayo2BXMOffsets<big> textureOffsets(offsets + texture.indexData);
+					int hashCode = -1;
+					int originalHashCode = -1;
+					for (int k = 0; k < texture.numAttributes; k++) {
+						bayo2BXMOffsets<big> attributeOffsets(offsets + texture.indexData + 1 + k);
+						if (attributeOffsets.ofsName != -1 && attributeOffsets.ofsData != -1 && strcmp(datas + attributeOffsets.ofsName, "OriginalHashCode") == 0) {
+							originalHashCode = (int)strtol(datas + attributeOffsets.ofsData, NULL, 16);
+						}
+						else if (attributeOffsets.ofsName != -1 && attributeOffsets.ofsData != -1 && strcmp(datas + attributeOffsets.ofsName, "HashCode") == 0) {
+							hashCode = (int)strtol(datas + attributeOffsets.ofsData, NULL, 16);
+						}
+					}
+					if (hashCode != -1 && originalHashCode != -1) {
+						DBGLOG("Found pair: %x %x\n", hashCode, originalHashCode);
+						texIdxMap.insert(std::pair < int,  int>(hashCode, originalHashCode));
+					}
+				}
+			}
+		}
+	}
+}
+
+template <bool big, game_t game>
+static void Model_AnarachyReigns_LoadSharedTextures(CArrayList<noesisTex_t *> &textures, noeRAPI_t *rapi) {
+	noeUserPromptParam_t promptParams;
+	char texturePrompt[MAX_NOESIS_PATH];
+	sprintf_s(texturePrompt, MAX_NOESIS_PATH, "Load shared textures in other files?");
+	promptParams.titleStr = "Load shared textures?";
+	promptParams.promptStr = texturePrompt;
+	promptParams.defaultValue = "Just click!";
+	promptParams.valType = NOEUSERVAL_NONE;
+	promptParams.valHandler = NULL;
+	wchar_t noepath[MAX_NOESIS_PATH];
+	GetCurrentDirectory(MAX_NOESIS_PATH, noepath);
+	while (g_nfn->NPAPI_UserPrompt(&promptParams)) {
+		int dataLength;
+		char datpath[MAX_NOESIS_PATH];
+
+		BYTE* data = rapi->Noesis_LoadPairedFile("Arnarchy Reign Package", ".dat", dataLength, datpath);
+		if (data) {
+			char dttpath[MAX_NOESIS_PATH];
+			int dttLen = 0;
+			BYTE *dttFile = NULL;
+
+			CArrayList<bayoDatFile_t> datfiles;
+
+			Model_Bayo_GetDATEntries<big>(datfiles, data, dataLength);
+			rapi->Noesis_GetExtensionlessName(dttpath, datpath);
+			strcat_s(dttpath, MAX_NOESIS_PATH, ".dtt");
+			dttFile = (BYTE *)rapi->Noesis_ReadFile(dttpath, &dttLen);
+			if (dttFile && dttLen > 0)
+			{
+				DBGLOG("Found matching dtt file: %s\n", dttpath);
+				Model_Bayo_GetDATEntries<big>(datfiles, dttFile, dttLen);
+			}
+			SetCurrentDirectory(noepath);
+			CArrayList<bayoDatFile_t *> texfiles;
+			CArrayList<noesisTex_t *> new_textures;
+			std::map<int, int> texIdxMap;
+			for (int i = 0; i < datfiles.Num(); i++) {
+				if (strstr(datfiles[i].name, ".wtb")) {
+					DBGLOG("Found shared texture bundle %s\n", datfiles[i].name);
+					texfiles.Append(&datfiles[i]);
+					Model_Bayo_LoadTextures<big, game>(new_textures, texfiles, rapi);
+					texfiles.Clear();
+				}
+				else if (strstr(datfiles[i].name, "TexVariation.bxm")) {
+					DBGLOG("Found tex variations map %s\n", datfiles[i].name);
+					//load bxm file
+					Model_AnarachyReigns_LoadTexturesMap<big, game>(datfiles[i], texIdxMap, rapi);
+				}
+
+			}
+			for (int i = 0; i < new_textures.Num(); i++) {
+				int texIdx = new_textures[i]->globalIdx;
+				try {
+					texIdx = texIdxMap.at(texIdx);
+					new_textures[i]->globalIdx = texIdx;
+					bool found = false;
+					for (int j = 0; j < textures.Num(); j++) {
+						if (textures[j]->globalIdx == texIdx) {
+							DBGLOG("Replacing tex %x\n", texIdx);
+							textures[j] = new_textures[i];
+							found = true;
+							break;
+						}
+					}
+					if (!found)	textures.Append(new_textures[i]);
+				}
+				catch (std::out_of_range e) {
+					bool found = false;
+					for (int j = 0; j < textures.Num(); j++) {
+						if (textures[j]->globalIdx == texIdx) {
+							DBGLOG("Replacing tex %x\n", texIdx);
+							textures[j] = new_textures[i];
+							found = true;
+							break;
+						}
+					}
+					if (!found) textures.Append(new_textures[i]);
+				}
+			}
+			datfiles.Clear();
+			if (dttFile) rapi->Noesis_UnpooledFree(dttFile);
+			rapi->Noesis_UnpooledFree(data);
+		}
+	}
+	SetCurrentDirectory(noepath);
+};
