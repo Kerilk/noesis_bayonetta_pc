@@ -1,4 +1,53 @@
 #pragma once
+
+//Aalways big endian
+typedef struct bayo2BXMHdr_s
+{
+	BYTE				id[4];
+	UINT32				unknown;
+	UINT16				numNodes;
+	UINT16				numData;
+	UINT32				sizeData;
+} bayo2BXMHdr_t;
+template<bool big>
+struct bayo2BXMHdr : bayo2BXMHdr_s
+{
+	bayo2BXMHdr(bayo2BXMHdr_t * ptr) : bayo2BXMHdr_s(*ptr) {
+		LITTLE_BIG_SWAP(unknown);
+		LITTLE_BIG_SWAP(numNodes);
+		LITTLE_BIG_SWAP(numData);
+		LITTLE_BIG_SWAP(sizeData);
+	}
+};
+typedef struct bayo2BXMOffsets_s
+{
+	INT16				ofsName;
+	INT16				ofsData;
+} bayo2BXMOffsets_t;
+template<bool big>
+struct bayo2BXMOffsets : bayo2BXMOffsets_s
+{
+	bayo2BXMOffsets(bayo2BXMOffsets_t *ptr) : bayo2BXMOffsets_s(*ptr) {
+		LITTLE_BIG_SWAP(ofsName);
+		LITTLE_BIG_SWAP(ofsData);
+	}
+};
+typedef struct bayo2BXMNode_s {
+	UINT16				numChildren;
+	UINT16				indexFisrtChild;
+	UINT16				numAttributes;
+	UINT16				indexData;
+} bayo2BXMNode_t;
+template<bool big>
+struct bayo2BXMNode : bayo2BXMNode_s
+{
+	bayo2BXMNode(bayo2BXMNode_t *ptr) : bayo2BXMNode_s(*ptr) {
+		LITTLE_BIG_SWAP(numChildren);
+		LITTLE_BIG_SWAP(indexFisrtChild);
+		LITTLE_BIG_SWAP(numAttributes);
+		LITTLE_BIG_SWAP(indexData);
+	}
+};
 typedef struct bayo2SCRHdr_s
 {
 	BYTE				id[4];
