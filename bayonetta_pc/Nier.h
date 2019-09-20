@@ -548,6 +548,10 @@ static void Model_Nier_LoadMaterials(nierWMBHdr<big> &hdr,
 	CArrayList<noesisMaterial_t *> &totMatList,
 	BYTE *data,
 	noeRAPI_t *rapi) {
+	std::map<int, int> texIdxMap;
+	for (int j = 0; j < textures.Num() - 1; j++) {
+		texIdxMap.insert(std::pair <int, int>(textures[j]->globalIdx,j));
+	}
 
 	nierMaterial_t *matPtr = (nierMaterial_t *)(data + hdr.ofsMaterials);
 
@@ -570,8 +574,13 @@ static void Model_Nier_LoadMaterials(nierWMBHdr<big> &hdr,
 		nierTexture_t * texPtr = (nierTexture_t *)(data + mat.ofsTextures);
 		for (unsigned int j = 0; j < mat.numTextures; j++) {
 			nierTexture<big> tex(texPtr + j);
-			if (strcmp((char*)(data + tex.ofsName), "g_AlbedoMap") == 0 || strcmp((char*)(data + tex.ofsName), "g_AlbedoMap1") == 0) {
+			if ((difTexId == 0 || texIdxMap.find(difTexId) == texIdxMap.end())&& (
+				strcmp((char*)(data + tex.ofsName), "g_AlbedoMap") == 0 || 
+				strcmp((char*)(data + tex.ofsName), "g_AlbedoMap1") == 0 ||
+				strcmp((char*)(data + tex.ofsName), "g_AlbedoMap2") == 0 )) {
 				difTexId = tex.id;
+				if (strcmp((char*)(data + tex.ofsName), "g_AlbedoMap2") == 0)
+					nmat->flags |= NMATFLAG_USELMUVS;
 			}
 			if (strcmp((char*)(data + tex.ofsName), "g_NormalMap") == 0 || strcmp((char*)(data + tex.ofsName), "g_NormalMap1") == 0) {
 				nrmTexId = tex.id;
@@ -879,6 +888,12 @@ static void Model_Bayo_LoadWMB3Model(CArrayList<bayoDatFile_t> &dfiles, bayoDatF
 			rapi->rpgBindPositionBuffer(buffers[vertexGroupIndex].position.address, buffers[vertexGroupIndex].position.type, buffers[vertexGroupIndex].position.stride);
 			rapi->rpgBindNormalBuffer(buffers[vertexGroupIndex].normal.address, buffers[vertexGroupIndex].normal.type, buffers[vertexGroupIndex].normal.stride);
 			rapi->rpgBindUV1Buffer(buffers[vertexGroupIndex].mapping.address, buffers[vertexGroupIndex].mapping.type, buffers[vertexGroupIndex].mapping.stride);
+			if (buffers[vertexGroupIndex].mapping2.address) {
+				rapi->rpgBindUV2Buffer(buffers[vertexGroupIndex].mapping2.address, buffers[vertexGroupIndex].mapping2.type, buffers[vertexGroupIndex].mapping2.stride);
+			}
+			else {
+				rapi->rpgBindUV2Buffer(NULL, RPGEODATA_HALFFLOAT, 0);
+			}
 			rapi->rpgSetMaterial(matList[materialIndex]->name);
 			rapi->rpgCommitTriangles(buffers[vertexGroupIndex].indices.address + batch.indexStart * buffers[vertexGroupIndex].indices.stride, buffers[vertexGroupIndex].indices.type, batch.numIndices, RPGEO_TRIANGLE, true);
 
