@@ -4,8 +4,8 @@ typedef struct nierWMBHdr_s
 	BYTE				id[4];				// 0
 	unsigned int		version;			// 4
 	int					unknownA;			// 8
-	short				flags;			// C Seems related to vertex index size
-	short				unknownC;			// E
+	short				flags;				// C Seems related to vertex index size
+	short				referenceBone;		// E
 	float				boundingBox[6];		//10
 	unsigned int		ofsBones;			//28
 	int					numBones;			//2C
@@ -40,7 +40,7 @@ struct nierWMBHdr : public nierWMBHdr_s {
 			LITTLE_BIG_SWAP(version);
 			LITTLE_BIG_SWAP(unknownA);
 			LITTLE_BIG_SWAP(flags);
-			LITTLE_BIG_SWAP(unknownC);
+			LITTLE_BIG_SWAP(referenceBone);
 			for (int i = 0; i < 6; i++) {
 				LITTLE_BIG_SWAP(boundingBox[i]);
 			}
@@ -820,15 +820,23 @@ static void Model_Bayo_LoadWMB3Model(CArrayList<bayoDatFile_t> &dfiles, bayoDatF
 	}
 
 	Model_Nier_LoadMaterials<big, game>(hdr, textures, matList, matListLightMap, totMatList, data, rapi);
-	Model_Nier_SetBuffers<big, game>(df, rapi, hdr, buffers, pretransform);
+
+	int numBones;
+	short int * animBoneTT;
+	modelBone_t *bones = Model_Nier_CreateBones<big>(hdr, data, rapi, numBones, animBoneTT);
+
+	if (hdr.referenceBone != -1) {
+		Model_Nier_SetBuffers<big, game>(df, rapi, hdr, buffers, &bones[hdr.referenceBone].mat);
+	}
+	else {
+		Model_Nier_SetBuffers<big, game>(df, rapi, hdr, buffers, pretransform);
+	}
 
 	void *pgctx = rapi->rpgCreateContext();
 	rapi->rpgSetOption(RPGOPT_BIGENDIAN, big);
 	rapi->rpgSetOption(RPGOPT_TRIWINDBACKWARD, true);
 
-	int numBones;
-	short int * animBoneTT;
-	modelBone_t *bones = Model_Nier_CreateBones<big>(hdr, data, rapi, numBones, animBoneTT);
+
 
 	Model_Bayo_GetMotionFiles(dfiles, df, rapi, motfiles);
 	Model_Bayo_GetEXPFile(dfiles, df, rapi, expfile);
@@ -875,6 +883,12 @@ static void Model_Bayo_LoadWMB3Model(CArrayList<bayoDatFile_t> &dfiles, bayoDatF
 						LITTLE_BIG_SWAP(sourceIndex);
 					}
 					boneIndices[j] = boneMap[sourceIndex];
+				}
+			}
+			else if (bones && boneMap) {
+				boneIndices = (int *)rapi->Noesis_UnpooledAlloc(hdr.sizeBoneMap * sizeof(int));
+				for (unsigned int j = 0; j < hdr.sizeBoneMap; j++) {
+					boneIndices[j] = boneMap[j];
 				}
 			}
 
