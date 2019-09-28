@@ -94,7 +94,7 @@ static void Model_Bayo_LoadTextures<false, ASTRAL_CHAIN>(CArrayList<noesisTex_t 
 		int width = info.width;
 		int height = info.height;
 		int depth = info.depth;
-		int mipSize = info.textureSize;
+		size_t mipSize = (size_t)info.textureSize;
 		BYTE *untiledMip;
 		BYTE *pix;
 		int blockWidth;
