@@ -555,9 +555,27 @@ static void Model_Bayo_LoadTextures<true, BAYONETTA>(CArrayList<noesisTex_t *> &
 			textures.Append(nt);
 		}
 		else {
-			DBGLOG("Could not load texture %s\n", fnamedds);
-			nt = rapi->Noesis_AllocPlaceholderTex(fname, 32, 32, false);
-			textures.Append(nt);
+			DBGLOG("Could not load texture %s using TexConv2.exe\n", fnamedds);
+			sprintf_s(cmd, 8192, "gtx_extract_no5.exe \"%s\"", fnamegtx);
+			ZeroMemory(&si, sizeof(si));
+			si.cb = sizeof(si);
+			ZeroMemory(&pi, sizeof(pi));
+			mbstowcs(wcmd, cmd, strlen(cmd) + 1);
+			if (CreateProcess(L"gtx_extract_no5.exe", wcmd, NULL, NULL, FALSE, CREATE_NO_WINDOW, NULL, NULL, &si, &pi)) {
+				WaitForSingleObject(pi.hProcess, INFINITE);
+				CloseHandle(pi.hProcess);
+				CloseHandle(pi.hThread);
+			}
+			nt = rapi->Noesis_LoadExternalTex(fnamedds);
+			if (nt) {
+				nt->filename = rapi->Noesis_PooledString(fname);
+				textures.Append(nt);
+			}
+			else {
+				DBGLOG("Could not load texture %s using gtx_extract_no5.exe\n", fnamedds);
+				nt = rapi->Noesis_AllocPlaceholderTex(fname, 32, 32, false);
+				textures.Append(nt);
+			}
 		}
 		remove(fnamedds);
 		remove(fnamegtx);
