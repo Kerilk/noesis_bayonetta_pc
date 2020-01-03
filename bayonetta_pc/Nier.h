@@ -887,7 +887,7 @@ static void Model_Bayo_LoadWMB3Model(CArrayList<bayoDatFile_t> &dfiles, bayoDatF
 			}
 			else if (bones && boneMap) {
 				boneIndices = (int *)rapi->Noesis_UnpooledAlloc(hdr.sizeBoneMap * sizeof(int));
-				for (unsigned int j = 0; j < hdr.sizeBoneMap; j++) {
+				for (int j = 0; j < hdr.sizeBoneMap; j++) {
 					boneIndices[j] = boneMap[j];
 				}
 			}
