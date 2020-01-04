@@ -287,17 +287,14 @@ static void Model_Bayo_LoadTextures<true, BAYONETTA2>(CArrayList<noesisTex_t *> 
 	for (int i = 0; i < hdr.numTex; i++)
 	{
 		int globalIdx;
-		char fname[8192];
-		char fnamegtx[8192];
-		char fnamedds[8192];
-		char cmd[8192];
+		char fname[MAX_NOESIS_PATH];
+		char fnamegtx[MAX_NOESIS_PATH];
 		rapi->Noesis_GetDirForFilePath(fname, rapi->Noesis_GetOutputName());
 
 		char nameStr[MAX_NOESIS_PATH];
 		sprintf_s(nameStr, MAX_NOESIS_PATH, ".\\%s%s%03i", rapi->Noesis_GetOption("texpre"), texName, i);
 		strcat_s(fname, MAX_NOESIS_PATH, nameStr);
 		sprintf_s(fnamegtx, MAX_NOESIS_PATH, "%s.gtx", fname);
-		sprintf_s(fnamedds, MAX_NOESIS_PATH, "%s.dds", fname);
 
 		GX2Hdr<big> texHdr((GX2Hdr_t *)(data + hdr.texInfoOffset + i * 0xc0));
 		//DBGLOG("%d: dim: %d, width %d, height %d, depth %d, numMimap: %d, format: %x\n", i, texHdr.dimension, texHdr.width, texHdr.height, texHdr.depth, texHdr.numMipmaps, texHdr.format);
@@ -347,53 +344,8 @@ static void Model_Bayo_LoadTextures<true, BAYONETTA2>(CArrayList<noesisTex_t *> 
 		fwrite("\x42\x4C\x4B\x7B\x00\x00\x00\x20\x00\x00\x00\x01\x00\x00\x00\x00\x00\x00\x00\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00", 1, 0x20, fgtx);
 
 		fclose(fgtx);
-		sprintf_s(cmd, 8192, "TexConv2.exe -i \"%s\" -o \"%s\"", fnamegtx, fnamedds);
-
-		STARTUPINFOW si;
-		PROCESS_INFORMATION pi;
-		ZeroMemory(&si, sizeof(si));
-		si.cb = sizeof(si);
-		ZeroMemory(&pi, sizeof(pi));
-		wchar_t wcmd[8192];
-		mbstowcs(wcmd, cmd, strlen(cmd) + 1);
-
-		if (CreateProcess(L"Texconv2.exe", wcmd, NULL, NULL, FALSE, CREATE_NO_WINDOW, NULL, NULL, &si, &pi))
-		{
-			WaitForSingleObject(pi.hProcess, INFINITE);
-			CloseHandle(pi.hProcess);
-			CloseHandle(pi.hThread);
-		}
-		//system(cmd);
-		noesisTex_t	*nt = rapi->Noesis_LoadExternalTex(fnamedds);
-		if (nt) {
-			nt->filename = rapi->Noesis_PooledString(fname);
-			textures.Append(nt);
-		}
-		else {
-			DBGLOG("Could not load texture %s using TexConv2.exe\n", fnamedds);
-			sprintf_s(cmd, 8192, "gtx_extract_no5.exe \"%s\"", fnamegtx);
-			ZeroMemory(&si, sizeof(si));
-			si.cb = sizeof(si);
-			ZeroMemory(&pi, sizeof(pi));
-			mbstowcs(wcmd, cmd, strlen(cmd) + 1);
-			if (CreateProcess(L"gtx_extract_no5.exe", wcmd, NULL, NULL, FALSE, CREATE_NO_WINDOW, NULL, NULL, &si, &pi)) {
-				WaitForSingleObject(pi.hProcess, INFINITE);
-				CloseHandle(pi.hProcess);
-				CloseHandle(pi.hThread);
-			}
-			nt = rapi->Noesis_LoadExternalTex(fnamedds);
-			if (nt) {
-				nt->filename = rapi->Noesis_PooledString(fname);
-				textures.Append(nt);
-			}
-			else {
-				DBGLOG("Could not load texture %s using gtx_extract_no5.exe\n", fnamedds);
-				nt = rapi->Noesis_AllocPlaceholderTex(fname, 32, 32, false);
-				textures.Append(nt);
-			}
-		}
-		remove(fnamedds);
-		remove(fnamegtx);
+		noesisTex_t	*nt = Model_Bayo_ConvertGTX(fname, fnamegtx, rapi);
+		textures.Append(nt);
 		nt->globalIdx = globalIdx;
 
 	}
