@@ -760,6 +760,14 @@ static void Model_Nier_SetBuffers(bayoDatFile_t &df, noeRAPI_t *rapi, nierWMBHdr
 			__set_mapping<big, game>(buffers[i].mapping, verts + 16, bayoVertSize);
 			__set_hnormal<big, game>(buffers[i].normal, verts + 20, bayoVertSize, numVerts, rapi, pretransform);
 		}
+		else if (bayoVertSize == 24 && bayoVertExSize == 8 && vg.vertFlags == 0x3) {
+			__set_position<big, game>(buffers[i].position, verts, bayoVertSize, numVerts, pretransform);
+			__set_tangents<big, game>(buffers[i].tangents, verts + 12, bayoVertSize, numVerts, rapi, pretransform);
+			__set_mapping<big, game>(buffers[i].mapping, verts + 16, bayoVertSize);
+			__set_color<big, game>(buffers[i].color, verts + 20, bayoVertSize);
+
+			__set_hnormal<big, game>(buffers[i].normal, vertsEx, bayoVertExSize, numVerts, rapi, pretransform);
+		}
 		else {
 			DBGLOG("Unknown vertex EX size format: %d %x!!!\n", bayoVertExSize, vg.vertFlags);
 #ifdef _DEBUG
@@ -907,6 +915,24 @@ static void Model_Bayo_LoadWMB3Model(CArrayList<bayoDatFile_t> &dfiles, bayoDatF
 			}
 			else {
 				rapi->rpgBindUV2Buffer(NULL, RPGEODATA_HALFFLOAT, 0);
+			}
+			if (buffers[vertexGroupIndex].mapping3.address) {
+				rapi->rpgBindUVXBuffer(buffers[vertexGroupIndex].mapping3.address, buffers[vertexGroupIndex].mapping3.type, buffers[vertexGroupIndex].mapping3.stride, 2, 2);
+			}
+			else {
+				rapi->rpgBindUVXBuffer(NULL, RPGEODATA_HALFFLOAT, 0, 2, 2);
+			}
+			if (buffers[vertexGroupIndex].mapping4.address) {
+				rapi->rpgBindUVXBuffer(buffers[vertexGroupIndex].mapping4.address, buffers[vertexGroupIndex].mapping4.type, buffers[vertexGroupIndex].mapping4.stride, 3, 2);
+			}
+			else {
+				rapi->rpgBindUVXBuffer(NULL, RPGEODATA_HALFFLOAT, 0, 3, 2);
+			}
+			if (buffers[vertexGroupIndex].mapping5.address) {
+				rapi->rpgBindUVXBuffer(buffers[vertexGroupIndex].mapping5.address, buffers[vertexGroupIndex].mapping5.type, buffers[vertexGroupIndex].mapping5.stride, 4, 2);
+			}
+			else {
+				rapi->rpgBindUVXBuffer(NULL, RPGEODATA_HALFFLOAT, 0, 4, 2);
 			}
 			rapi->rpgSetMaterial(matList[materialIndex]->name);
 			rapi->rpgCommitTriangles(buffers[vertexGroupIndex].indices.address + batch.indexStart * buffers[vertexGroupIndex].indices.stride, buffers[vertexGroupIndex].indices.type, batch.numIndices, RPGEO_TRIANGLE, true);

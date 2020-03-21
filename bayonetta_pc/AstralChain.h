@@ -126,6 +126,7 @@ static void Model_Bayo_LoadTextures<false, ASTRAL_CHAIN>(CArrayList<noesisTex_t 
 			blockHeight = 4;
 			maxBlockHeight = 16;
 			fourcc = FOURCC_BC6H;
+			decode_dxt = true;
 			DBGLOG("Found BC6H\n");
 		}
 		else if (info.format == 0x45 || info.format == 0x49) {
@@ -133,6 +134,7 @@ static void Model_Bayo_LoadTextures<false, ASTRAL_CHAIN>(CArrayList<noesisTex_t 
 			blockHeight = 4;
 			maxBlockHeight = 16;
 			fourcc = FOURCC_BC4;
+			decode_dxt = true;
 			DBGLOG("Found BC4\n");
 		}
 		else if (info.format == 0x44 || info.format == 0x48) {
