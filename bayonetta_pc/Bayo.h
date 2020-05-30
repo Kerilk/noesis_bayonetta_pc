@@ -652,7 +652,19 @@ static void Model_Bayo_LoadTextures<false, BAYONETTA>(CArrayList<noesisTex_t *> 
 			tex = *((ddsTexHdr_t *)texData);
 			pix = texData + sizeof(ddsTexHdr_t);
 		}
-		if (memcmp(tex.id, "DDS ", 4))
+		if (memcmp(tex.id, "BNTX", 4) == 0) {
+			noesisTex_t	*nt = rapi->Noesis_LoadTexByHandler(data + ofs, size, ".bntx");
+			if (nt) {
+				nt->filename = rapi->Noesis_PooledString(fname);
+				textures.Append(nt);
+			}
+			else {
+				nt = rapi->Noesis_AllocPlaceholderTex(fname, 32, 32, false);
+				textures.Append(nt);
+			}
+			continue;
+		}
+		else if (memcmp(tex.id, "DDS ", 4))
 		{
 			noesisTex_t *nt = rapi->Noesis_AllocPlaceholderTex(fname, 32, 32, false);
 			textures.Append(nt);
@@ -907,6 +919,18 @@ static void Model_Bayo_CreateNormal<false, BAYONETTA>(char *src, float *dst) {
 template <bool big, game_t game>
 static void Model_Bayo_CreateNormals(BYTE *data, float *dsts, int numVerts, int stride, modelMatrix_t *m)
 {
+	bool bSwitch = false;
+	// Attempt to detect Bayonetta Switch Normals
+	if (!big && game == BAYONETTA) {
+		for (int i = 0; i < numVerts; i++)
+		{
+			char *src = (char *)(data + stride * i);
+			if (*src)
+				bSwitch = true;
+		}
+		if (bSwitch)
+			return Model_Bayo_CreateNormals<big, BAYONETTA2>(data, dsts, numVerts, stride, m);
+	}
 	for (int i = 0; i < numVerts; i++)
 	{
 		char *src = (char *)(data + stride * i);
