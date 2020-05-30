@@ -925,8 +925,10 @@ static void Model_Bayo_CreateNormals(BYTE *data, float *dsts, int numVerts, int 
 		for (int i = 0; i < numVerts; i++)
 		{
 			char *src = (char *)(data + stride * i);
-			if (*src)
+			if (*src) {
 				bSwitch = true;
+				break;
+			}
 		}
 		if (bSwitch)
 			return Model_Bayo_CreateNormals<big, BAYONETTA2>(data, dsts, numVerts, stride, m);
