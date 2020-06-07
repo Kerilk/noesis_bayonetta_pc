@@ -252,6 +252,11 @@ bool Model_Bayo_Check(BYTE *fileBuffer, int bufferLen, noeRAPI_t *rapi)
 			DBGLOG("Found Vanquish or Anarchy Reigns File!\n");
 			return false;
 		}
+		else if (game == ASTRAL_CHAIN && rapi->Noesis_CheckFileExt(name, ".scr"))
+		{
+			DBGLOG("Found Bayonetta or Bayonetta 2 or MGRR File!\n");
+			return false;
+		}
 		else if (rapi->Noesis_CheckFileExt(name, ".scr"))
 		{
 			numSCR++;
