@@ -1292,7 +1292,7 @@ static void Model_Bayo_LoadMaterials(bayoWMBHdr<big> &hdr,
 			int nrmOfs = (isPHG || isLBT) ? 8 : 16;
 			int nrmTexId = *((int *)(matData + nrmOfs)); //this is kinda happenstance, i think the only right way to know what to do is to check the pixel shader
 			if (big) { LITTLE_BIG_SWAP(nrmTexId); }
-			DBGLOG("\t\tshader: %s, diff: 0x%0x, nrm: 0x%0x\n", shaderName, difTexId, nrmTexId);
+			DBGLOG("\t\tshader: %s, diff: 0x%08x, nrm: 0x%08x\n", shaderName, difTexId, nrmTexId);
 			for (int j = 0; j < textures.Num(); j++)
 			{
 				noesisTex_t *tex = textures[j];
