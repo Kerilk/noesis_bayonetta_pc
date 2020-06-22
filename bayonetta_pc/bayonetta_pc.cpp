@@ -131,6 +131,8 @@ bool Model_Bayo_Check(BYTE *fileBuffer, int bufferLen, noeRAPI_t *rapi)
 	int numWMB = 0;
 	int numMOT = 0;
 	int numSCR = 0;
+	int numWTB = 0;
+	int numWTA = 0;
 	DBGLOG("Found %d resources\n", dat.numRes);
 	for (int i = 0; i < dat.numRes; i++)
 	{
@@ -140,6 +142,10 @@ bool Model_Bayo_Check(BYTE *fileBuffer, int bufferLen, noeRAPI_t *rapi)
 			return false;
 		}
 		DBGLOG("\t%s\n", name);
+		if (rapi->Noesis_CheckFileExt(name, ".wtb"))
+			numWTB++;
+		if (rapi->Noesis_CheckFileExt(name, ".wta"))
+			numWTA++;
 		if (rapi->Noesis_CheckFileExt(name, ".wmb"))
 		{
 			numWMB++;
@@ -282,6 +288,10 @@ bool Model_Bayo_Check(BYTE *fileBuffer, int bufferLen, noeRAPI_t *rapi)
 		if (!found) {
 			return false;
 		}
+	}
+	if (game == BAYONETTA2 && numWMB > 0 && numWTA == 0) {
+		DBGLOG("Found TW101 File (VANQUISH loader)!\n");
+		return false;
 	}
 	DBGLOG("Found %d wmb files\n", numWMB);
 	DBGLOG("Found %d scr files\n", numSCR);

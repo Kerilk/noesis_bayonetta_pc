@@ -595,8 +595,7 @@ static void Model_Bayo_LoadTextures<true, BAYONETTA>(CArrayList<noesisTex_t *> &
 	textures.Append(nt);
 }
 
-template <>
-static void Model_Bayo_LoadTextures<false, BAYONETTA>(CArrayList<noesisTex_t *> &textures, CArrayList<bayoDatFile_t *> &texFiles, noeRAPI_t *rapi)
+static void Model_Bayo_LoadTextures_impl(CArrayList<noesisTex_t *> &textures, CArrayList<bayoDatFile_t *> &texFiles, noeRAPI_t *rapi)
 {
 	int dataSize = texFiles[0]->dataSize;
 	BYTE * data = texFiles[0]->data;
@@ -662,6 +661,8 @@ static void Model_Bayo_LoadTextures<false, BAYONETTA>(CArrayList<noesisTex_t *> 
 				nt = rapi->Noesis_AllocPlaceholderTex(fname, 32, 32, false);
 				textures.Append(nt);
 			}
+			nt->globalIdx = globalIdx;
+			DBGLOG("\t%03d (idx %08x, flags %x)\n", i, globalIdx, tflags[i]);
 			continue;
 		}
 		else if (memcmp(tex.id, "DDS ", 4))
@@ -789,6 +790,12 @@ static void Model_Bayo_LoadTextures<false, BAYONETTA>(CArrayList<noesisTex_t *> 
 		textures.Append(nt);
 	}
 
+}
+
+template <>
+static void Model_Bayo_LoadTextures<false, BAYONETTA>(CArrayList<noesisTex_t *> &textures, CArrayList<bayoDatFile_t *> &texFiles, noeRAPI_t *rapi)
+{
+	Model_Bayo_LoadTextures_impl(textures, texFiles, rapi);
 	//insert a flat normal map placeholder
 	char fname[MAX_NOESIS_PATH];
 	rapi->Noesis_GetDirForFilePath(fname, rapi->Noesis_GetOutputName());
@@ -1214,6 +1221,27 @@ static void Model_Bayo_LoadMaterials(bayoWMBHdr<big> &hdr,
 	if ((game == VANQUISH || game == ANARCHY_REIGNS) && numMatIDs > 0) {
 		if (game == ANARCHY_REIGNS) {
 			Model_AnarachyReigns_LoadSharedTextures<big, game>(textures, rapi);
+		}
+		//TW101 really, pl textures are inside pl_texture.wtb and pl_texture101.wtb
+		if (game == VANQUISH && textures.Num() == 0) {
+			char texName[MAX_NOESIS_PATH];
+			rapi->Noesis_GetDirForFilePath(texName, inFile);
+			strcat_s(texName, MAX_NOESIS_PATH, "\\..\\pl_texture.wtb");
+			DBGLOG("Trying to load %s...", texName);
+			bayoDatFile_t wtbFile;
+			wtbFile.name = texName;
+			wtbFile.data = (BYTE *)rapi->Noesis_ReadFile(texName, &wtbFile.dataSize);
+			if (wtbFile.data && wtbFile.dataSize > 0)
+			{
+				CArrayList<bayoDatFile_t *> texFiles;
+				int numText = textures.Num();
+				texFiles.Append(&wtbFile);
+				DBGLOG("...Found pl_texture.wtb!\n");
+				Model_Bayo_LoadTextures<big, game>(textures, texFiles, rapi);
+			}
+			else {
+				DBGLOG("...pl_texture.wtb not found!\n");
+			}
 		}
 		for (int j = 0; j < numMatIDs; j++) {
 			int texId = *(matIDs + j * 2);
