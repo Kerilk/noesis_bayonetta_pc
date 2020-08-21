@@ -8,6 +8,7 @@
 using half_float::half;
 #include <map>
 #include <stack>
+#include <stdint.h>
 
 const char *g_pPluginName = "bayonetta_pc";
 const char *g_pPluginDesc = "Bayonetta PC model handler, by Dick, Kerilk.";
@@ -42,9 +43,11 @@ typedef enum game_e {
 	MGRR,
 	ASTRAL_CHAIN,
 	TD,
-	ANARCHY_REIGNS
+	ANARCHY_REIGNS,
+	MADWORLD
 } game_t;
 
+#include "tpl.h"
 #include "Bayo.h"
 #include "Vanquish.h"
 #include "Bayo2.h"
@@ -53,6 +56,7 @@ typedef enum game_e {
 #include "TD.h"
 #include "MGRR.h"
 #include "AnarchyReigns.h"
+#include "MadWorld.h"
 
 #include "MotionBayo.h"
 #include "MotionBayo2.h"
