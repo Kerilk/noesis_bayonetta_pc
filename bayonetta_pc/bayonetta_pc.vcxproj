@@ -123,12 +123,14 @@
     <ClInclude Include="bayonetta_materials.h" />
     <ClInclude Include="Bayo2.h" />
     <ClInclude Include="FloatDecompressor.h" />
+    <ClInclude Include="MadWorld.h" />
     <ClInclude Include="MGRR.h" />
     <ClInclude Include="MotionBayo.h" />
     <ClInclude Include="MotionBayo2.h" />
     <ClInclude Include="Nier.h" />
     <ClInclude Include="stdafx.h" />
     <ClInclude Include="TD.h" />
+    <ClInclude Include="tpl.h" />
     <ClInclude Include="Vanquish.h" />
   </ItemGroup>
   <ItemGroup>

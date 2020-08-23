@@ -2416,7 +2416,7 @@ noesisModel_t *Model_Bayo_Load(BYTE *fileBuffer, int bufferLen, int &numMdl, noe
 	for (int i = 0; i < dfiles.Num(); i++)
 	{
 		bayoDatFile_t &df = dfiles[i];
-		if (rapi->Noesis_CheckFileExt(df.name, ".wmb"))
+		if (rapi->Noesis_CheckFileExt(df.name, ".wmb") || rapi->Noesis_CheckFileExt(df.name, ".mdb"))
 		{ //it's a model
 			CArrayList<noesisTex_t *> textures;
 			Model_Bayo_LoadModel<big, game>(dfiles, df, rapi, models, textures, NULL);

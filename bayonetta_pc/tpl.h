@@ -111,10 +111,11 @@ inline void tplComputePixelAddress(void * &pPixel, void * src, unsigned int i, u
 		offset = i * blockWidth + (j >> 1);
 	else
 		offset = i * blockWidth + j * (bpp / 8);
+	pPixel = (void*)((BYTE*)src + offset);
 }
 
 template<int bpp>
-inline void tplExtractPixelBits(unsigned int v, void *src, bool even = true) {
+inline void tplExtractPixelBits(unsigned int &v, void *src, bool even = true) {
 	unsigned char  tuc;
 	unsigned short tus;
 	unsigned int   tui;
@@ -225,7 +226,9 @@ void tplDecodeBlock(void *dst, void *src, unsigned int width, unsigned height, s
 	for (unsigned int i = 0; i < height; i++) {
 		for (unsigned int j = 0; j < width; j++) {
 			unsigned char r, g, b, a;
+			//DBGLOG("Decoding pixel %i %i, ", i, j);
 			tplDecodePixel<f>(src, i, j, r, g, b, a);
+			//DBGLOG("r: %02x, g: %02x, b: %02x, a: %02x\n", r, g, b, a);
 			tplWritePixel(dst, i, j, ld, r, g, b, a);
 		}
 	}
@@ -315,6 +318,7 @@ void tplDecodeImage(void *dst, void *src, unsigned int width, unsigned int heigh
 	unsigned int n_block_height = (height + (remainder_height ? block_height - remainder_height : 0)) / block_height;
 	unsigned int last_block_width = remainder_width ? remainder_width : block_width;
 	unsigned int last_block_height = remainder_height ? remainder_height : block_height;
+	//DBGLOG("dst: %p, src: %p, format: %d, palette: %p, block_height: %d, block_width: %d, n_block_height: %d, n_block_width: %d, remainder_height: %d, remainder_width: %d\n", dst, src, f, palette, block_height, block_width, n_block_height, n_block_width, remainder_height, remainder_width);
 	for (unsigned int i = 0; i < n_block_height; i++) {
 		for (unsigned int j = 0; j < n_block_width; j++) {
 			unsigned char *pdst = (unsigned char *)dst + i * block_height * width * 4 + j * block_width * 4;
@@ -322,6 +326,7 @@ void tplDecodeImage(void *dst, void *src, unsigned int width, unsigned int heigh
 			unsigned int bh = (i == n_block_height - 1 ? last_block_height : block_height);
 			unsigned int bw = (j == n_block_width - 1 ? last_block_width : block_width);
 			size_t ld = 4 * width;
+			//DBGLOG("Decoding block %d %d, pdst: %p, psrc: %p, block_height: %d, block_width: %d, ld: %d\n", i, j, pdst, psrc, bh, bw, ld);
 			switch (f) {
 			case I4:
 				tplDecodeBlock<I4>(pdst, psrc, bh, bw, ld);
