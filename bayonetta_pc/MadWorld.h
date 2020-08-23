@@ -107,8 +107,8 @@ typedef struct madWorldMDBHeader_s {
 	uint32_t	materialsOffset;
 	uint32_t	unknownCount; //Distinc triangles?
 	uint32_t	meshesOffset;
-	uint16_t	vertexPosDivisorBit;
-	uint16_t	UVsDivisorBit;
+	int16_t		vertexPosDivisorBit;
+	int16_t		UVsDivisorBit;
 	uint32_t	uc;
 	uint32_t	unknownBoneRelatedOffset1;
 	uint32_t	unknownBoneRelatedOffset2;
@@ -511,6 +511,7 @@ Model_MadWorld_DecodeVextexBoneWeights(madWorldMDBHeader<big> &hdr, madWorldMDBM
 	}
 	if (big)
 		LITTLE_BIG_SWAP(bonePaletteIndex);
+	//DBGLOG("bonePaletteIndex: %d\n", bonePaletteIndex);
 	int8_t* pBonePaletteEntry = (int8_t*)(pBonePalette + 0x8 * bonePaletteIndex);
 	for (int i = 0; i < 4; i++) {
 		if (pBonePaletteEntry[2 * i] != -1)
@@ -567,6 +568,7 @@ void Model_MadWorld_DecodeVertex(madWorldMDBHeader<big> &hdr, madWorldMDBMesh<bi
 	uint16_t colorIndex = 0;
 	uint16_t UVIndex = 0;
 	Model_MadWorld_DecodeIndexes(hdr, mesh, pIndex, positionIndex, normalIndex, colorIndex, UVIndex);
+	//DBGLOG("positionIndex: %d, normalIndex: %d, colorIndex: %d, UVIndex: %d\n", positionIndex, normalIndex, colorIndex, UVIndex);
 	Model_MadWorld_DecodeVertexPosition(hdr, mesh, pVertex, pPositions, positionIndex);
 	if (hdr.numBonePalette)
 		Model_MadWorld_DecodeVextexBoneWeights(hdr, mesh, pVertex, pPositions, pBonePalette, positionIndex);
