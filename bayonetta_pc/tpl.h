@@ -108,9 +108,9 @@ template<int bpp, int blockWidth>
 inline void tplComputePixelAddress(void * &pPixel, void * src, unsigned int i, unsigned int j) {
 	unsigned int offset;
 	if (bpp == 4)
-		offset = i * blockWidth + (j >> 1);
+		offset = i * (blockWidth >> 1) + (j >> 1);
 	else
-		offset = i * blockWidth + j * (bpp / 8);
+		offset = i * blockWidth * (bpp / 8) + j * (bpp / 8);
 	pPixel = (void*)((BYTE*)src + offset);
 }
 
@@ -161,7 +161,7 @@ inline void tplReadPixelValue<I8>(unsigned int v, unsigned char &r, unsigned cha
 template <>
 inline void tplReadPixelValue<IA4>(unsigned int v, unsigned char &r, unsigned char &g, unsigned char &b, unsigned char &a) {
 	r = g = b = (v & 0xf) * 0xff / 0xf;
-	a = (v >> 4) * 0x11;
+	a = (v >> 4) * 0xff / 0xf;
 }
 
 template <>
@@ -319,13 +319,13 @@ void tplDecodeImage(void *dst, void *src, unsigned int width, unsigned int heigh
 	unsigned int last_block_width = remainder_width ? remainder_width : block_width;
 	unsigned int last_block_height = remainder_height ? remainder_height : block_height;
 	//DBGLOG("dst: %p, src: %p, format: %d, palette: %p, block_height: %d, block_width: %d, n_block_height: %d, n_block_width: %d, remainder_height: %d, remainder_width: %d\n", dst, src, f, palette, block_height, block_width, n_block_height, n_block_width, remainder_height, remainder_width);
+	size_t ld = 4 * width;
 	for (unsigned int i = 0; i < n_block_height; i++) {
 		for (unsigned int j = 0; j < n_block_width; j++) {
-			unsigned char *pdst = (unsigned char *)dst + i * block_height * width * 4 + j * block_width * 4;
+			unsigned char *pdst = (unsigned char *)dst + i * block_height * ld + j * block_width * 4;
 			unsigned char *psrc = (unsigned char *)src + tplBlockSize[f] * (j + n_block_width * i);
 			unsigned int bh = (i == n_block_height - 1 ? last_block_height : block_height);
 			unsigned int bw = (j == n_block_width - 1 ? last_block_width : block_width);
-			size_t ld = 4 * width;
 			//DBGLOG("Decoding block %d %d, pdst: %p, psrc: %p, block_height: %d, block_width: %d, ld: %d\n", i, j, pdst, psrc, bh, bw, ld);
 			switch (f) {
 			case I4:
