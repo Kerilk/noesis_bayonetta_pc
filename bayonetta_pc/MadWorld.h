@@ -353,7 +353,7 @@ void Model_MadWorld_LoadMaterials(madWorldMDBHeader<big> &hdr, CArrayList<noesis
 		DBGLOG("Material name: %s\n", matName);
 		noesisMaterial_t *nmat = rapi->Noesis_GetMaterialList(1, true);
 		nmat->name = rapi->Noesis_PooledString(matName);
-		nmat->noDefaultBlend = true;
+		nmat->noDefaultBlend = true; //can't find a way to determine how blending mode should be selected
 		nmat->texIdx = *pMaterial;
 		nmat->normalTexIdx = textures.Num() - 1;
 		matList.Append(nmat);
@@ -408,7 +408,8 @@ uint8_t Model_MadWorld_VertexSize(madWorldMDBHeader<big> &hdr, madWorldMDBMesh<b
 	vertexSize += 3 * sizeof(float); //position
 	if (hdr.numBonePalette)
 		vertexSize += 8;
-	vertexSize += 3 * sizeof(float); //normal
+	if (hdr.numNormals && !(mesh.flags & 0x4))
+		vertexSize += 3 * sizeof(float); //normal
 	if (hdr.numColors && mesh.flags & 0x1)
 		vertexSize += 4; //color
 	if (hdr.numUVs && !(mesh.flags & 0x8))
@@ -443,8 +444,8 @@ void Model_MadWorld_NumTriangleIndices(madWorldMDBHeader<big> &hdr, madWorldMDBM
 			indexSize += 1;
 		//if (hdr.numVertexPos)
 		indexSize += 2;
-		//if (hdr.numNormals)
-		indexSize += 2;
+		if (hdr.numNormals && !(mesh.flags & 0x4))
+			indexSize += 2;
 		if (hdr.numColors && mesh.flags & 0x1)
 			indexSize += 2;
 		if (hdr.numUVs && !(mesh.flags & 0x8))
@@ -464,10 +465,12 @@ Model_MadWorld_DecodeIndexes(madWorldMDBHeader<big> &hdr, madWorldMDBMesh<big> &
 		LITTLE_BIG_SWAP(positionIndex);
 	pIndex += 2;
 	//if (hdr.numNormals)
-	normalIndex = *(uint16_t *)pIndex;
-	if (big)
-		LITTLE_BIG_SWAP(normalIndex);
-	pIndex += 2;
+	if (hdr.numNormals && !(mesh.flags & 0x4)) {
+		normalIndex = *(uint16_t *)pIndex;
+		if (big)
+			LITTLE_BIG_SWAP(normalIndex);
+		pIndex += 2;
+	}
 	if (hdr.numColors && mesh.flags & 0x1) {
 		colorIndex = *(uint16_t *)pIndex;
 		if (big)
@@ -577,7 +580,8 @@ void Model_MadWorld_DecodeVertex(madWorldMDBHeader<big> &hdr, madWorldMDBMesh<bi
 	Model_MadWorld_DecodeVertexPosition(hdr, mesh, pVertex, pPositions, positionIndex);
 	if (hdr.numBonePalette)
 		Model_MadWorld_DecodeVextexBoneWeights(hdr, mesh, pVertex, pPositions, pBonePalette, positionIndex);
-	Model_MadWorld_DecodeVertexNormal(hdr, mesh, pVertex, pNormals, normalIndex);
+	if (hdr.numNormals && !(mesh.flags &0x4))
+		Model_MadWorld_DecodeVertexNormal(hdr, mesh, pVertex, pNormals, normalIndex);
 	if (hdr.numColors && mesh.flags & 0x1)
 		Model_MadWorld_DecodeVertexColor(hdr, mesh, pVertex, pColors, colorIndex);
 	if (hdr.numUVs && !(mesh.flags & 0x8))
@@ -740,8 +744,10 @@ static void Model_Bayo_LoadModel<true, MADWORLD>(CArrayList<bayoDatFile_t> &dfil
 			rapi->rpgBindBoneWeightBuffer(NULL, RPGEODATA_BYTE, 0, 0);
 		}
 		//bind normals
-		rapi->rpgBindNormalBuffer(pVertexBuffer + offset, RPGEODATA_FLOAT, vertexSize);
-		offset += 3 * sizeof(float);
+		if (hdr.numNormals && !(mesh.flags & 0x4)) {
+			rapi->rpgBindNormalBuffer(pVertexBuffer + offset, RPGEODATA_FLOAT, vertexSize);
+			offset += 3 * sizeof(float);
+		}
 		if (hdr.numColors && mesh.flags & 0x1) {
 			// Don't bind color as they mess up the rendering.
 			//rapi->rpgBindColorBuffer(pVertexBuffer + offset, RPGEODATA_BYTE, vertexSize, 4);
