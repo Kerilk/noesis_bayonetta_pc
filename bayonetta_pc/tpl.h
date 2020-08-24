@@ -283,7 +283,7 @@ inline void tplDecodeCMPRSubBlock(void *dst, void *src) {
 		}
 	}
 	else {
-		for (int i = 0; i < 3; i++) {
+		for (int i = 0; i < 4; i++) {
 			vc[2][i] = ((int)vc[0][i] + vc[1][i]) / 2;
 			vc[3][i] = 0;
 		}
