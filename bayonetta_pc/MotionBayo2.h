@@ -202,8 +202,8 @@ static float Model_Bayo2_DecodeEXP_Value(float * tmpValues, const int bone_numbe
 			return s.top();
 			break;
 		case 3: //Animation track
-			s.push(tmpValues[frame + v.animationTrack * frameCount + Model_Bayo_DecodeMotionIndex<big>(animBoneTT, v.boneIndex) * frameCount * maxCoeffs]);
-			DBGLOG("[%d:%d](%f)", Model_Bayo_DecodeMotionIndex<big>(animBoneTT, v.boneIndex), v.animationTrack, s.top());
+			s.push(tmpValues[frame + v.animationTrack * frameCount + Model_Bayo_DecodeMotionIndex<big, BAYONETTA2>(animBoneTT, v.boneIndex) * frameCount * maxCoeffs]);
+			DBGLOG("[%d:%d](%f)", Model_Bayo_DecodeMotionIndex<big, BAYONETTA2>(animBoneTT, v.boneIndex), v.animationTrack, s.top());
 			break;
 		case 4: //Immediate
 			DBGLOG("%f ", v.value);
@@ -253,7 +253,7 @@ static void Model_Bayo2_ApplyEXP(CArrayList<bayoDatFile_t *> & expfile, float * 
 		BYTE *interpol = data + hdr.offsetInterpolationData;
 		for (int i = 0; i < hdr.numRecords; i++) {
 			bayo2EXPRecord<big> record((bayo2EXPRecord_t *)(data + hdr.offsetRecords + i * sizeof(bayo2EXPRecord_t)));
-			short int targetBone = Model_Bayo_DecodeMotionIndex<big>(animBoneTT, record.boneIndex);
+			short int targetBone = Model_Bayo_DecodeMotionIndex<big, BAYONETTA2>(animBoneTT, record.boneIndex);
 			char targetTrack = record.animationTrack;
 			DBGLOG("\t\tfound bone: %d, track: %d, numValues: %d\n", targetBone, targetTrack, record.valueCount);
 			for (int fi = 0; fi < frameCount; fi++) {

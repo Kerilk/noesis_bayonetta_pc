@@ -8,6 +8,7 @@
 using half_float::half;
 #include <map>
 #include <stack>
+#include <stdint.h>
 
 const char *g_pPluginName = "bayonetta_pc";
 const char *g_pPluginDesc = "Bayonetta PC model handler, by Dick, Kerilk.";
@@ -42,9 +43,11 @@ typedef enum game_e {
 	MGRR,
 	ASTRAL_CHAIN,
 	TD,
-	ANARCHY_REIGNS
+	ANARCHY_REIGNS,
+	MADWORLD
 } game_t;
 
+#include "tpl.h"
 #include "Bayo.h"
 #include "Vanquish.h"
 #include "Bayo2.h"
@@ -53,6 +56,7 @@ typedef enum game_e {
 #include "TD.h"
 #include "MGRR.h"
 #include "AnarchyReigns.h"
+#include "MadWorld.h"
 
 #include "MotionBayo.h"
 #include "MotionBayo2.h"
@@ -65,7 +69,7 @@ typedef enum game_e {
 #define WMB_TAG  0x00424d57
 #define WMB3_TAG 0x33424d57
 #define WMB4_TAG 0x34424d57
-#define XT1_TAG 0x00315458
+#define XT1_TAG  0x00315458
 
 //see if something is a valid bayonetta .dat
 template <bool big, game_e game>
@@ -96,6 +100,9 @@ bool Model_Bayo_Check(BYTE *fileBuffer, int bufferLen, noeRAPI_t *rapi)
 		break;
 	case ANARCHY_REIGNS:
 		gameName = "Anarchy Reigns";
+		break;
+	case MADWORLD:
+		gameName = "MadWorld";
 		break;
 	default:
 		gameName = "Unknown";
@@ -133,6 +140,8 @@ bool Model_Bayo_Check(BYTE *fileBuffer, int bufferLen, noeRAPI_t *rapi)
 	int numSCR = 0;
 	int numWTB = 0;
 	int numWTA = 0;
+	int numMDB = 0;
+	int numTPL = 0;
 	DBGLOG("Found %d resources\n", dat.numRes);
 	for (int i = 0; i < dat.numRes; i++)
 	{
@@ -267,11 +276,33 @@ bool Model_Bayo_Check(BYTE *fileBuffer, int bufferLen, noeRAPI_t *rapi)
 		{
 			numSCR++;
 		}
+		else if (rapi->Noesis_CheckFileExt(name, ".mdb"))
+		{
+			numMDB++;
+			if (game != MADWORLD)
+			{
+				DBGLOG("Found MadWorld file!\n");
+				return false;
+			}
+		}
+		else if (rapi->Noesis_CheckFileExt(name, ".tpl"))
+		{
+			numTPL++;
+			if (game != MADWORLD)
+			{
+				DBGLOG("Found MadWorld file!\n");
+				return false;
+			}
+		}
 
 		namesp += strSize;
 	}
-	if (numWMB <= 0 && numMOT <= 0 && numSCR <= 0)
+	if (numWMB <= 0 && numMOT <= 0 && numSCR <= 0 && numMDB <= 0)
 	{ //nothing of interest in here
+		return false;
+	}
+	if (game == MADWORLD && numMDB == 0) {
+		DBGLOG("Found 0 MadWorld model!\n");
 		return false;
 	}
 	if (game == BAYONETTA2 && numSCR > 0) {
@@ -293,6 +324,8 @@ bool Model_Bayo_Check(BYTE *fileBuffer, int bufferLen, noeRAPI_t *rapi)
 		DBGLOG("Found TW101 File (VANQUISH loader)!\n");
 		return false;
 	}
+	DBGLOG("Found %d mdb files\n", numMDB);
+	DBGLOG("Found %d mot files\n", numMOT);
 	DBGLOG("Found %d wmb files\n", numWMB);
 	DBGLOG("Found %d scr files\n", numSCR);
 	return true;
@@ -351,6 +384,11 @@ bool NPAPI_InitLocal(void)
 	{
 		return false;
 	}
+	int fh_mw = g_nfn->NPAPI_Register("MadWorld Model", ".dat");
+	if (fh_mw < 0)
+	{
+		return false;
+	}
 	OPENLOG();
 	bayoSetMatTypes();
 	//set the data handlers for this format
@@ -374,6 +412,8 @@ bool NPAPI_InitLocal(void)
 	g_nfn->NPAPI_SetTypeHandler_LoadModel(fh_td, Model_Bayo_Load<false, TD>);
 	g_nfn->NPAPI_SetTypeHandler_TypeCheck(fh_ar, Model_Bayo_Check<true, ANARCHY_REIGNS>);
 	g_nfn->NPAPI_SetTypeHandler_LoadModel(fh_ar, Model_Bayo_Load<true, ANARCHY_REIGNS>);
+	g_nfn->NPAPI_SetTypeHandler_TypeCheck(fh_mw, Model_Bayo_Check<true, MADWORLD>);
+	g_nfn->NPAPI_SetTypeHandler_LoadModel(fh_mw, Model_Bayo_Load<true, MADWORLD>);
 	//g_nfn->NPAPI_PopupDebugLog(0);
 	return true;
 }

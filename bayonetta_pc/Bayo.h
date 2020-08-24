@@ -1063,7 +1063,7 @@ modelBone_t *Model_Bayo_CreateBones(bayoWMBHdr<big> &hdr, BYTE *data, noeRAPI_t 
 	animBoneTT = (short int *)(data + hdr.ofsBoneHieB);
 	std::map<short int, short int> boneMap;
 	for (short int i = 0; i < 0x1000; i++) {
-		short int decoded_index = Model_Bayo_DecodeMotionIndex<big>(animBoneTT, i);
+		short int decoded_index = Model_Bayo_DecodeMotionIndex<big, BAYONETTA>(animBoneTT, i);
 		if (decoded_index != 0x0fff) {
 			boneMap.insert(std::pair <short int, short int>(decoded_index, i));
 		}
@@ -2416,7 +2416,7 @@ noesisModel_t *Model_Bayo_Load(BYTE *fileBuffer, int bufferLen, int &numMdl, noe
 	for (int i = 0; i < dfiles.Num(); i++)
 	{
 		bayoDatFile_t &df = dfiles[i];
-		if (rapi->Noesis_CheckFileExt(df.name, ".wmb"))
+		if (rapi->Noesis_CheckFileExt(df.name, ".wmb") || rapi->Noesis_CheckFileExt(df.name, ".mdb"))
 		{ //it's a model
 			CArrayList<noesisTex_t *> textures;
 			Model_Bayo_LoadModel<big, game>(dfiles, df, rapi, models, textures, NULL);
