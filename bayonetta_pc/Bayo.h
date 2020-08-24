@@ -1063,7 +1063,7 @@ modelBone_t *Model_Bayo_CreateBones(bayoWMBHdr<big> &hdr, BYTE *data, noeRAPI_t 
 	animBoneTT = (short int *)(data + hdr.ofsBoneHieB);
 	std::map<short int, short int> boneMap;
 	for (short int i = 0; i < 0x1000; i++) {
-		short int decoded_index = Model_Bayo_DecodeMotionIndex<big>(animBoneTT, i);
+		short int decoded_index = Model_Bayo_DecodeMotionIndex<big, BAYONETTA>(animBoneTT, i);
 		if (decoded_index != 0x0fff) {
 			boneMap.insert(std::pair <short int, short int>(decoded_index, i));
 		}

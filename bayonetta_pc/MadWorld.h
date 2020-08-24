@@ -279,6 +279,10 @@ modelBone_t * Model_MadWorld_CreateBones(madWorldMDBHeader<big> &hdr, BYTE *data
 	float  *posList = (float *)(data + hdr.bonePositionOffset);
 	float  *relPosList = (float *)(data + hdr.boneRelativePositionOffset);
 	int8_t *nameList = (int8_t *)(data + hdr.boneNameOffset);
+	animBoneTT = (short int*)(rapi->Noesis_PooledAlloc(sizeof(short int) * 256));
+	for (int i = 0; i < 256; i++) {
+		animBoneTT[i] = -1;
+	}
 	numBones = hdr.numBones;
 	DBGLOG("Found %d bones\n", numBones);
 	modelBone_t *bones = rapi->Noesis_AllocBones(numBones + 1);
@@ -298,17 +302,18 @@ modelBone_t * Model_MadWorld_CreateBones(madWorldMDBHeader<big> &hdr, BYTE *data
 		else {
 			bone->eData.parent = NULL;
 		}
-sprintf_s(bone->name, 30, "bone%03i", nameList[i]);
-bone->mat = g_identityMatrix;
-float pos[3];
-memcpy(pos, ppos, sizeof(pos));
-if (big) {
-	LITTLE_BIG_SWAP(pos[0]);
-	LITTLE_BIG_SWAP(pos[1]);
-	LITTLE_BIG_SWAP(pos[2]);
-}
-g_mfn->Math_VecCopy(pos, bone->mat.o);
-bone->userIndex = 5;
+		sprintf_s(bone->name, 30, "bone%03i", nameList[i]);
+		animBoneTT[nameList[i]] = i;
+		bone->mat = g_identityMatrix;
+		float pos[3];
+		memcpy(pos, ppos, sizeof(pos));
+		if (big) {
+			LITTLE_BIG_SWAP(pos[0]);
+			LITTLE_BIG_SWAP(pos[1]);
+			LITTLE_BIG_SWAP(pos[2]);
+		}
+		g_mfn->Math_VecCopy(pos, bone->mat.o);
+		bone->userIndex = 5;
 	}
 	bones[numBones].index = numBones;
 	bones[numBones].eData.parent = NULL;
@@ -649,6 +654,9 @@ static void Model_Bayo_LoadModel<true, MADWORLD>(CArrayList<bayoDatFile_t> &dfil
 	CArrayList<noesisMaterial_t *> matList;
 	CArrayList<bayoDatFile_t *> texFiles;
 	CArrayList<noesisTex_t *> textures;
+	CArrayList<bayoDatFile_t *> motfiles;
+	CArrayList<noesisAnim_t *> animList;
+	CArrayList<bayoDatFile_t *> expfile;
 
 	BYTE *data = df.data;
 	int dataSize = df.dataSize;
@@ -682,6 +690,12 @@ static void Model_Bayo_LoadModel<true, MADWORLD>(CArrayList<bayoDatFile_t> &dfil
 	int numBones;
 	short int * animBoneTT;
 	modelBone_t *bones = Model_MadWorld_CreateBones<big>(hdr, data, rapi, numBones, animBoneTT);
+
+	Model_Bayo_GetMotionFiles(dfiles, df, rapi, motfiles);
+	if (bones) {
+		Model_Bayo_LoadMotions<big, game>(animList, motfiles, expfile, bones, numBones, rapi, animBoneTT, data + hdr.boneRelativePositionOffset);
+		Model_Bayo_LoadExternalMotions<big, game>(animList, df, expfile, bones, numBones, rapi, animBoneTT, data + hdr.boneRelativePositionOffset);
+	}
 
 	int numMeshes = Model_MadWorld_NumMeshes(hdr, data);
 	DBGLOG("Found %d meshes\n", numMeshes);
@@ -752,6 +766,14 @@ static void Model_Bayo_LoadModel<true, MADWORLD>(CArrayList<bayoDatFile_t> &dfil
 	if (bones) {
 		rapi->rpgSetExData_Bones(bones, numBones + 1);
 	}
+	int anims_num = animList.Num();
+	noesisAnim_t *anims = rapi->Noesis_AnimFromAnimsList(animList, anims_num);
+	//for(int i = 0; i < anims_num; i++) {
+	//	DBGLOG("anim: %s, size: %d, flag: %d\n", animList[i]->filename, animList[i]->dataLen, animList[i]->flags & NANIMFLAG_FILENAMETOSEQ);
+	//	DBGLOG("seq: %p, size: %d\n", (anims+i)->aseq, (anims+i)->dataLen );
+	//}
+	rapi->rpgSetExData_AnimsNum(anims, 1);
+	DBGLOG("Found %d anims\n", anims_num);
 	noesisModel_t *mdl = rapi->rpgConstructModel();
 	if (mdl) {
 		models.Append(mdl);
@@ -760,6 +782,9 @@ static void Model_Bayo_LoadModel<true, MADWORLD>(CArrayList<bayoDatFile_t> &dfil
 	matList.Clear();
 	texFiles.Clear();
 	textures.Clear();
+	motfiles.Clear();
+	animList.Clear();
+	expfile.Clear();
 }
 
 template <>

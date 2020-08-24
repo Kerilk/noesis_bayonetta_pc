@@ -277,7 +277,9 @@ struct bayoInterpolKeyframe8 : public bayoInterpolKeyframe8_s {
 };
 
 //decode motion index (simpler thanks to Alquazar(zenhax))
-template <bool big>
+template <bool big, game_t game>
+static inline short int Model_Bayo_DecodeMotionIndex(const short int *table, const short int boneIndex);
+template <bool big, game_t game>
 static inline short int Model_Bayo_DecodeMotionIndex(const short int *table, const short int boneIndex) {
 	short int index = table[(boneIndex >> 8) & 0xf];
 	if (big) LITTLE_BIG_SWAP(index);
@@ -292,6 +294,18 @@ static inline short int Model_Bayo_DecodeMotionIndex(const short int *table, con
 	}
 	return 0x0fff;
 }
+
+template <>
+static inline short int Model_Bayo_DecodeMotionIndex<true, MADWORLD>(const short int *table, const short int boneIndex) {
+	const bool big = true;
+	if (boneIndex > 0xff)
+		return 0x0fff;
+	short int index = table[boneIndex & 0xff];
+	if (index == -1)
+		return 0x0fff;
+	return index;
+}
+
 //initialize motion matrix
 template <bool big, game_t game>
 static void Model_Bayo_InitMotions(modelMatrix_t * &matrixes, float * &tmpValues, float * &tmpCumulScale, modelBone_t *bones, const int boneNumber, const short int frameCount, noeRAPI_t *rapi, void * extraBoneInfo) {
@@ -510,7 +524,7 @@ static float getExpEntryValue(bayoEXPEntry<big> &entry, int fi, float * tmpValue
 	if (entry.flags & 0x80000000) {
 		short int sourceBone;
 		char sourceTrack;
-		sourceBone = Model_Bayo_DecodeMotionIndex<big>(animBoneTT, entry.entryUnion.boneTrackInfo.boneIndex);
+		sourceBone = Model_Bayo_DecodeMotionIndex<big, BAYONETTA>(animBoneTT, entry.entryUnion.boneTrackInfo.boneIndex);
 		sourceTrack = entry.entryUnion.boneTrackInfo.animationTrack;
 		if (fi == 0) {
 			DBGLOG("\t\t\t\t\tsrcBone: %d\n", sourceBone);
@@ -646,7 +660,7 @@ static void Model_Bayo1_ApplyEXP(CArrayList<bayoDatFile_t *> & expfile, float * 
 		for (unsigned int i = 0; i < hdr.numRecords - 1; i++) {
 			DBGLOG("\t\trecord: %d\n", i);
 			bayoEXPRecord<big> record((bayoEXPRecord_t *)(data + hdr.offsetRecords + i * sizeof(bayoEXPRecord_t)));
-			short int targetBone = Model_Bayo_DecodeMotionIndex<big>(animBoneTT, record.boneIndex);
+			short int targetBone = Model_Bayo_DecodeMotionIndex<big, BAYONETTA>(animBoneTT, record.boneIndex);
 			char targetTrack = record.animationTrack;
 			DBGLOG("\t\t\tbone: %d, track: %d\n", (int)targetBone, (int)targetTrack);
 			for (int fi = 0; fi < frameCount; fi++) {
@@ -991,7 +1005,7 @@ static void Model_Bayo_LoadMotions(CArrayList<noesisAnim_t *> &animList, CArrayL
 		int frameCount;
 		int ofsMotion;
 		int numEntries;
-		if (game != BAYONETTA) {
+		if (game != BAYONETTA && game != MADWORLD) {
 			if (dataSize < sizeof(bayo2MOTHdr_t))
 			{
 				continue;
@@ -1034,7 +1048,7 @@ static void Model_Bayo_LoadMotions(CArrayList<noesisAnim_t *> &animList, CArrayL
 		DBGALOG("unknown flag: 0x%04x, frame count: %d, data offset: 0x%04x, record number: %d\n", unknownA, frameCount, ofsMotion, numEntries);
 		for (int i = 0; i < numEntries; i++) {
 			bayoMotItem<big> it(&items[i]);
-			if (game != BAYONETTA) data = (BYTE *)&items[i];
+			if (game != BAYONETTA && game != MADWORLD) data = (BYTE *)&items[i];
 			if (it.boneIndex == 0x7fff) {
 				DBGALOG("%5d %3d 0x%02x %3d %3d %+f (0x%08x)\n", it.boneIndex, it.index, it.flag, it.elem_number, it.unknown, it.value.flt, it.value.offset);
 				continue;
@@ -1049,7 +1063,7 @@ static void Model_Bayo_LoadMotions(CArrayList<noesisAnim_t *> &animList, CArrayL
 				boneIndex = bone_number;
 			}
 			else {
-				boneIndex = Model_Bayo_DecodeMotionIndex<big>(animBoneTT, it.boneIndex);
+				boneIndex = Model_Bayo_DecodeMotionIndex<big, game>(animBoneTT, it.boneIndex);
 			}
 			if (boneIndex == 0x0fff) {
 				DBGALOG("%5d %3d 0x%02x %3d %3d %+f (0x%08x) cannot translate bone\n", it.boneIndex, it.index, it.flag, it.elem_number, it.unknown, it.value.flt, it.value.offset);
@@ -1118,7 +1132,7 @@ static void Model_Bayo_LoadMotions(CArrayList<noesisAnim_t *> &animList, CArrayL
 					DBGALOG("\t%d, %f\n", j, v);
 				}
 			}
-			else if (game != BAYONETTA && it.flag == 4) {
+			else if ((game != BAYONETTA && game != MADWORLD) && it.flag == 4) {
 				bayo2InterpolKeyframe4_t *v_p = (bayo2InterpolKeyframe4_t *)(data + it.value.offset);
 				bayo2InterpolKeyframe4_t *p_v_p;
 				bayo2InterpolKeyframe4<big> t_v(v_p);
@@ -1159,20 +1173,20 @@ static void Model_Bayo_LoadMotions(CArrayList<noesisAnim_t *> &animList, CArrayL
 				}
 				DBGALOG("\n");
 			}
-			else if (it.flag == 4 || (game != BAYONETTA && it.flag == 5)) {
+			else if (it.flag == 4 || ((game != BAYONETTA && game != MADWORLD) && it.flag == 5)) {
 
 				Model_Bayo_Interpolate<big, game, bayoInterpolHeader4_t, bayoInterpolKeyframe4_t, bayoInterpolKeyframe4<big>>(tmp_values + it.index * frameCount + boneIndex * frameCount * maxCoeffs,
 					data + it.value.offset,
 					it.elem_number, frameCount);
 			}
-			else if (game != BAYONETTA && it.flag == 6) {
+			else if ((game != BAYONETTA && game != MADWORLD) && it.flag == 6) {
 
 				Model_Bayo_Interpolate<big, BAYONETTA2, bayoInterpolHeader6_t, bayoInterpolKeyframe6_t, bayoInterpolKeyframe6<big>>(tmp_values + it.index * frameCount + boneIndex * frameCount * maxCoeffs,
 					data + it.value.offset,
 					it.elem_number, frameCount);
 
 			}
-			else if (it.flag == 6 || (game != BAYONETTA && it.flag == 7)) {
+			else if (it.flag == 6 || ((game != BAYONETTA && game != MADWORLD) && it.flag == 7)) {
 
 				Model_Bayo_Interpolate<big, BAYONETTA, bayoInterpolHeader6_t, bayoInterpolKeyframe6_t, bayoInterpolKeyframe6<big>>(tmp_values + it.index * frameCount + boneIndex * frameCount * maxCoeffs,
 					data + it.value.offset,
