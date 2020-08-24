@@ -364,12 +364,12 @@ int Model_MadWorld_NumMeshes(madWorldMDBHeader<big> &hdr, BYTE *data) {
 		return 0;
 	uint32_t *pMesh = (uint32_t *)(data + hdr.meshesOffset);
 	int count = 1;
-	DBGLOG("%x\n", hdr.meshesOffset);
+	//DBGLOG("%x\n", hdr.meshesOffset);
 	while (*pMesh) {
 		uint32_t off = *pMesh;
 		if (big)
 			LITTLE_BIG_SWAP(off);
-		DBGLOG("%x\n", off);
+		//DBGLOG("%x\n", off);
 		count++;
 		pMesh = (uint32_t*)((BYTE*)pMesh + off);
 	}
@@ -729,7 +729,8 @@ static void Model_Bayo_LoadModel<true, MADWORLD>(CArrayList<bayoDatFile_t> &dfil
 		rapi->rpgBindNormalBuffer(pVertexBuffer + offset, RPGEODATA_FLOAT, vertexSize);
 		offset += 3 * sizeof(float);
 		if (hdr.numColors && mesh.flags & 0x1) {
-			rapi->rpgBindColorBuffer(pVertexBuffer + offset, RPGEODATA_BYTE, vertexSize, 4);
+			// Don't bind color as they mess up the rendering.
+			//rapi->rpgBindColorBuffer(pVertexBuffer + offset, RPGEODATA_BYTE, vertexSize, 4);
 			offset += 4;
 		}
 		else {

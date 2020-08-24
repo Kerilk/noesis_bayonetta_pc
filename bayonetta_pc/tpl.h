@@ -148,7 +148,7 @@ inline void tplReadPixelValue(unsigned int v, unsigned char &r, unsigned char &g
 
 template <>
 inline void tplReadPixelValue<I4>(unsigned int v, unsigned char &r, unsigned char &g, unsigned char &b, unsigned char &a) {
-	r = g = b = v * 0x11;
+	r = g = b = v * 0xff / 0xf;;
 	a = 0xff;
 }
 
@@ -199,7 +199,7 @@ inline void tplDecodePixel(void *src, unsigned int i, unsigned int j, unsigned c
 	void *d;
 	unsigned int v;
 	tplComputePixelAddress<tplBPP[f], tplBlockWidth[f]>(d, src, i, j);
-	tplExtractPixelBits<tplBPP[f]>(v, d);
+	tplExtractPixelBits<tplBPP[f]>(v, d, !(j & 0x1));
 	tplReadPixelValue<f>(v, r, g, b, a);
 }
 
@@ -222,7 +222,7 @@ void tplWritePixel(void *dst, unsigned int i, unsigned int j, size_t ld, unsigne
 }
 
 template <tplFormats f>
-void tplDecodeBlock(void *dst, void *src, unsigned int width, unsigned height, size_t ld) {
+void tplDecodeBlock(void *dst, void *src, unsigned height, unsigned int width, size_t ld) {
 	for (unsigned int i = 0; i < height; i++) {
 		for (unsigned int j = 0; j < width; j++) {
 			unsigned char r, g, b, a;
@@ -238,7 +238,8 @@ template <tplFormats f>
 inline void tplDecodePaletteIndex(unsigned int &v, void *src, unsigned int i, unsigned int j) {
 	void *d;
 	tplComputePixelAddress<tplBPP[f], tplBlockWidth[f]>(d, src, i, j);
-	tplExtractPixelBits<tplBPP[f]>(v, d);
+	//DBGLOG("\t\t\t%p\n", d);
+	tplExtractPixelBits<tplBPP[f]>(v, d, !(j & 0x1));
 }
 
 inline void tplReadPaletteValue(unsigned int &v, void *palette, unsigned int index) {
@@ -251,12 +252,13 @@ template <tplFormats f, tplPaletteFormats pf>
 inline void tplDecodePalettePixel(void *src, void *palette, unsigned int i, unsigned int j, unsigned char &r, unsigned char &g, unsigned char &b, unsigned char &a) {
 	unsigned int v;
 	tplDecodePaletteIndex<f>(v, src, i, j);
+	//DBGLOG("\t\t\t%d %d: %d\n", i, j, v);
 	tplReadPaletteValue(v, palette, v);
 	tplReadPixelValue<tplPaletteFormatTable[pf]>(v, r, g, b, a);
 }
 
 template <tplFormats f, tplPaletteFormats pf>
-void tplDecodePaletteBlock(void *dst, void *src, void *palette, unsigned int width, unsigned int height, size_t ld) {
+void tplDecodePaletteBlock(void *dst, void *src, void *palette, unsigned int height, unsigned int width, size_t ld) {
 	for (unsigned int i = 0; i < height; i++) {
 		for (unsigned int j = 0; j < width; j++) {
 			unsigned char r, g, b, a;
@@ -276,14 +278,14 @@ inline void tplDecodeCMPRSubBlock(void *dst, void *src) {
 	tplReadPixelValue<RGB565>((unsigned int)c1, vc[1][0], vc[1][1], vc[1][2], vc[1][3]);
 	if (c0 > c1) {
 		for (int i = 0; i < 4; i++) {
-			vc[2][0] = ((int)vc[1][i] + 2 * vc[0][i]) / 3;
-			vc[3][0] = ((int)vc[0][i] + 2 * vc[1][i]) / 3;
+			vc[2][i] = ((int)vc[1][i] + 2 * vc[0][i]) / 3;
+			vc[3][i] = ((int)vc[0][i] + 2 * vc[1][i]) / 3;
 		}
 	}
 	else {
-		for (int i = 0; i < 4; i++) {
-			vc[2][0] = ((int)vc[0][i] + vc[1][i]) / 2;
-			vc[3][0] = 0;
+		for (int i = 0; i < 3; i++) {
+			vc[2][i] = ((int)vc[0][i] + vc[1][i]) / 2;
+			vc[3][i] = 0;
 		}
 	}
 	for (int i = 0; i < 4; i++) {
@@ -296,7 +298,7 @@ inline void tplDecodeCMPRSubBlock(void *dst, void *src) {
 }
 
 template <>
-inline void tplDecodeBlock<CMPR>(void *dst, void *src, unsigned int width, unsigned int height, size_t ld) {
+inline void tplDecodeBlock<CMPR>(void *dst, void *src, unsigned int height, unsigned int width, size_t ld) {
 	unsigned char buff[8][8][4];
 	tplDecodeCMPRSubBlock(&(buff[0][0][0]), (unsigned char *)src);
 	tplDecodeCMPRSubBlock(&(buff[0][4][0]), (unsigned char *)src + 8);
@@ -364,6 +366,7 @@ void tplDecodeImage(void *dst, void *src, unsigned int width, unsigned int heigh
 					tplDecodePaletteBlock<C4, PRGB5A3>(pdst, psrc, palette, bh, bw, ld);
 					break;
 				}
+				break;
 			case C8:
 				switch (pf) {
 				case PIA8:
@@ -376,6 +379,7 @@ void tplDecodeImage(void *dst, void *src, unsigned int width, unsigned int heigh
 					tplDecodePaletteBlock<C8, PRGB5A3>(pdst, psrc, palette, bh, bw, ld);
 					break;
 				}
+				break;
 			case C14X2:
 				switch (pf) {
 				case PIA8:
@@ -388,6 +392,7 @@ void tplDecodeImage(void *dst, void *src, unsigned int width, unsigned int heigh
 					tplDecodePaletteBlock<C14X2, PRGB5A3>(pdst, psrc, palette, bh, bw, ld);
 					break;
 				}
+				break;
 			}
 		}
 	}
