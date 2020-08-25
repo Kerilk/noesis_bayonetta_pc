@@ -217,6 +217,7 @@ struct bayoSCRHdr : public bayoSCRHdr_s {
 		}
 	}
 };
+
 typedef struct bayoVector_s {
 	float x;
 	float y;
@@ -227,6 +228,28 @@ typedef struct bayoVector_s {
 		LITTLE_BIG_SWAP(z);
 	}
 } bayoVector_t;
+
+typedef struct bayoSCRModelDscr_s
+{
+	BYTE				name[16];
+	unsigned int		offset;
+	float				transform[9];
+	short				unknownA[42];
+}bayoSCRModelDscr_t;
+template <bool big>
+struct bayoSCRModelDscr : public bayoSCRModelDscr_s {
+	bayoSCRModelDscr(bayoSCRModelDscr_t * ptr) : bayoSCRModelDscr_s(*ptr) {
+		if (big) {
+			LITTLE_BIG_SWAP(offset);
+			for (int i = 0; i < 9; i++) {
+				LITTLE_BIG_SWAP(transform[i]);
+			}
+			for (int i = 0; i < 42; i++) {
+				LITTLE_BIG_SWAP(unknownA[i]);
+			}
+		}
+	}
+};
 
 #define BAYO_VERTEX_FMT_PRESENT		0x40000000
 #define BAYO_VERTEX_FMT_UNKNOWNA	0x20000000

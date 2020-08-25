@@ -65,27 +65,7 @@ struct bayo2SCRHdr : public bayo2SCRHdr_s {
 		}
 	}
 };
-typedef struct bayoSCRModelDscr_s
-{
-	BYTE				name[16];
-	unsigned int		offset;
-	float				transform[9];
-	short				unknownA[42];
-}bayoSCRModelDscr_t;
-template <bool big>
-struct bayoSCRModelDscr : public bayoSCRModelDscr_s {
-	bayoSCRModelDscr(bayoSCRModelDscr_t * ptr) : bayoSCRModelDscr_s(*ptr) {
-		if (big) {
-			LITTLE_BIG_SWAP(offset);
-			for (int i = 0; i < 9; i++) {
-				LITTLE_BIG_SWAP(transform[i]);
-			}
-			for (int i = 0; i < 42; i++) {
-				LITTLE_BIG_SWAP(unknownA[i]);
-			}
-		}
-	}
-};
+
 typedef struct bayo2SCRModelDscr_s
 {
 	unsigned int		offset;
