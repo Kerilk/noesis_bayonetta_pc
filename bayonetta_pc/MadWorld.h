@@ -189,6 +189,45 @@ struct madWorldMDBMesh : public madWorldMDBMesh_s {
 	}
 };
 
+typedef struct madWorldSCRHdr_s
+{
+	BYTE				id[4];
+	int					numModels;
+	unsigned int		texturesOffset;
+	BYTE				unknown[4];
+} madWorldSCRHdr_t;
+template <bool big>
+struct madWorldSCRHdr : public madWorldSCRHdr_s {
+	madWorldSCRHdr(madWorldSCRHdr_t * ptr) : madWorldSCRHdr_s(*ptr) {
+		if (big) {
+			LITTLE_BIG_SWAP(numModels);
+			LITTLE_BIG_SWAP(texturesOffset);
+		}
+	}
+};
+
+typedef struct madWorldSCRModelDscr_s
+{
+	char		name[0x30];
+	uint32_t	offset;
+	float		transform[9];
+	uint32_t    unknownA[2];
+}madWorldSCRModelDscr_t;
+template <bool big>
+struct madWorldSCRModelDscr : public madWorldSCRModelDscr_s {
+	madWorldSCRModelDscr(madWorldSCRModelDscr_t * ptr) : madWorldSCRModelDscr_s(*ptr) {
+		if (big) {
+			LITTLE_BIG_SWAP(offset);
+			for (int i = 0; i < 9; i++) {
+				LITTLE_BIG_SWAP(transform[i]);
+			}
+			for (int i = 0; i < 2; i++) {
+				LITTLE_BIG_SWAP(unknownA[i]);
+			}
+		}
+	}
+};
+
 template <>
 static void Model_Bayo_LoadTextures<true, MADWORLD>(CArrayList<noesisTex_t *> &textures, CArrayList<bayoDatFile_t *> &texFiles, noeRAPI_t *rapi) {
 	const bool big = true;
@@ -487,7 +526,7 @@ Model_MadWorld_DecodeIndexes(madWorldMDBHeader<big> &hdr, madWorldMDBMesh<big> &
 
 template <bool big>
 inline void
-Model_MadWorld_DecodeVertexPosition(madWorldMDBHeader<big> &hdr, madWorldMDBMesh<big> &mesh, BYTE * &pPos, BYTE *pPositions, uint16_t positionIndex) {
+Model_MadWorld_DecodeVertexPosition(madWorldMDBHeader<big> &hdr, madWorldMDBMesh<big> &mesh, BYTE * &pPos, BYTE *pPositions, uint16_t positionIndex, modelMatrix_t * pretransform) {
 	if (hdr.vertexPosDivisorBit == -1) { //float positions
 		float *pPosit = (float *)(pPositions + 0x10 * positionIndex);
 		for (int i = 0; i < 3; i++) {
@@ -503,6 +542,11 @@ Model_MadWorld_DecodeVertexPosition(madWorldMDBHeader<big> &hdr, madWorldMDBMesh
 				LITTLE_BIG_SWAP(p);
 			((float *)pPos)[i] = p / (float)(1 << hdr.vertexPosDivisorBit);
 		}
+	}
+	if (pretransform) {
+		float tmp[3];
+		g_mfn->Math_TransformPointByMatrixNoTrans(pretransform, (float *)pPos, tmp);
+		g_mfn->Math_VecCopy(tmp, (float *)pPos);
 	}
 	pPos += 3 * sizeof(float);
 }
@@ -536,10 +580,15 @@ Model_MadWorld_DecodeVextexBoneWeights(madWorldMDBHeader<big> &hdr, madWorldMDBM
 
 template <bool big>
 inline void
-Model_MadWorld_DecodeVertexNormal(madWorldMDBHeader<big> &hdr, madWorldMDBMesh<big> &mesh, BYTE * &pNor, BYTE *pNormals, uint16_t normalIndex) {
+Model_MadWorld_DecodeVertexNormal(madWorldMDBHeader<big> &hdr, madWorldMDBMesh<big> &mesh, BYTE * &pNor, BYTE *pNormals, uint16_t normalIndex, modelMatrix_t * pretransform) {
 	int8_t *pNorm = (int8_t*)(pNormals + 3 * normalIndex);
 	for (int i = 0; i < 3; i++) {
 		((float *)pNor)[i] = pNorm[i] / 64.0f;
+	}
+	if (pretransform) {
+		float tmp[3];
+		g_mfn->Math_TransformPointByMatrixNoTrans(pretransform, (float *)pNor, tmp);
+		g_mfn->Math_VecCopy(tmp, (float *)pNor);
 	}
 	pNor += 3 * sizeof(float);
 }
@@ -570,18 +619,18 @@ Model_MadWorld_DecodeVertexUV(madWorldMDBHeader<big> &hdr, madWorldMDBMesh<big> 
 
 template <bool big>
 void Model_MadWorld_DecodeVertex(madWorldMDBHeader<big> &hdr, madWorldMDBMesh<big> &mesh, BYTE * &pVertex, BYTE * &pIndex,
-		BYTE *pPositions, BYTE* pNormals, BYTE* pColors, BYTE* pUVs, BYTE* pBonePalette) {
+		BYTE *pPositions, BYTE* pNormals, BYTE* pColors, BYTE* pUVs, BYTE* pBonePalette, modelMatrix_t * pretransform) {
 	uint16_t positionIndex = 0;
 	uint16_t normalIndex = 0;
 	uint16_t colorIndex = 0;
 	uint16_t UVIndex = 0;
 	Model_MadWorld_DecodeIndexes(hdr, mesh, pIndex, positionIndex, normalIndex, colorIndex, UVIndex);
 	//DBGLOG("positionIndex: %d, normalIndex: %d, colorIndex: %d, UVIndex: %d\n", positionIndex, normalIndex, colorIndex, UVIndex);
-	Model_MadWorld_DecodeVertexPosition(hdr, mesh, pVertex, pPositions, positionIndex);
+	Model_MadWorld_DecodeVertexPosition(hdr, mesh, pVertex, pPositions, positionIndex, pretransform);
 	if (hdr.numBonePalette)
 		Model_MadWorld_DecodeVextexBoneWeights(hdr, mesh, pVertex, pPositions, pBonePalette, positionIndex);
 	if (hdr.numNormals && !(mesh.flags &0x4))
-		Model_MadWorld_DecodeVertexNormal(hdr, mesh, pVertex, pNormals, normalIndex);
+		Model_MadWorld_DecodeVertexNormal(hdr, mesh, pVertex, pNormals, normalIndex, pretransform);
 	if (hdr.numColors && mesh.flags & 0x1)
 		Model_MadWorld_DecodeVertexColor(hdr, mesh, pVertex, pColors, colorIndex);
 	if (hdr.numUVs && !(mesh.flags & 0x8))
@@ -591,7 +640,7 @@ void Model_MadWorld_DecodeVertex(madWorldMDBHeader<big> &hdr, madWorldMDBMesh<bi
 
 
 template <bool big>
-int Model_MadWorld_DecodeTriangles(madWorldMDBHeader<big> &hdr, madWorldMDBMesh<big> &mesh, BYTE * pVertexBuffer, uint32_t * pIndexBuffer, uint8_t vertexSize, BYTE* pMesh, BYTE *data, size_t dataSize) {
+int Model_MadWorld_DecodeTriangles(madWorldMDBHeader<big> &hdr, madWorldMDBMesh<big> &mesh, BYTE * pVertexBuffer, uint32_t * pIndexBuffer, uint8_t vertexSize, BYTE* pMesh, BYTE *data, size_t dataSize, modelMatrix_t * pretransform) {
 	BYTE* pIndexBuffers = Model_MadWorld_MeshIndexBuffer<big>(hdr, mesh, pMesh, data, dataSize);
 	int16_t vertexPosDivisorBit = hdr.vertexPosDivisorBit;
 	int16_t UVsDivisorBit = hdr.UVsDivisorBit;
@@ -612,14 +661,14 @@ int Model_MadWorld_DecodeTriangles(madWorldMDBHeader<big> &hdr, madWorldMDBMesh<
 		pIndexBuffers += 2;
 		if (type == 0x98 || type == 0xa0) {
 			Model_MadWorld_DecodeVertex(hdr, mesh, pVertexBuffer, pIndexBuffers,
-				pPositions, pNormals, pColors, pUVs, pBonePalette);
+				pPositions, pNormals, pColors, pUVs, pBonePalette, pretransform);
 			numVertexes++;
 			Model_MadWorld_DecodeVertex(hdr, mesh, pVertexBuffer, pIndexBuffers,
-				pPositions, pNormals, pColors, pUVs, pBonePalette);
+				pPositions, pNormals, pColors, pUVs, pBonePalette, pretransform);
 			numVertexes++;
 			for (uint16_t j = 2; j < numIndexes; j++) {
 				Model_MadWorld_DecodeVertex(hdr, mesh, pVertexBuffer, pIndexBuffers,
-					pPositions, pNormals, pColors, pUVs, pBonePalette);
+					pPositions, pNormals, pColors, pUVs, pBonePalette, pretransform);
 				if (j & 1) {
 					*(pIndexBuffer++) = numVertexes - 1;
 					*(pIndexBuffer++) = numVertexes - 2;
@@ -636,7 +685,7 @@ int Model_MadWorld_DecodeTriangles(madWorldMDBHeader<big> &hdr, madWorldMDBMesh<
 			for (uint16_t j = 0; j < numIndexes/3; j++) {
 				for (uint8_t k = 0; k < 3; k++) {
 					Model_MadWorld_DecodeVertex(hdr, mesh, pVertexBuffer, pIndexBuffers,
-						pPositions, pNormals, pColors, pUVs, pBonePalette);
+						pPositions, pNormals, pColors, pUVs, pBonePalette, pretransform);
 					*(pIndexBuffer++) = numVertexes++;
 				}
 				numTriangles++;
@@ -718,7 +767,7 @@ static void Model_Bayo_LoadModel<true, MADWORLD>(CArrayList<bayoDatFile_t> &dfil
 		DBGLOG("\t\t%u vertices, %u triangles, vertexSize: %u\n", numVertexes, numTriangles, vertexSize);
 		BYTE *pVertexBuffer = (BYTE*)(rapi->Noesis_PooledAlloc(numVertexes*vertexSize));
 		uint32_t *pIndexBuffer  = (uint32_t *)(rapi->Noesis_PooledAlloc(numTriangles*3*sizeof(int)));
-		if (Model_MadWorld_DecodeTriangles<big>(hdr, mesh, pVertexBuffer, pIndexBuffer, vertexSize, (BYTE*)pMesh, data, dataSize)) {
+		if (Model_MadWorld_DecodeTriangles<big>(hdr, mesh, pVertexBuffer, pIndexBuffer, vertexSize, (BYTE*)pMesh, data, dataSize, pretransform)) {
 			continue; //Wrong IndexBuffer data found;
 		}
 		DBGLOG("\t\tSetting buffers\n");
@@ -795,5 +844,66 @@ static void Model_Bayo_LoadModel<true, MADWORLD>(CArrayList<bayoDatFile_t> &dfil
 
 template <>
 static void Model_Bayo_LoadScenery<true, MADWORLD>(CArrayList<bayoDatFile_t> &olddfiles, bayoDatFile_t &df, noeRAPI_t *rapi, CArrayList<noesisModel_t *> &models) {
-	return;
+	const bool big = true;
+	const game_t game = MADWORLD;
+	DBGLOG("Loading %s\n", df.name);
+	if (df.dataSize < sizeof(madWorldSCRHdr_t)) {
+		DBGLOG("Empty SCR file\n");
+		return;
+	}
+	madWorldSCRHdr<big> hdr((madWorldSCRHdr_t *)df.data);
+	if (memcmp(hdr.id, "SCR\0", 4))
+	{ //invalid header
+		DBGLOG("Invalid SCR file\n");
+		return;
+	}
+
+	bayoDatFile_t textureFile;
+	textureFile.name = rapi->Noesis_PooledString("dummy.wtb");
+	textureFile.data = df.data + hdr.texturesOffset;
+	textureFile.dataSize = df.dataSize - hdr.texturesOffset;
+	CArrayList<bayoDatFile_t> dfiles;
+	CArrayList<bayoDatFile_t *> texfiles;
+	texfiles.Append(&textureFile);
+	CArrayList<noesisTex_t *> textures;
+	Model_Bayo_LoadTextures<big, game>(textures, texfiles, rapi);
+	int sharedtexturesoffset = -1;
+	sharedtexturesoffset = textures.Num();
+	DBGLOG("found %d models in %s\n", hdr.numModels, df.name);
+	for (int i = 0; i < hdr.numModels; i++) {
+		bayoDatFile_t modelFile;
+		int dscrOffset = sizeof(madWorldSCRHdr_t) + i * sizeof(madWorldSCRModelDscr_t);
+		DBGLOG("offset: %x\n", dscrOffset);
+		madWorldSCRModelDscr<big> modelDscr((madWorldSCRModelDscr_t *)(df.data + dscrOffset));
+		char modelName[0x31];
+		char fileName[0x35];
+		memset(modelName, 0, 21);
+		for (int j = 0; j < 0x30; j++) {
+			modelName[j] = modelDscr.name[j];
+		}
+		modelName[0x30] = 0;
+		snprintf(fileName, 21, "%s.wmb", modelName);
+		DBGLOG("%d - %d: model name: %s, ", i, models.Num(), fileName);
+		modelFile.name = rapi->Noesis_PooledString(fileName);
+		modelFile.data = df.data + dscrOffset + modelDscr.offset;
+		int j = i;
+		size_t size = 0;
+		while (size == 0) {
+			if (j < (hdr.numModels - 1)) {
+				int nextDscrOffset = sizeof(madWorldSCRHdr_t) + (j + 1) * sizeof(madWorldSCRModelDscr_t);
+				madWorldSCRModelDscr<big> nextModelDscr((madWorldSCRModelDscr_t *)(df.data + nextDscrOffset));
+				size = (nextDscrOffset + nextModelDscr.offset) - (dscrOffset + modelDscr.offset);
+			}
+			else {
+				size = hdr.texturesOffset - (dscrOffset + modelDscr.offset);
+			}
+			j++;
+		}
+		modelFile.dataSize = size;
+		DBGLOG("start: %d, size: %d\n", dscrOffset + modelDscr.offset, modelFile.dataSize);
+		modelMatrix_t m;
+		Model_Bayo_CreatePreTransformMatrix(modelDscr.transform, m);
+		Model_Bayo_LoadModel<big, game>(dfiles, modelFile, rapi, models, textures, &m, sharedtexturesoffset);
+	}
+	rapi->SetPreviewOption("drawAllModels", "1");
 }

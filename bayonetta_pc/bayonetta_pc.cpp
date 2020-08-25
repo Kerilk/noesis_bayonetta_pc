@@ -142,6 +142,7 @@ bool Model_Bayo_Check(BYTE *fileBuffer, int bufferLen, noeRAPI_t *rapi)
 	int numWTA = 0;
 	int numMDB = 0;
 	int numTPL = 0;
+	int numHKX = 0;
 	DBGLOG("Found %d resources\n", dat.numRes);
 	for (int i = 0; i < dat.numRes; i++)
 	{
@@ -155,6 +156,8 @@ bool Model_Bayo_Check(BYTE *fileBuffer, int bufferLen, noeRAPI_t *rapi)
 			numWTB++;
 		if (rapi->Noesis_CheckFileExt(name, ".wta"))
 			numWTA++;
+		if (rapi->Noesis_CheckFileExt(name, ".hkx"))
+			numHKX++;
 		if (rapi->Noesis_CheckFileExt(name, ".wmb"))
 		{
 			numWMB++;
@@ -264,12 +267,12 @@ bool Model_Bayo_Check(BYTE *fileBuffer, int bufferLen, noeRAPI_t *rapi)
 		}
 		else if ((game == BAYONETTA || game == BAYONETTA2) && rapi->Noesis_CheckFileExt(name, ".hkx"))
 		{
-			DBGLOG("Found Vanquish or Anarchy Reigns File!\n");
+			DBGLOG("Found Vanquish or Anarchy Reigns File or MadWorld File!\n");
 			return false;
 		}
 		else if (game == ASTRAL_CHAIN && rapi->Noesis_CheckFileExt(name, ".scr"))
 		{
-			DBGLOG("Found Bayonetta or Bayonetta 2 or MGRR File!\n");
+			DBGLOG("Found Bayonetta or Bayonetta 2 or MGRR or MadWorld File!\n");
 			return false;
 		}
 		else if (rapi->Noesis_CheckFileExt(name, ".scr"))
@@ -301,9 +304,15 @@ bool Model_Bayo_Check(BYTE *fileBuffer, int bufferLen, noeRAPI_t *rapi)
 	{ //nothing of interest in here
 		return false;
 	}
-	if (game == MADWORLD && numMDB == 0) {
-		DBGLOG("Found 0 MadWorld model!\n");
-		return false;
+	if (game == MADWORLD) {
+		if (numMDB == 0 && numSCR == 0) {
+			DBGLOG("Found 0 MadWorld model or level!\n");
+			return false;
+		}
+		if (numSCR && !numHKX) {
+			DBGLOG("Found Bayonetta or Bayonetta2 level");
+			return false;
+		}
 	}
 	if (game == BAYONETTA2 && numSCR > 0) {
 		namesp = fileBuffer + dat.ofsNames + sizeof(int);
