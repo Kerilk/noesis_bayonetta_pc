@@ -392,7 +392,9 @@ void Model_MadWorld_LoadMaterials(madWorldMDBHeader<big> &hdr, CArrayList<noesis
 		DBGLOG("Material name: %s\n", matName);
 		noesisMaterial_t *nmat = rapi->Noesis_GetMaterialList(1, true);
 		nmat->name = rapi->Noesis_PooledString(matName);
-		nmat->noDefaultBlend = true; //can't find a way to determine how blending mode should be selected
+		nmat->noDefaultBlend = false; //can't find a way to determine how blending mode should be selected
+		nmat->noLighting = true; //the engine didn't support dynamic lighting
+		nmat->flags |= NMATFLAG_TWOSIDED;
 		nmat->texIdx = *pMaterial;
 		nmat->normalTexIdx = textures.Num() - 1;
 		matList.Append(nmat);
