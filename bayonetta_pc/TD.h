@@ -285,7 +285,9 @@ static void Model_TD_LoadMaterials(
 		nmat->name = rapi->Noesis_PooledString(matName);
 		nmat->noDefaultBlend = false;
 		nmat->texIdx = -1;
-		nmat->normalTexIdx = textures.Num() - 1;
+		DBGLOG("Deactivating normal\n"); //cell shaded game.
+		nmat->ex->flags2 |= NMATFLAG2_PREFERPPL;
+		nmat->normalTexIdx = -1;
 		nmat->specularTexIdx = -1;
 		int difTexId = 0;
 		int nrmTexId = 0;
@@ -311,6 +313,7 @@ static void Model_TD_LoadMaterials(
 			if (nrmTexId && tex->globalIdx == nrmTexId) {
 				DBGLOG("Found matching normal %d\n", j);
 				nmat->normalTexIdx = j;
+				nmat->ex->flags2 &= ~NMATFLAG2_PREFERPPL;
 			}
 		}
 		matListLightMap.Append(NULL);
