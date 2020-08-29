@@ -405,9 +405,33 @@ static void Model_TD_SetBuffers(bayoDatFile_t &df, noeRAPI_t *rapi, TDWMBHdr<fal
 				__set_static_info<big, game, RPGEODATA_UBYTE>(buffers[i].bone_indexes, numVerts, 4, indexes, rapi);
 				__set_static_info<big, game, RPGEODATA_UBYTE>(buffers[i].bone_weights, numVerts, 4, weights, rapi);
 			}
+		} else if (bayoVertSize == 0x14 && bayoVertExSize == 0x10 && hdr.vertexFormat == 0x137) {
+			__set_position<big, game>(buffers[i].position, verts, bayoVertSize, numVerts, pretransform);
+			__set_mapping<big, game>(buffers[i].mapping, verts + 12, bayoVertSize);
+			__set_tangents<big, game>(buffers[i].tangents, verts + 16, bayoVertSize, numVerts, rapi, pretransform);
+
+			__set_hnormal<big, game>(buffers[i].normal, vertsEx, bayoVertExSize, numVerts, rapi, pretransform);
+			__set_bone_infos<big, game>(buffers[i].bone_indexes, vertsEx + 8, bayoVertExSize);
+			__set_bone_infos<big, game>(buffers[i].bone_weights, vertsEx + 12, bayoVertExSize);
+		}
+		else if (bayoVertSize == 0x14 && bayoVertExSize == 8 && hdr.vertexFormat == 0x107) {
+			__set_position<big, game>(buffers[i].position, verts, bayoVertSize, numVerts, pretransform);
+			__set_mapping<big, game>(buffers[i].mapping, verts + 12, bayoVertSize);
+			__set_tangents<big, game>(buffers[i].tangents, verts + 16, bayoVertSize, numVerts, rapi, pretransform);
+
+			__set_hnormal<big, game>(buffers[i].normal, vertsEx, bayoVertExSize, numVerts, rapi, pretransform);
+
+			//bond to first bone if it exists
+			if (bHasBones) {
+				DBGLOG("Binding vertexes to first bone.\n");
+				unsigned char indexes[4] = { 0, 0, 0, 0 };
+				unsigned char weights[4] = { 255, 0, 0, 0 };
+				__set_static_info<big, game, RPGEODATA_UBYTE>(buffers[i].bone_indexes, numVerts, 4, indexes, rapi);
+				__set_static_info<big, game, RPGEODATA_UBYTE>(buffers[i].bone_weights, numVerts, 4, weights, rapi);
+			}
 		}
 		else {
-			DBGLOG("Unknown vertex EX size format: %d %x!!!\n", bayoVertExSize, hdr.vertexFormat);
+			DBGLOG("Unknown vertex size, EX size, and format: %d %d %x!!!\n", bayoVertSize, bayoVertExSize, hdr.vertexFormat);
 #ifdef _DEBUG
 			g_nfn->NPAPI_PopupDebugLog(0);
 #endif
