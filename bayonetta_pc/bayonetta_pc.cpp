@@ -272,7 +272,7 @@ bool Model_Bayo_Check(BYTE *fileBuffer, int bufferLen, noeRAPI_t *rapi)
 		}
 		else if (game == ASTRAL_CHAIN && rapi->Noesis_CheckFileExt(name, ".scr"))
 		{
-			DBGLOG("Found Bayonetta or Bayonetta 2 or MGRR or MadWorld File!\n");
+			DBGLOG("Found Bayonetta or Bayonetta 2 or MGRR or MadWorld File or TD!\n");
 			return false;
 		}
 		else if (rapi->Noesis_CheckFileExt(name, ".scr"))
@@ -327,6 +327,42 @@ bool Model_Bayo_Check(BYTE *fileBuffer, int bufferLen, noeRAPI_t *rapi)
 		}
 		if (!found) {
 			return false;
+		}
+	}
+	if ((game == BAYONETTA2 || game == MGRR || game == TD) && numSCR > 0) {
+		CArrayList<bayoDatFile_t> dfiles;
+		Model_Bayo_GetDATEntries<big>(dfiles, fileBuffer, bufferLen);
+		for (int i = 0; i < dfiles.Num(); i++) {
+			//DBGLOG("name: %s", name);
+			bayoDatFile_t &df = dfiles[i];
+			if (rapi->Noesis_CheckFileExt(df.name, ".scr")) {
+				bayo2SCRHdr<big> hdr((bayo2SCRHdr_t *)df.data);
+				if (memcmp(hdr.id, "SCR\0", 4))
+				{ //invalid header
+					DBGLOG("Invalid SCR file\n");
+					return false;
+				}
+				if (hdr.numModels == 0) {
+					DBGLOG("Empty SCR file\n");
+					return false;
+				}
+				unsigned int * ofsOffsetsModels = (unsigned int *)(df.data + hdr.ofsOffsetsModels);
+				int dscrOffset = ofsOffsetsModels[0];
+				if (big) {
+					LITTLE_BIG_SWAP(dscrOffset);
+				}
+				bayo2SCRModelDscr<big> modelDscr((bayo2SCRModelDscr_t *)(df.data + dscrOffset));
+				BYTE * model_data = df.data + modelDscr.offset;
+				unsigned int tag = ((unsigned int*)model_data)[0];
+				if (big)
+					LITTLE_BIG_SWAP(tag);
+				if (game == BAYONETTA2 && tag != WMB_TAG)
+					return false;
+				if (game == MGRR && tag != WMB4_TAG)
+					return false;
+				if (game == TD && tag != WMB3_TAG)
+					return false;
+			}
 		}
 	}
 	if (game == BAYONETTA2 && numWMB > 0 && numWTA == 0) {

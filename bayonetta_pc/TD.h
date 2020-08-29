@@ -652,4 +652,65 @@ static void Model_Bayo_LoadModel<false, TD>(CArrayList<bayoDatFile_t> &dfiles, b
 
 template <>
 static void Model_Bayo_LoadScenery<false, TD>(CArrayList<bayoDatFile_t> &olddfiles, bayoDatFile_t &df, noeRAPI_t *rapi, CArrayList<noesisModel_t *> &models) {
+	const bool big = false;
+	const game_t game = TD;
+	DBGLOG("Loading %s\n", df.name);
+	bayo2SCRHdr<big> hdr((bayo2SCRHdr_t *)df.data);
+	if (memcmp(hdr.id, "SCR\0", 4))
+	{ //invalid header
+		DBGLOG("Invalid SCR file\n");
+		return;
+	}
+	CArrayList<bayoDatFile_t *> texFiles;
+	CArrayList<noesisTex_t *> textures;
+	Model_Bayo2_GetSCRTextureBundle(texFiles, olddfiles, df, rapi);
+	if (texFiles.Num() > 0)
+	{
+		for (int i = 0; i < texFiles.Num(); i++) {
+			DBGLOG("Found texture bundle %s\n", texFiles[i]->name);
+		}
+		Model_Bayo_LoadTextures<big, game>(textures, texFiles, rapi);
+	}
+	char scrName[MAX_NOESIS_PATH];
+	rapi->Noesis_GetExtensionlessName(scrName, df.name);
+	Model_Bayo_LoadSharedTextures<big, game>(textures, scrName, rapi);
+
+	CArrayList<bayoDatFile_t> dfiles;
+
+	unsigned int * ofsOffsetsModels = (unsigned int *)(df.data + hdr.ofsOffsetsModels);
+
+	DBGLOG("found %d models in %s\n", hdr.numModels, df.name);
+	for (int i = 0; i < hdr.numModels; i++) {
+		bayoDatFile_t modelFile;
+		int dscrOffset = ofsOffsetsModels[i];
+		if (big) {
+			LITTLE_BIG_SWAP(dscrOffset);
+		}
+		bayo2SCRModelDscr<big> modelDscr((bayo2SCRModelDscr_t *)(df.data + dscrOffset));
+		char modelName[69];
+		char fileName[69];
+		memset(modelName, 0, 69);
+		for (int j = 0; j < 64; j++) {
+			modelName[j] = modelDscr.name[j];
+		}
+		snprintf(fileName, 69, "%s.wmb", modelName);
+		DBGLOG(" model name: %s, ", fileName);
+		modelFile.name = rapi->Noesis_PooledString(fileName);
+		modelFile.data = df.data + modelDscr.offset;
+		if (i < (hdr.numModels - 1)) {
+			int nextDscrOffset = ofsOffsetsModels[i + 1];
+			if (big) {
+				LITTLE_BIG_SWAP(nextDscrOffset);
+			}
+			modelFile.dataSize = nextDscrOffset - modelDscr.offset;
+		}
+		else {
+			modelFile.dataSize = df.dataSize - modelDscr.offset;
+		}
+		DBGLOG("start: %d, size: %d\n", modelDscr.offset, modelFile.dataSize);
+		modelMatrix_t m;
+		Model_Bayo_CreatePreTransformMatrix(modelDscr.transform, m);
+		Model_Bayo_LoadModel<big, game>(dfiles, modelFile, rapi, models, textures, &m);
+	}
+	rapi->SetPreviewOption("drawAllModels", "1");
 }

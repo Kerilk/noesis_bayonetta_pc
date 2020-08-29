@@ -880,14 +880,29 @@ static void Model_Bayo_LoadSharedTextures(CArrayList<noesisTex_t *> &textures, c
 
 	while (g_nfn->NPAPI_UserPrompt(&promptParams)) {
 		int dataLength;
-		BYTE* data = rapi->Noesis_LoadPairedFile("Scenery Model", ".dat", dataLength, NULL);
+		char filePath[MAX_NOESIS_PATH];
+		BYTE* data = rapi->Noesis_LoadPairedFile("Scenery Model", ".dat", dataLength, filePath);
 		SetCurrentDirectory(noepath);
 		if (data) {
 			CArrayList<bayoDatFile_t> datfiles;
 			Model_Bayo_GetDATEntries<big>(datfiles, data, dataLength);
+			// Load paired dtt files is they exist
+			BYTE *dttFile = NULL;
+			if (game != NIER_AUTOMATA)
+			{
+				char fn[MAX_NOESIS_PATH];
+				rapi->Noesis_GetExtensionlessName(fn, filePath);
+				strcat_s(fn, MAX_NOESIS_PATH, ".dtt");
+				int dttLen = 0;
+				dttFile = (BYTE *)rapi->Noesis_ReadFile(fn, &dttLen);
+				if (dttFile && dttLen > 0)
+				{
+					Model_Bayo_GetDATEntries<big>(datfiles, dttFile, dttLen);
+				}
+			}
 			if (datfiles.Num() > 0) {
 				CArrayList<bayoDatFile_t *> texfiles;
-				if (game == BAYONETTA2) {
+				if (game == BAYONETTA2 || game == TD) {
 					for (int i = 0; i < datfiles.Num(); i++) {
 						if (strstr(datfiles[i].name, "shared.wta")) {
 							DBGLOG("Found shared texture bundle %s\n", datfiles[i].name);
@@ -916,6 +931,8 @@ static void Model_Bayo_LoadSharedTextures(CArrayList<noesisTex_t *> &textures, c
 					}
 				}
 				texfiles.Clear();
+				if (dttFile)
+					rapi->Noesis_UnpooledFree(dttFile);
 			}
 			datfiles.Clear();
 			rapi->Noesis_UnpooledFree(data);
