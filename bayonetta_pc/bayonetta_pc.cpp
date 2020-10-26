@@ -693,21 +693,6 @@ bool NPAPI_InitLocal(void)
 	OPENLOG();
 	g_nfn->NPAPI_SetTypeHandler_TypeCheck(fh, Model_Bayo_Check_All);
 	g_nfn->NPAPI_SetTypeHandler_LoadModel(fh, Model_Bayo_Load_All);
-	//todo - rather than disabling these prompmts by default, there are probably some common naming conventions and relative paths to try drawing from.
-		//kPGO_DoAnimPrompt = 0,
-		//kPGO_NoAnimPrompt,
-		//kPGO_DoTexPrompt,
-		//kPGO_NoTexPrompt,
-		//kPGO_DoMultipass,
-		//kPGO_NoMultipass,
-		//kPGO_DoLightmaps,
-		//kPGO_NoLightmaps,
-		//kPGO_DoShadows,
-		//kPGO_NoShadows,
-		//kPGO_DoLODs,
-		//kPGO_NoLODs,
-		//kPGO_DoExternal,
-		//kPGO_NoExternal
 	addOptParms_t optParms;
 	gpPGOptions = option_handler_init<SPGOptions>(fh, optParms, "-bayopganimprompt", "enable prompt for external animation.", false, set_option<kPGO_DoAnimPrompt>);
 	option_handler_add(fh, optParms, "-bayopgnoanimprompt", "disable prompt for external animation.", false, set_option<kPGO_NoTexPrompt>);
