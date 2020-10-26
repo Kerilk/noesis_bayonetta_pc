@@ -132,7 +132,7 @@
     </Link>
     <PostBuildEvent>
       <Message>Copying to Noesis plugins dir</Message>
-      <Command>copy "$(OutDir)$(ProjectName).dll" "..\..\..\plugins\$(ProjectName).dll"</Command>
+      <Command>copy "$(OutDir)bayonetta.dll" "..\..\..\plugins\bayonetta.dll"</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">

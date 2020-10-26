@@ -92,7 +92,7 @@ static void bayonetta_save_options() {
 	if (RegCreateKeyEx(HKEY_CURRENT_USER, reg_key, 0, NULL, REG_OPTION_NON_VOLATILE, KEY_WRITE, NULL, &key, NULL) == ERROR_SUCCESS) {
 		DWORD sz = sizeof(SPGOptions);
 		if (RegSetValueEx(key, L"config", 0, REG_BINARY, (LPBYTE)&persistentPGOptions, sz) != ERROR_SUCCESS) {
-			DBGLOG("Could not write registry key");
+			DBGLOG("Could not write registry key\n");
 		}
 		RegCloseKey(key);
 	}
