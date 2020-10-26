@@ -1,4 +1,4 @@
-LIBRARY bayonetta_pc
+LIBRARY bayonetta
 EXPORTS
 	NPAPI_Init
 	NPAPI_Shutdown

@@ -257,6 +257,8 @@ static void Model_AnarachyReigns_LoadTexturesMap(bayoDatFile_t &bxmFile, std::ma
 
 template <bool big, game_t game>
 static void Model_AnarachyReigns_LoadSharedTextures(CArrayList<noesisTex_t *> &textures, noeRAPI_t *rapi) {
+	if (!gpPGOptions->bTexturePrompt)
+		return;
 	noeUserPromptParam_t promptParams;
 	char texturePrompt[MAX_NOESIS_PATH];
 	sprintf_s(texturePrompt, MAX_NOESIS_PATH, "Load shared textures in other files?");

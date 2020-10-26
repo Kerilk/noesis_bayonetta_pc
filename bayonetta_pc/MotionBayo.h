@@ -1289,6 +1289,7 @@ template <bool big, game_t game>
 static void Model_Bayo_LoadExternalMotions(CArrayList<noesisAnim_t *> &animList, bayoDatFile_t &df, CArrayList<bayoDatFile_t *> &expfile, modelBone_t *bones, int bone_number, noeRAPI_t *rapi, short int * animBoneTT, void* extraBoneInfo) {
 	//if(game==VANQUISH || game == ANARCHY_REIGNS) return;
 	// TW101 is Vanquish but uses mot
+	if (!gpPGOptions->bAnimPrompt) return;
 	if (game == ANARCHY_REIGNS) return;
 	noeUserPromptParam_t promptParams;
 	char wmbName[MAX_NOESIS_PATH];
@@ -1320,8 +1321,8 @@ static void Model_Bayo_LoadExternalMotions(CArrayList<noesisAnim_t *> &animList,
 				motfiles.Clear();
 			}
 			datfiles.Clear();
+			rapi->Noesis_UnpooledFree(data);
 		}
-		rapi->Noesis_UnpooledFree(data);
 	}
 	SetCurrentDirectory(noepath);
 }

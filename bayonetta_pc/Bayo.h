@@ -482,6 +482,12 @@ static void Model_Bayo_LoadTextures<true, ANARCHY_REIGNS>(CArrayList<noesisTex_t
 
 noesisTex_t	* Model_Bayo_ConvertGTX(char *fname, char *fnamegtx, noeRAPI_t *rapi)
 {
+	if (!gpPGOptions->bEnableExternalTools) {
+		remove(fnamegtx);
+		uint8_t * pData = (uint8_t *)rapi->Noesis_PooledAlloc(4 * 4 * 4);
+		memset(pData, 0xFF, 4 * 4 * 4);
+		return rapi->Noesis_TextureAlloc(fname, 4, 4, pData, NOESISTEX_RGBA32);
+	}
 	char cmd[8192];
 	wchar_t wcmd[8192];
 	char fnamedds[MAX_NOESIS_PATH];
@@ -865,6 +871,8 @@ static void Model_Bayo_GetDATEntries(CArrayList<bayoDatFile_t> &dfiles, BYTE *fi
 }
 template <bool big, game_t game>
 static void Model_Bayo_LoadSharedTextures(CArrayList<noesisTex_t *> &textures, char* name, noeRAPI_t *rapi) {
+	if (!gpPGOptions->bTexturePrompt)
+		return;
 	noeUserPromptParam_t promptParams;
 	char texturePrompt[MAX_NOESIS_PATH];
 	char defaultValue[MAX_NOESIS_PATH];
@@ -1376,8 +1384,8 @@ static void Model_Bayo_LoadMaterials(bayoWMBHdr<big> &hdr,
 
 			nmat->normalTexIdx = -1;
 			int color1 = Model_Bayo_ReadTextureIndex(mat, textures, bayoMatTypes[mat.matFlags].color_1_sampler, sharedtextureoffset, true, rapi);
-			int color2 = Model_Bayo_ReadTextureIndex(mat, textures, bayoMatTypes[mat.matFlags].color_2_sampler, sharedtextureoffset, false, rapi);
-			int color3 = Model_Bayo_ReadTextureIndex(mat, textures, bayoMatTypes[mat.matFlags].color_3_sampler, sharedtextureoffset, false, rapi);
+			int color2 = gpPGOptions->bEnableMultipass ? Model_Bayo_ReadTextureIndex(mat, textures, bayoMatTypes[mat.matFlags].color_2_sampler, sharedtextureoffset, false, rapi) : -1;
+			int color3 = gpPGOptions->bEnableMultipass ? Model_Bayo_ReadTextureIndex(mat, textures, bayoMatTypes[mat.matFlags].color_3_sampler, sharedtextureoffset, false, rapi) : -1;
 			DBGLOG(", color1: %d", color1);
 			if (color2 != -1) {
 				DBGLOG(", color2: %d", color2);
@@ -1544,7 +1552,7 @@ static void Model_Bayo_LoadMaterials(bayoWMBHdr<big> &hdr,
 						//todo - some materials also do a scale+bias+rotation on the uv's at runtime to transform the texture coordinates into a
 						//specific region of the normal page. i would think the uv transform data is buried in the giant chunk of floats that
 						//follows the material data, but i don't see it in there. maybe it's related to some texture bundle flags.
-			short lightmap_offset = bayoMatTypes[mat.matFlags].lightmap_sampler;
+			short lightmap_offset = !gpPGOptions->bDisableLightmaps ? bayoMatTypes[mat.matFlags].lightmap_sampler : -1;
 			if (lightmap_offset != -1 && !mat.texs[lightmap_offset / 4 - 1].tex_flagB) {
 				char matNameLightMap[128];
 				sprintf_s(matNameLightMap, 128, "bayomat_light%i", i);
@@ -2165,8 +2173,10 @@ static void Model_Bayo_LoadModel(CArrayList<bayoDatFile_t> &dfiles, bayoDatFile_
 			DBGLOG("%d, %x, %x, %x, %x, %x, ", batch.id, batch.unknownB, batch.unknownC, batch.unknownDB, batch.unknownE1, batch.unknownE2);
 			bool bShadow;
 			if ((game == BAYONETTA && batch.unknownE1 == 0x20 && batch.unknownE2 == 0x0f) || (game == BAYONETTA2 && batch.unknownE1 == 0x30)) {
-				sprintf_s(batch_name, 256, "%02d(%s)_%02d_s", i, mesh.name, j);
 				bShadow = true;
+				if (gpPGOptions->bHideShadowMeshes)
+					continue;
+				sprintf_s(batch_name, 256, "%02d(%s)_%02d_s", i, mesh.name, j);
 			}
 			else {
 				sprintf_s(batch_name, 256, "%02d(%s)_%02d", i, mesh.name, j);
@@ -2415,7 +2425,7 @@ noesisModel_t *Model_Bayo_Load(BYTE *fileBuffer, int bufferLen, int &numMdl, noe
 	CArrayList<bayoDatFile_t> dfiles;
 
 	int version = g_nfn->NPAPI_GetAPIVersion();
-	if (version < 74) {
+	if (version < NOESIS_PLUGINAPI_VERSION) {
 		DBGLOG("Outdated Noesis\n");
 		g_nfn->NPAPI_MessagePrompt(L"Please update Noesis!");
 		return NULL;

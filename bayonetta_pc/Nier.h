@@ -862,7 +862,7 @@ static void Model_Bayo_LoadWMB3Model(CArrayList<bayoDatFile_t> &dfiles, bayoDatF
 	nierBatch_t *batches = (nierBatch_t *)(data + hdr.ofsBatches);
 	nierBoneSet_t *boneSets = (nierBoneSet_t *)(data + hdr.ofsBoneSets);
 	unsigned int *boneMap = (unsigned int *)(data + hdr.ofsBoneMap);
-	for (int i = 0; i < std::min(hdr.numLods, 1); i++)
+	for (int i = 0; i < (gpPGOptions->bDisplayLODs ? hdr.numLods : std::min(hdr.numLods, 1)); i++)
 	{
 		nierLod<big> lod(lods + i);
 		DBGLOG("LOD %d: name: %s\n", i, (char*)(data + lod.ofsName));

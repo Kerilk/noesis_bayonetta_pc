@@ -9,12 +9,18 @@ using half_float::half;
 #include <map>
 #include <stack>
 #include <stdint.h>
+#include <winreg.h>
 
+#ifdef NOESIS_RELEASE
+const char *g_pPluginName = "bayonetta";
+const char *g_pPluginDesc = "Bayonetta model handler, by Dick, Kerilk.";
+#else
 const char *g_pPluginName = "bayonetta_pc";
 const char *g_pPluginDesc = "Bayonetta PC model handler, by Dick, Kerilk.";
+#endif
 
 FILE *bayo_log;
-#ifdef _DEBUG
+#if defined(_DEBUG) && !defined(NOESIS_RELEASE)
 #define DBGLOG(fmt, ...) fprintf(bayo_log, fmt, __VA_ARGS__)
 #define OPENLOG() (bayo_log = fopen("bayo.log", "w"))
 #define CLOSELOG() fclose(bayo_log)
@@ -32,6 +38,89 @@ FILE *bayo_log;
 #else
 #define DBGALOG(fmt, ...) do { if (0) DBGLOG(fmt, __VA_ARGS__); } while (0)
 #endif
+
+
+struct SPGOptions {
+	bool bAnimPrompt;
+	bool bTexturePrompt;
+	bool bEnableMultipass;
+	bool bDisableLightmaps;
+	bool bHideShadowMeshes;
+	bool bDisplayLODs;
+	bool bEnableExternalTools;
+};
+SPGOptions *gpPGOptions = NULL;
+SPGOptions persistentPGOptions;
+
+static void bayonetta_default_options(SPGOptions &opts) {
+#ifdef NOESIS_RELEASE
+	LPWSTR reg_key = L"Software\\Noesis\\Plugins\\Bayonetta";
+	opts = { false, false, false, false, false, false, false };
+#else
+	LPWSTR reg_key = L"Software\\Noesis\\Plugins\\Bayonetta PC";
+	opts = { true, true, true, false, false, false, true };
+#endif
+}
+
+#ifdef NOESIS_RELEASE
+LPWSTR reg_key = L"Software\\Noesis\\Plugins\\Bayonetta";
+#else
+LPWSTR reg_key = L"Software\\Noesis\\Plugins\\Bayonetta PC";
+#endif
+
+static void bayonetta_load_options() {
+	HKEY key;
+	if (RegCreateKeyEx(HKEY_CURRENT_USER, reg_key, 0, NULL, REG_OPTION_NON_VOLATILE, KEY_READ, NULL, &key, NULL) == ERROR_SUCCESS) {
+		DWORD type;
+		DWORD sz = sizeof(SPGOptions);
+		if (RegQueryValueEx(key, L"config", NULL, &type, (LPBYTE)&persistentPGOptions, &sz) != ERROR_SUCCESS) {
+			DBGLOG("Could not read registry key\n");
+			bayonetta_default_options(persistentPGOptions);
+		}
+		else {
+			if (type != REG_BINARY) {
+				bayonetta_default_options(persistentPGOptions);
+			}
+		}
+		RegCloseKey(key);
+	}
+	else {
+		DBGLOG("Could not open registry key\n");
+	}
+}
+
+static void bayonetta_save_options() {
+	HKEY key;
+	if (RegCreateKeyEx(HKEY_CURRENT_USER, reg_key, 0, NULL, REG_OPTION_NON_VOLATILE, KEY_WRITE, NULL, &key, NULL) == ERROR_SUCCESS) {
+		DWORD sz = sizeof(SPGOptions);
+		if (RegSetValueEx(key, L"config", 0, REG_BINARY, (LPBYTE)&persistentPGOptions, sz) != ERROR_SUCCESS) {
+			DBGLOG("Could not write registry key");
+		}
+		RegCloseKey(key);
+	}
+	else {
+		DBGLOG("Could not open registry key\n");
+	}
+}
+
+enum EPGOption
+{
+	kPGO_DoAnimPrompt = 0,
+	kPGO_NoAnimPrompt,
+	kPGO_DoTexPrompt,
+	kPGO_NoTexPrompt,
+	kPGO_DoMultipass,
+	kPGO_NoMultipass,
+	kPGO_DoLightmaps,
+	kPGO_NoLightmaps,
+	kPGO_DoShadows,
+	kPGO_NoShadows,
+	kPGO_DoLODs,
+	kPGO_NoLODs,
+	kPGO_DoExternal,
+	kPGO_NoExternal
+};
+
 
 #include "FloatDecompressor.h"
 
@@ -131,7 +220,8 @@ bool Model_Bayo_Check(BYTE *fileBuffer, int bufferLen, noeRAPI_t *rapi)
 	if (big) LITTLE_BIG_SWAP(strSize);
 
 	namesp += sizeof(int);
-	if (strSize <= 0 || strSize >= bufferLen || dat.ofsNames+(int)sizeof(int)+(strSize*dat.numRes) > bufferLen)
+	const uint64_t offsetToEndOfNames = dat.ofsNames + sizeof(int) + ((uint64_t)strSize * dat.numRes);
+	if (strSize <= 0 || strSize >= bufferLen || offsetToEndOfNames > bufferLen)
 	{
 		return false;
 	}
@@ -376,89 +466,286 @@ bool Model_Bayo_Check(BYTE *fileBuffer, int bufferLen, noeRAPI_t *rapi)
 	return true;
 }
 
+#define bayonetta_option_prompt(member, prompt, title) \
+{ \
+	noeUserPromptParam_t params; \
+	memset(&params, 0, sizeof(params)); \
+	params.defaultValue = gpPGOptions->member ? "1" : "0"; \
+	params.promptStr = prompt; \
+	params.titleStr = title; \
+	params.valType = NOEUSERVAL_BOOL; \
+	if (g_nfn->NPAPI_UserPrompt(&params)) { \
+		gpPGOptions->member = *(bool *)params.valBuf; \
+		persistentPGOptions.member = *(bool *)params.valBuf; \
+		bayonetta_save_options(); \
+	} \
+	return 0; \
+}
+
+int bayonetta_anim_prompt(int handle, void *user_data) {
+	bayonetta_option_prompt(bAnimPrompt, "Prompt for Animation?", "Animation Prompt");
+}
+
+int bayonetta_texture_prompt(int handle, void *user_data) {
+	bayonetta_option_prompt(bTexturePrompt, "Prompt for Texture?", "Texture Prompt");
+}
+
+int bayonetta_multipass(int handle, void *user_data) {
+	bayonetta_option_prompt(bEnableMultipass, "Enable Multipass Rendering?", "Enable Multipass");
+}
+
+int bayonetta_lightmaps(int handle, void *user_data) {
+	bayonetta_option_prompt(bDisableLightmaps, "Disable Lightmaps Rendering?", "Disable Lightmaps");
+}
+
+int bayonetta_hide_shadow_meshes(int handle, void *user_data) {
+	bayonetta_option_prompt(bHideShadowMeshes, "Hide Shadow Meshes?", "Hide Shadow Meshes");
+}
+
+int bayonetta_display_lods(int handle, void *user_data) {
+	bayonetta_option_prompt(bDisplayLODs, "Enable LODs?", "Enable LODs");
+}
+
+int bayonetta_external_tools(int handle, void *user_data) {
+	bayonetta_option_prompt(bEnableExternalTools, "Enable External Tools?", "Enable External Tools");
+}
+
+struct SPGamesPair
+{
+	SPGamesPair(bool(*pCheck)(BYTE *fileBuffer, int bufferLen, noeRAPI_t *rapi), noesisModel_t *(*pLoad)(BYTE *fileBuffer, int bufferLen, int &numMdl, noeRAPI_t *rapi))
+		: mpCheck(pCheck)
+		, mpLoad(pLoad)
+	{
+	}
+	bool(*mpCheck)(BYTE *fileBuffer, int bufferLen, noeRAPI_t *rapi);
+	noesisModel_t * (*mpLoad)(BYTE *fileBuffer, int bufferLen, int &numMdl, noeRAPI_t *rapi);
+};
+
+static const SPGamesPair sPGamesPairs[] =
+{
+	SPGamesPair(Model_Bayo_Check<false, BAYONETTA>, Model_Bayo_Load<false, BAYONETTA>),
+	SPGamesPair(Model_Bayo_Check<true, BAYONETTA>, Model_Bayo_Load<true, BAYONETTA>),
+	SPGamesPair(Model_Bayo_Check<true, BAYONETTA2>, Model_Bayo_Load<true, BAYONETTA2>),
+	SPGamesPair(Model_Bayo_Check<false, BAYONETTA2>, Model_Bayo_Load<false, BAYONETTA2>),
+	SPGamesPair(Model_Bayo_Check<false, VANQUISH>, Model_Bayo_Load<false, VANQUISH>),
+	SPGamesPair(Model_Bayo_Check<false, NIER_AUTOMATA>, Model_Bayo_Load<false, NIER_AUTOMATA>),
+	SPGamesPair(Model_Bayo_Check<false, ASTRAL_CHAIN>, Model_Bayo_Load<false, ASTRAL_CHAIN>),
+	SPGamesPair(Model_Bayo_Check<false, MGRR>, Model_Bayo_Load<false, MGRR>),
+	SPGamesPair(Model_Bayo_Check<false, TD>, Model_Bayo_Load<false, TD>),
+	SPGamesPair(Model_Bayo_Check<true, ANARCHY_REIGNS>, Model_Bayo_Load<true, ANARCHY_REIGNS>),
+	SPGamesPair(Model_Bayo_Check<true, MADWORLD>, Model_Bayo_Load<true, MADWORLD>)
+};
+static const int sPgpCount = sizeof(sPGamesPairs) / sizeof(sPGamesPairs[0]);
+
+static const char sPluginSig[] = "BAYOPGPLUGIN_V0"; //size includes terminator
+struct SVerifiedPassthroughData
+{
+	char mId[16];
+	int mHandlerIndex;
+};
+static_assert(sizeof(sPluginSig) == sizeof(((SVerifiedPassthroughData *)NULL)->mId), "Signature size should match passthrough struct id size");
+
+static void bayonetta_reset_options(unsigned char *store, int storeSize) {
+	bayonetta_load_options();
+	memcpy(store, &persistentPGOptions, storeSize);
+}
+
+static void *option_handler_add(int fmtHandle, addOptParms_t &optParms, char *optName, char *optDescr, bool wantArg, bool(*handler)(const char *arg, unsigned char *store, int storeSize))
+{
+	optParms.optName = optName;
+	optParms.optDescr = optDescr;
+	if (wantArg)
+	{
+		optParms.flags |= OPTFLAG_WANTARG;
+	}
+	else
+	{
+		optParms.flags &= ~OPTFLAG_WANTARG;
+	}
+	optParms.handler = handler;
+	return g_nfn->NPAPI_AddTypeOption(fmtHandle, &optParms);
+}
+
+template<typename T>
+T * option_handler_init(int fmtHandle, addOptParms_t &optParms, char *optName, char *optDescr, bool wantArg, bool(*handler)(const char *arg, unsigned char *store, int storeSize))
+{
+	memset(&optParms, 0, sizeof(optParms));
+	optParms.storeSize = sizeof(T);
+	optParms.storeReset = bayonetta_reset_options;
+	T * pRet = (T *)option_handler_add(fmtHandle, optParms, optName, optDescr, wantArg, handler);
+	NoeAssert(pRet);
+	optParms.shareStore = (unsigned char *)pRet;
+	return pRet;
+}
+
+bool Model_Bayo_Check_All(BYTE *fileBuffer, int bufferLen, noeRAPI_t *rapi)
+{
+	for (int pgpIndex = 0; pgpIndex < sPgpCount; ++pgpIndex)
+	{
+		const SPGamesPair &pgp = sPGamesPairs[pgpIndex];
+		if (pgp.mpCheck(fileBuffer, bufferLen, rapi))
+		{
+			SVerifiedPassthroughData * pPd = (SVerifiedPassthroughData *)rapi->Noesis_PooledAlloc(sizeof(SVerifiedPassthroughData));
+
+			memcpy(pPd->mId, sPluginSig, sizeof(sPluginSig));
+			pPd->mHandlerIndex = pgpIndex;
+	
+			//since we succeeded, we'll get a call to load under the same module instance before any other plugin code is allowed to run with that instance. we could potentially just use a global right
+			//here in the plugin, but the architecture is designed to allow these calls interleaved with different module instances providing the underlying memory. plenty of plugins would explode if
+			//that ever happened, but we might as well pretend there's still hope!
+			rapi->Noesis_SetPluginUserPtr(pPd);
+			return true;
+		}
+	}
+	return false;
+}
+
+static bool sDidSetMatTypes = false;
+
+noesisModel_t * Model_Bayo_Load_All(BYTE *fileBuffer, int bufferLen, int &numMdl, noeRAPI_t *rapi)
+{
+	if (!sDidSetMatTypes)
+	{
+		//we don't want to add the overhead of this to plugin load time, so we only do it on demand when we're about to load a file
+		bayoSetMatTypes();
+		sDidSetMatTypes = true;
+	}
+
+	SVerifiedPassthroughData * pPd = (SVerifiedPassthroughData *)rapi->Noesis_GetPluginUserPtr();
+	if (pPd && !memcmp(pPd->mId, sPluginSig, sizeof(sPluginSig)) && pPd->mHandlerIndex >= 0 && pPd->mHandlerIndex < sPgpCount)
+	{
+		return sPGamesPairs[pPd->mHandlerIndex].mpLoad(fileBuffer, bufferLen, numMdl, rapi);
+	}
+
+	//well, something got fucked up. this code shouldn't ever run. but who knows!
+	NoeAssert(0);
+
+	for (auto &pgp : sPGamesPairs)
+		{
+		if (pgp.mpCheck(fileBuffer, bufferLen, rapi))
+		{
+			return pgp.mpLoad(fileBuffer, bufferLen, numMdl, rapi);
+		}
+	}
+	return NULL;
+}
+
+template<int whichOption>
+static bool set_option(const char *arg, unsigned char *store, int storeSize) {
+	NoeAssert(store && storeSize == sizeof(SPGOptions));
+	SPGOptions * pOpts = (SPGOptions *)store;
+	switch (whichOption)
+	{
+	case kPGO_DoAnimPrompt:
+		pOpts->bAnimPrompt = true;
+		break;
+	case kPGO_NoAnimPrompt:
+		pOpts->bAnimPrompt = false;
+		break;
+	case kPGO_DoTexPrompt:
+		pOpts->bTexturePrompt = true;
+		break;
+	case kPGO_NoTexPrompt:
+		pOpts->bTexturePrompt = false;
+		break;
+	case kPGO_DoMultipass:
+		pOpts->bEnableMultipass = true;
+		break;
+	case kPGO_NoMultipass:
+		pOpts->bEnableMultipass = false;
+		break;
+	case kPGO_NoLightmaps:
+		pOpts->bDisableLightmaps = true;
+		break;
+	case kPGO_DoLightmaps:
+		pOpts->bDisableLightmaps = false;
+		break;
+	case kPGO_NoShadows:
+		pOpts->bHideShadowMeshes = true;
+		break;
+	case kPGO_DoShadows:
+		pOpts->bHideShadowMeshes = false;
+		break;
+	case kPGO_DoLODs:
+		pOpts->bDisplayLODs = true;
+		break;
+	case kPGO_NoLODs:
+		pOpts->bDisplayLODs = false;
+		break;
+	case kPGO_DoExternal:
+		pOpts->bEnableExternalTools = true;
+		break;
+	case kPGO_NoExternal:
+		pOpts->bEnableExternalTools = false;
+		break;
+	}
+	return true;
+}
+
 //called by Noesis to init the plugin
 bool NPAPI_InitLocal(void)
 {
-	int fh = g_nfn->NPAPI_Register("Bayonetta PC Model", ".dat");
+	int fh = g_nfn->NPAPI_Register("Bayonetta/PG Model", ".dat;.dtt");
 	if (fh < 0)
 	{
 		return false;
 	}
-	int fh_b2 = g_nfn->NPAPI_Register("Bayonetta 2 Big Endian Model", ".dat");
-	if (fh_b2 < 0)
-	{
-		return false;
-	}
-	int fh_2 = g_nfn->NPAPI_Register("Bayonetta 2 Switch Model", ".dat");
-	if (fh_2 < 0)
-	{
-		return false;
-	}
-	int fh_b = g_nfn->NPAPI_Register("Bayonetta Big Endian Model (WiiU)", ".dat");
-	if (fh_b < 0)
-	{
-		return false;
-	}
-	int fh_v = g_nfn->NPAPI_Register("Vanquish PC Model", ".dat");
-	if (fh_v < 0)
-	{
-		return false;
-	}
-	int fh_n = g_nfn->NPAPI_Register("Nier Automata PC Model", ".dtt");
-	if (fh_n < 0)
-	{
-		return false;
-	}
-	int fh_a = g_nfn->NPAPI_Register("Astral Chain Switch Model", ".dat");
-	if (fh_a < 0)
-	{
-		return false;
-	}
-	int fh_m = g_nfn->NPAPI_Register("MGRR PC Model", ".dat");
-	if (fh_m < 0)
-	{
-		return false;
-	}
-	int fh_td = g_nfn->NPAPI_Register("Transformer Devastation PC Model", ".dat");
-	if (fh_td < 0)
-	{
-		return false;
-	}
-	int fh_ar = g_nfn->NPAPI_Register("Anarchy Reigns X360 Model", ".dat");
-	if (fh_ar < 0)
-	{
-		return false;
-	}
-	int fh_mw = g_nfn->NPAPI_Register("MadWorld Model", ".dat");
-	if (fh_mw < 0)
-	{
-		return false;
-	}
 	OPENLOG();
-	bayoSetMatTypes();
-	//set the data handlers for this format
-	g_nfn->NPAPI_SetTypeHandler_TypeCheck(fh, Model_Bayo_Check<false, BAYONETTA>);
-	g_nfn->NPAPI_SetTypeHandler_LoadModel(fh, Model_Bayo_Load<false, BAYONETTA>);
-	g_nfn->NPAPI_SetTypeHandler_TypeCheck(fh_b, Model_Bayo_Check<true, BAYONETTA>);
-	g_nfn->NPAPI_SetTypeHandler_LoadModel(fh_b, Model_Bayo_Load<true, BAYONETTA>);
-	g_nfn->NPAPI_SetTypeHandler_TypeCheck(fh_b2, Model_Bayo_Check<true, BAYONETTA2>);
-	g_nfn->NPAPI_SetTypeHandler_LoadModel(fh_b2, Model_Bayo_Load<true, BAYONETTA2>);
-	g_nfn->NPAPI_SetTypeHandler_TypeCheck(fh_2, Model_Bayo_Check<false, BAYONETTA2>);
-	g_nfn->NPAPI_SetTypeHandler_LoadModel(fh_2, Model_Bayo_Load<false, BAYONETTA2>);
-	g_nfn->NPAPI_SetTypeHandler_TypeCheck(fh_v, Model_Bayo_Check<false, VANQUISH>);
-	g_nfn->NPAPI_SetTypeHandler_LoadModel(fh_v, Model_Bayo_Load<false, VANQUISH>);
-	g_nfn->NPAPI_SetTypeHandler_TypeCheck(fh_n, Model_Bayo_Check<false, NIER_AUTOMATA>);
-	g_nfn->NPAPI_SetTypeHandler_LoadModel(fh_n, Model_Bayo_Load<false, NIER_AUTOMATA>);
-	g_nfn->NPAPI_SetTypeHandler_TypeCheck(fh_a, Model_Bayo_Check<false, ASTRAL_CHAIN>);
-	g_nfn->NPAPI_SetTypeHandler_LoadModel(fh_a, Model_Bayo_Load<false, ASTRAL_CHAIN>);
-	g_nfn->NPAPI_SetTypeHandler_TypeCheck(fh_m, Model_Bayo_Check<false, MGRR>);
-	g_nfn->NPAPI_SetTypeHandler_LoadModel(fh_m, Model_Bayo_Load<false, MGRR>);
-	g_nfn->NPAPI_SetTypeHandler_TypeCheck(fh_td, Model_Bayo_Check<false, TD>);
-	g_nfn->NPAPI_SetTypeHandler_LoadModel(fh_td, Model_Bayo_Load<false, TD>);
-	g_nfn->NPAPI_SetTypeHandler_TypeCheck(fh_ar, Model_Bayo_Check<true, ANARCHY_REIGNS>);
-	g_nfn->NPAPI_SetTypeHandler_LoadModel(fh_ar, Model_Bayo_Load<true, ANARCHY_REIGNS>);
-	g_nfn->NPAPI_SetTypeHandler_TypeCheck(fh_mw, Model_Bayo_Check<true, MADWORLD>);
-	g_nfn->NPAPI_SetTypeHandler_LoadModel(fh_mw, Model_Bayo_Load<true, MADWORLD>);
+	g_nfn->NPAPI_SetTypeHandler_TypeCheck(fh, Model_Bayo_Check_All);
+	g_nfn->NPAPI_SetTypeHandler_LoadModel(fh, Model_Bayo_Load_All);
+	//todo - rather than disabling these prompmts by default, there are probably some common naming conventions and relative paths to try drawing from.
+		//kPGO_DoAnimPrompt = 0,
+		//kPGO_NoAnimPrompt,
+		//kPGO_DoTexPrompt,
+		//kPGO_NoTexPrompt,
+		//kPGO_DoMultipass,
+		//kPGO_NoMultipass,
+		//kPGO_DoLightmaps,
+		//kPGO_NoLightmaps,
+		//kPGO_DoShadows,
+		//kPGO_NoShadows,
+		//kPGO_DoLODs,
+		//kPGO_NoLODs,
+		//kPGO_DoExternal,
+		//kPGO_NoExternal
+	addOptParms_t optParms;
+	gpPGOptions = option_handler_init<SPGOptions>(fh, optParms, "-bayopganimprompt", "enable prompt for external animation.", false, set_option<kPGO_DoAnimPrompt>);
+	option_handler_add(fh, optParms, "-bayopgnoanimprompt", "disable prompt for external animation.", false, set_option<kPGO_NoTexPrompt>);
+	option_handler_add(fh, optParms, "-bayopgtexprompt", "enable prommpt for external/shared textures.", false, set_option<kPGO_DoTexPrompt>);
+	option_handler_add(fh, optParms, "-bayopgnotexprompt", "disable prommpt for external/shared textures.", false, set_option<kPGO_NoTexPrompt>);
+	option_handler_add(fh, optParms, "-bayopgmultipass", "enable bayonetta multi-pass materials.", false, set_option<kPGO_DoMultipass>);
+	option_handler_add(fh, optParms, "-bayopgnomultipass", "disable bayonetta multi-pass materials.", false, set_option<kPGO_NoMultipass>);
+	option_handler_add(fh, optParms, "-bayopglightmaps", "enable lightmaps.", false, set_option<kPGO_DoLightmaps>);
+	option_handler_add(fh, optParms, "-bayopgnolightmaps", "disable lightmaps.", false, set_option<kPGO_NoLightmaps>);
+	option_handler_add(fh, optParms, "-bayopgshadows", "enable shadow meshes.", false, set_option<kPGO_DoShadows>);
+	option_handler_add(fh, optParms, "-bayopgnoshadows", "disable shadow meshes.", false, set_option<kPGO_NoShadows>);
+	option_handler_add(fh, optParms, "-bayopglods", "enable LODs.", false, set_option<kPGO_DoLODs>);
+	option_handler_add(fh, optParms, "-bayopgnolods", "disable LODs.", false, set_option<kPGO_NoLODs>);
+	option_handler_add(fh, optParms, "-bayopgexternal", "enable external processing tools.", false, set_option<kPGO_DoExternal>);
+	option_handler_add(fh, optParms, "-bayopgnoexternal", "disable external processing tools.", false, set_option<kPGO_NoExternal>);
+
+	bayonetta_default_options(persistentPGOptions);
+#ifdef NOESIS_RELEASE
+	const char *menu = "Bayonetta";
+#else
+	const char *menu = "Bayonetta PC";
+#endif
+
+	int handle = g_nfn->NPAPI_RegisterTool("Animation Prompt", bayonetta_anim_prompt, NULL);
+	g_nfn->NPAPI_SetToolSubMenuName(handle, menu);
+	handle = g_nfn->NPAPI_RegisterTool("Texture Prompt", bayonetta_texture_prompt, NULL);
+	g_nfn->NPAPI_SetToolSubMenuName(handle, menu);
+	handle = g_nfn->NPAPI_RegisterTool("Enable Multipass", bayonetta_multipass, NULL);
+	g_nfn->NPAPI_SetToolSubMenuName(handle, menu);
+	handle = g_nfn->NPAPI_RegisterTool("Enable Lightmaps", bayonetta_multipass, NULL);
+	g_nfn->NPAPI_SetToolSubMenuName(handle, menu);
+	handle = g_nfn->NPAPI_RegisterTool("Hide Shadow Meshes", bayonetta_hide_shadow_meshes, NULL);
+	g_nfn->NPAPI_SetToolSubMenuName(handle, menu);
+	handle = g_nfn->NPAPI_RegisterTool("Enable LODs", bayonetta_display_lods, NULL);
+	g_nfn->NPAPI_SetToolSubMenuName(handle, menu);
+	handle = g_nfn->NPAPI_RegisterTool("Enable External Tools", bayonetta_external_tools, NULL);
+	g_nfn->NPAPI_SetToolSubMenuName(handle, menu);
+
 	//g_nfn->NPAPI_PopupDebugLog(0);
 	return true;
 }
