@@ -54,10 +54,8 @@ SPGOptions persistentPGOptions;
 
 static void bayonetta_default_options(SPGOptions &opts) {
 #ifdef NOESIS_RELEASE
-	LPWSTR reg_key = L"Software\\Noesis\\Plugins\\Bayonetta";
 	opts = { false, false, false, false, false, false, false };
 #else
-	LPWSTR reg_key = L"Software\\Noesis\\Plugins\\Bayonetta PC";
 	opts = { true, true, true, false, false, false, true };
 #endif
 }
