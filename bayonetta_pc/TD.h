@@ -268,7 +268,8 @@ static void Model_TD_LoadMaterials(
 	CArrayList<noesisMaterial_t *> &matListLightMap,
 	CArrayList<noesisMaterial_t *> &totMatList,
 	BYTE *data,
-	noeRAPI_t *rapi) {
+	noeRAPI_t *rapi,
+	const char *prefix = "bayomat") {
 
 	TDMaterial_t *matPtr = (TDMaterial_t *)(data + hdr.ofsMaterials);
 	unsigned int *textureIDs = (unsigned int *)(data + hdr.ofsTextureIDs);
@@ -280,7 +281,7 @@ static void Model_TD_LoadMaterials(
 		DBGLOG("\tFound %s\n", data + mat.ofsShaderName);
 		noesisMaterial_t *nmat = rapi->Noesis_GetMaterialList(1, true);
 		char matName[128];
-		sprintf_s(matName, 128, "bayomat%i", i);
+		sprintf_s(matName, 128, "%s_%03i", prefix, i);
 		DBGLOG(" name: %s,", matName);
 		nmat->name = rapi->Noesis_PooledString(matName);
 		nmat->noDefaultBlend = false;
@@ -489,7 +490,7 @@ modelBone_t *Model_TD_CreateBones(TDWMBHdr<big> &hdr, BYTE *data, noeRAPI_t *rap
 }
 
 template <>
-static void Model_Bayo_LoadModel<false, TD>(CArrayList<bayoDatFile_t> &dfiles, bayoDatFile_t &df, noeRAPI_t *rapi, CArrayList<noesisModel_t *> &models, CArrayList<noesisTex_t *> &givenTextures, modelMatrix_t * pretransform, int sharedtextureoffset) {
+static void Model_Bayo_LoadModel<false, TD>(CArrayList<bayoDatFile_t> &dfiles, bayoDatFile_t &df, noeRAPI_t *rapi, CArrayList<noesisModel_t *> &models, CArrayList<noesisTex_t *> &givenTextures, modelMatrix_t * pretransform, int sharedtextureoffset, const char *prefix, CArrayList<noesisMaterial_t *> *globalMatList) {
 	const bool big = false;
 	const game_t game = TD;
 	DBGLOG("Loading %s\n", df.name);
@@ -540,22 +541,25 @@ static void Model_Bayo_LoadModel<false, TD>(CArrayList<bayoDatFile_t> &dfiles, b
 		}
 	}
 
-	Model_TD_LoadMaterials<big, game>(hdr, textures, matList, matListLightMap, totMatList, data, rapi);
+	Model_TD_LoadMaterials<big, game>(hdr, textures, matList, matListLightMap, globalMatList ? *globalMatList : totMatList, data, rapi, globalMatList ? prefix : "bayomat");
 	Model_TD_SetBuffers<big, game>(df, rapi, hdr, buffers, pretransform);
 
-	void *pgctx = rapi->rpgCreateContext();
-	rapi->rpgSetOption(RPGOPT_BIGENDIAN, big);
-	rapi->rpgSetOption(RPGOPT_TRIWINDBACKWARD, true);
+	void *pgctx = NULL;
+	int numBones = 0;
+	short int * animBoneTT = NULL;
+	modelBone_t *bones = NULL;
+	if (!prefix) {
+		pgctx = rapi->rpgCreateContext();
+		rapi->rpgSetOption(RPGOPT_BIGENDIAN, big);
+		rapi->rpgSetOption(RPGOPT_TRIWINDBACKWARD, true);
+		bones = Model_TD_CreateBones<big>(hdr, data, rapi, numBones, animBoneTT);
 
-	int numBones;
-	short int * animBoneTT;
-	modelBone_t *bones = Model_TD_CreateBones<big>(hdr, data, rapi, numBones, animBoneTT);
-
-	Model_Bayo_GetMotionFiles(dfiles, df, rapi, motfiles);
-	Model_Bayo_GetEXPFile(dfiles, df, rapi, expfile);
-	if (bones) {
-		Model_Bayo_LoadMotions<big, game>(animList, motfiles, expfile, bones, numBones, rapi, animBoneTT, data + hdr.ofsBones);
-		Model_Bayo_LoadExternalMotions<big, game>(animList, df, expfile, bones, numBones, rapi, animBoneTT, data + hdr.ofsBones);
+		Model_Bayo_GetMotionFiles(dfiles, df, rapi, motfiles);
+		Model_Bayo_GetEXPFile(dfiles, df, rapi, expfile);
+		if (bones) {
+			Model_Bayo_LoadMotions<big, game>(animList, motfiles, expfile, bones, numBones, rapi, animBoneTT, data + hdr.ofsBones);
+			Model_Bayo_LoadExternalMotions<big, game>(animList, df, expfile, bones, numBones, rapi, animBoneTT, data + hdr.ofsBones);
+		}
 	}
 
 	DBGLOG("Found %d meshes\n", hdr.numMeshes);
@@ -580,7 +584,10 @@ static void Model_Bayo_LoadModel<false, TD>(CArrayList<bayoDatFile_t> &dfiles, b
 			unsigned int vertexGroupIndex = batch.vertexGroupIndex;
 			unsigned int materialIndex = batchInfo.materialIndex;
 
-			sprintf_s(batch_name, 256, "%d_%d_%s", i, j, (char *)(data + mesh.ofsName));
+			if (prefix)
+				sprintf_s(batch_name, 256, "%s_%02d(%s)_%02d", prefix, i, (char *)(data + mesh.ofsName), j);
+			else
+				sprintf_s(batch_name, 256, "%02d(%s)_%02d", i, (char *)(data + mesh.ofsName), j);
 			DBGLOG("\t%s\n", batch_name);
 			DBGFLUSH();
 			int *boneIndices = NULL;
@@ -616,32 +623,37 @@ static void Model_Bayo_LoadModel<false, TD>(CArrayList<bayoDatFile_t> &dfiles, b
 		}
 	}
 
-	noesisMatData_t *md = rapi->Noesis_GetMatDataFromLists(totMatList, textures);
-	rapi->rpgSetExData_Materials(md);
+	if (!globalMatList) {
+		noesisMatData_t *md = rapi->Noesis_GetMatDataFromLists(totMatList, textures);
+		rapi->rpgSetExData_Materials(md);
+	}
 	if (bones) {
 		rapi->rpgSetExData_Bones(bones, numBones + 1);
 	}
-	int anims_num = animList.Num();
-	DBGLOG("Found %d anims\n", anims_num);
-	if (anims_num > 700) {
-		DBGLOG("Only displaying 700 first animations");
-		anims_num = 700;
-	}
 
-	noesisAnim_t *anims = rapi->Noesis_AnimFromAnimsList(animList, anims_num);
-	if (anims) {
-		rapi->rpgSetExData_AnimsNum(anims, 1);
-	}
-	else if (animList.Num() > 0) {
-		DBGLOG("Could not create animation block\n");
-	}
+	if (!prefix) {
+		int anims_num = animList.Num();
+		DBGLOG("Found %d anims\n", anims_num);
+		if (anims_num > 700) {
+			DBGLOG("Only displaying 700 first animations");
+			anims_num = 700;
+		}
 
-	noesisModel_t *mdl = rapi->rpgConstructModel();
-	if (mdl) {
-		models.Append(mdl);
-	}
+		noesisAnim_t *anims = rapi->Noesis_AnimFromAnimsList(animList, anims_num);
+		if (anims) {
+			rapi->rpgSetExData_AnimsNum(anims, 1);
+		}
+		else if (animList.Num() > 0) {
+			DBGLOG("Could not create animation block\n");
+		}
 
-	rapi->rpgDestroyContext(pgctx);
+		noesisModel_t *mdl = rapi->rpgConstructModel();
+		if (mdl) {
+			models.Append(mdl);
+		}
+
+		rapi->rpgDestroyContext(pgctx);
+	}
 
 	rapi->Noesis_UnpooledFree(buffers);
 	animList.Clear();
@@ -683,6 +695,13 @@ static void Model_Bayo_LoadScenery<false, TD>(CArrayList<bayoDatFile_t> &olddfil
 	unsigned int * ofsOffsetsModels = (unsigned int *)(df.data + hdr.ofsOffsetsModels);
 
 	DBGLOG("found %d models in %s\n", hdr.numModels, df.name);
+	void *pgctx = NULL;
+	CArrayList<noesisMaterial_t *> totMatList;
+	if (gpPGOptions->bFuseModels) {
+		pgctx = rapi->rpgCreateContext();
+		rapi->rpgSetOption(RPGOPT_BIGENDIAN, big);
+		rapi->rpgSetOption(RPGOPT_TRIWINDBACKWARD, true);
+	}
 	for (int i = 0; i < hdr.numModels; i++) {
 		bayoDatFile_t modelFile;
 		int dscrOffset = ofsOffsetsModels[i];
@@ -690,13 +709,15 @@ static void Model_Bayo_LoadScenery<false, TD>(CArrayList<bayoDatFile_t> &olddfil
 			LITTLE_BIG_SWAP(dscrOffset);
 		}
 		bayo2SCRModelDscr<big> modelDscr((bayo2SCRModelDscr_t *)(df.data + dscrOffset));
-		char modelName[69];
+		char modelName[65];
 		char fileName[69];
-		memset(modelName, 0, 69);
+		char prefix[69];
+		memset(modelName, 0, 65);
 		for (int j = 0; j < 64; j++) {
 			modelName[j] = modelDscr.name[j];
 		}
 		snprintf(fileName, 69, "%s.wmb", modelName);
+		snprintf(prefix, 69, "%03d_%s", i, modelName);
 		DBGLOG(" model name: %s, ", fileName);
 		modelFile.name = rapi->Noesis_PooledString(fileName);
 		modelFile.data = df.data + modelDscr.offset;
@@ -713,7 +734,19 @@ static void Model_Bayo_LoadScenery<false, TD>(CArrayList<bayoDatFile_t> &olddfil
 		DBGLOG("start: %d, size: %d\n", modelDscr.offset, modelFile.dataSize);
 		modelMatrix_t m;
 		Model_Bayo_CreatePreTransformMatrix(modelDscr.transform, m);
-		Model_Bayo_LoadModel<big, game>(dfiles, modelFile, rapi, models, textures, &m);
+		Model_Bayo_LoadModel<big, game>(dfiles, modelFile, rapi, models, textures, &m, -1,
+		                                gpPGOptions->bFuseModels ? prefix : NULL, gpPGOptions->bFuseModels ? &totMatList : NULL);
 	}
-	rapi->SetPreviewOption("drawAllModels", "1");
+	if (gpPGOptions->bFuseModels) {
+		noesisMatData_t *md = rapi->Noesis_GetMatDataFromLists(totMatList, textures);
+		rapi->rpgSetExData_Materials(md);
+		noesisModel_t *mdl = rapi->rpgConstructModel();
+		if (mdl) {
+			models.Append(mdl);
+		}
+		rapi->rpgDestroyContext(pgctx);
+	}
+	else {
+		rapi->SetPreviewOption("drawAllModels", "1");
+	}
 }

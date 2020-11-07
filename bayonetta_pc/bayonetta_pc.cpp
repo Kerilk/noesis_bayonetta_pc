@@ -48,15 +48,16 @@ struct SPGOptions {
 	bool bHideShadowMeshes;
 	bool bDisplayLODs;
 	bool bEnableExternalTools;
+	bool bFuseModels;
 };
 SPGOptions *gpPGOptions = NULL;
 SPGOptions persistentPGOptions;
 
 static void bayonetta_default_options(SPGOptions &opts) {
 #ifdef NOESIS_RELEASE
-	opts = { false, false, false, false, false, false, false };
+	opts = { false, false, false, false, false, false, false, true };
 #else
-	opts = { true, true, true, false, false, false, true };
+	opts = { true, true, true, false, false, false, true, false };
 #endif
 }
 
@@ -116,7 +117,9 @@ enum EPGOption
 	kPGO_DoLODs,
 	kPGO_NoLODs,
 	kPGO_DoExternal,
-	kPGO_NoExternal
+	kPGO_NoExternal,
+	kPGO_DoFuseModels,
+	kPGO_NoFuseModels
 };
 
 
@@ -358,7 +361,7 @@ bool Model_Bayo_Check(BYTE *fileBuffer, int bufferLen, noeRAPI_t *rapi)
 			DBGLOG("Found Vanquish or Anarchy Reigns File or MadWorld File!\n");
 			return false;
 		}
-		else if (game == ASTRAL_CHAIN && rapi->Noesis_CheckFileExt(name, ".scr"))
+		else if ((game == ASTRAL_CHAIN || game == NIER_AUTOMATA) && rapi->Noesis_CheckFileExt(name, ".scr"))
 		{
 			DBGLOG("Found Bayonetta or Bayonetta 2 or MGRR or MadWorld File or TD!\n");
 			return false;
@@ -506,6 +509,10 @@ int bayonetta_display_lods(int handle, void *user_data) {
 
 int bayonetta_external_tools(int handle, void *user_data) {
 	bayonetta_option_prompt(bEnableExternalTools, "Enable External Tools?", "Enable External Tools");
+}
+
+int bayonetta_fuse_models(int handle, void *user_data) {
+	bayonetta_option_prompt(bFuseModels, "Fuse Level Models?", "Fuse Level Models");
 }
 
 struct SPGamesPair
@@ -676,6 +683,12 @@ static bool set_option(const char *arg, unsigned char *store, int storeSize) {
 	case kPGO_NoExternal:
 		pOpts->bEnableExternalTools = false;
 		break;
+	case kPGO_DoFuseModels:
+		pOpts->bFuseModels = true;
+		break;
+	case kPGO_NoFuseModels:
+		pOpts->bFuseModels = false;
+		break;
 	}
 	return true;
 }
@@ -706,6 +719,8 @@ bool NPAPI_InitLocal(void)
 	option_handler_add(fh, optParms, "-bayopgnolods", "disable LODs.", false, set_option<kPGO_NoLODs>);
 	option_handler_add(fh, optParms, "-bayopgexternal", "enable external processing tools.", false, set_option<kPGO_DoExternal>);
 	option_handler_add(fh, optParms, "-bayopgnoexternal", "disable external processing tools.", false, set_option<kPGO_NoExternal>);
+	option_handler_add(fh, optParms, "-bayopgfuse", "enable level models fusion.", false, set_option<kPGO_DoFuseModels>);
+	option_handler_add(fh, optParms, "-bayopgnofuse", "disable level models fusion.", false, set_option<kPGO_NoFuseModels>);
 
 	bayonetta_default_options(persistentPGOptions);
 #ifdef NOESIS_RELEASE
@@ -727,6 +742,8 @@ bool NPAPI_InitLocal(void)
 	handle = g_nfn->NPAPI_RegisterTool("Enable LODs", bayonetta_display_lods, NULL);
 	g_nfn->NPAPI_SetToolSubMenuName(handle, menu);
 	handle = g_nfn->NPAPI_RegisterTool("Enable External Tools", bayonetta_external_tools, NULL);
+	g_nfn->NPAPI_SetToolSubMenuName(handle, menu);
+	handle = g_nfn->NPAPI_RegisterTool("Fuse Level Models", bayonetta_fuse_models, NULL);
 	g_nfn->NPAPI_SetToolSubMenuName(handle, menu);
 
 	//g_nfn->NPAPI_PopupDebugLog(0);

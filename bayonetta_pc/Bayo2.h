@@ -437,6 +437,13 @@ static void Model_Bayo2_LoadScenery(CArrayList<bayoDatFile_t> &olddfiles, bayoDa
 	unsigned int * ofsOffsetsModels = (unsigned int *)(df.data + hdr.ofsOffsetsModels);
 
 	DBGLOG("found %d models in %s\n", hdr.numModels, df.name);
+	void *pgctx = NULL;
+	CArrayList<noesisMaterial_t *> totMatList;
+	if (gpPGOptions->bFuseModels) {
+		pgctx = rapi->rpgCreateContext();
+		rapi->rpgSetOption(RPGOPT_BIGENDIAN, big);
+		rapi->rpgSetOption(RPGOPT_TRIWINDBACKWARD, true);
+	}
 	for (int i = 0; i < hdr.numModels; i++) {
 		bayoDatFile_t modelFile;
 		int dscrOffset = ofsOffsetsModels[i];
@@ -444,13 +451,15 @@ static void Model_Bayo2_LoadScenery(CArrayList<bayoDatFile_t> &olddfiles, bayoDa
 			LITTLE_BIG_SWAP(dscrOffset);
 		}
 		bayo2SCRModelDscr<big> modelDscr((bayo2SCRModelDscr_t *)(df.data + dscrOffset));
-		char modelName[69];
+		char modelName[65];
+		char prefix[69];
 		char fileName[69];
-		memset(modelName, 0, 69);
+		memset(modelName, 0, 65);
 		for (int j = 0; j < 64; j++) {
 			modelName[j] = modelDscr.name[j];
 		}
 		snprintf(fileName, 69, "%s.wmb", modelName);
+		snprintf(prefix, 69, "%03d_%s", i, modelName);
 		DBGLOG(" model name: %s, ", fileName);
 		modelFile.name = rapi->Noesis_PooledString(fileName);
 		modelFile.data = df.data + modelDscr.offset;
@@ -467,9 +476,21 @@ static void Model_Bayo2_LoadScenery(CArrayList<bayoDatFile_t> &olddfiles, bayoDa
 		DBGLOG("start: %d, size: %d\n", modelDscr.offset, modelFile.dataSize);
 		modelMatrix_t m;
 		Model_Bayo_CreatePreTransformMatrix(modelDscr.transform, m);
-		Model_Bayo_LoadModel<big, BAYONETTA2>(dfiles, modelFile, rapi, models, textures, &m);
+		Model_Bayo_LoadModel<big, BAYONETTA2>(dfiles, modelFile, rapi, models, textures, &m, -1,
+		                                      gpPGOptions->bFuseModels ? prefix : NULL, gpPGOptions->bFuseModels ? &totMatList : NULL);
 	}
-	rapi->SetPreviewOption("drawAllModels", "1");
+	if (gpPGOptions->bFuseModels) {
+		noesisMatData_t *md = rapi->Noesis_GetMatDataFromLists(totMatList, textures);
+		rapi->rpgSetExData_Materials(md);
+		noesisModel_t *mdl = rapi->rpgConstructModel();
+		if (mdl) {
+			models.Append(mdl);
+		}
+		rapi->rpgDestroyContext(pgctx);
+	}
+	else {
+		rapi->SetPreviewOption("drawAllModels", "1");
+	}
 }
 
 template <>
