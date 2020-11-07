@@ -1,6 +1,18 @@
 # noesis_bayonetta_pc
-- Bayonetta PC plugin for Noesis
-- Bayonetta and Bayonetta 2 WiiU support.
+PlatinumGames plugin for Noesis
+- Bayonetta
+- Bayonetta 2
+- Nier Automata
+- Metal Gear Rising Revengeance
+- MadWorld
+- The Legend of Korra
+- TMNT Mutants in Manhattan
+- Transformers Devastation
+- Starfox Zero
+- Astral Chain
+- The Wonderful 101
+- Vanquish
+- Anarchy Reigns
 
 ## Install
 
