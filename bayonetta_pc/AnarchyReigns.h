@@ -87,6 +87,37 @@ static void Model_Bayo_LoadTextures<true, ANARCHY_REIGNS>(CArrayList<noesisTex_t
 			tex = *((wtbTexHdr_t *)texData);
 			pix = texData + sizeof(wtbTexHdr_t);
 		}
+		LITTLE_BIG_SWAP(tex.unknownA);
+		if (tex.unknownA != 3 && !hdr.texInfoOffset) {
+			//PS3 texture
+			DBGLOG("Found PS3 textures\n");
+			wtbTexHdrPS3<true> ps3header((wtbTexHdrPS3_t*) texData);
+			int fmt = 0;
+			int swizzle = ps3header.textureFormat & 0x20;
+			if (swizzle)
+				continue;
+			switch (ps3header.textureFormat & ~0x60) {
+			case 0x86:
+				fmt = NOESISTEX_DXT1;
+				break;
+			case 0x87:
+				fmt = NOESISTEX_DXT3;
+				break;
+			case 0x88:
+				fmt = NOESISTEX_DXT5;
+				break;
+			default:
+				continue;
+			}
+			//Align texture data to 0x80 boundaries.
+			DBGLOG("Offset %d\n", ((ofs + ps3header.textureDataOffset) & ~0x7f));
+			noesisTex_t *nt = rapi->Noesis_TextureAlloc(fname, ps3header.width, ps3header.height, data + ((ofs + ps3header.textureDataOffset) & ~0x7f), fmt);
+			nt->shouldFreeData = false; //
+			if (hdr.texIdxOffset)
+				nt->globalIdx = globalIdx;
+			textures.Append(nt);
+			continue;
+		}
 		LITTLE_BIG_SWAP(tex.unknownJ);
 		LITTLE_BIG_SWAP(tex.unknownO);
 		LITTLE_BIG_SWAP(tex.unknownP);

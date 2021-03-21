@@ -149,6 +149,44 @@ typedef struct wtbTexHdr_s
 	int					unknownP;
 	int					unknownQ;
 } wtbTexHdr_t;
+//https://github.com/gdkchan/IDDTool/blob/master/IDDTool/IO/Format/IDD.cs
+typedef struct wtbTexHdrPS3_s
+{
+	unsigned			flags;
+	unsigned			length;
+	unsigned			textureCount;
+	unsigned			id;
+	unsigned			textureDataOffset;
+	unsigned			textureDataLength;
+	BYTE				textureFormat; // "0x20: swizzle, 0x40: normalized, 0x9f: format mask. 0x86: DXT1, 0x87: DXT3 0x88: DXT5";
+	BYTE				mimaps;
+	BYTE				dimensions;
+	BYTE				cubemaps;
+	unsigned			remap;
+	unsigned short		width;
+	unsigned short		height;
+	unsigned short		depth;
+	unsigned short		pitch;
+} wtbTexHdrPS3_t;
+template <bool big>
+struct wtbTexHdrPS3 : public wtbTexHdrPS3_s {
+	wtbTexHdrPS3(wtbTexHdrPS3_t *ptr) : wtbTexHdrPS3_s(*ptr) {
+		if (big) {
+			LITTLE_BIG_SWAP(flags);
+			LITTLE_BIG_SWAP(length);
+			LITTLE_BIG_SWAP(textureCount);
+			LITTLE_BIG_SWAP(id);
+			LITTLE_BIG_SWAP(textureDataOffset);
+			LITTLE_BIG_SWAP(textureDataLength);
+			LITTLE_BIG_SWAP(remap);
+			LITTLE_BIG_SWAP(width);
+			LITTLE_BIG_SWAP(height);
+			LITTLE_BIG_SWAP(depth);
+			LITTLE_BIG_SWAP(pitch);
+		}
+	}
+};
+
 typedef struct GX2Hdr_s {
 	DWORD dimension;
 	DWORD width;
@@ -975,7 +1013,7 @@ template <bool big, game_t game>
 static void Model_Bayo_CreateNormals(BYTE *data, float *dsts, int numVerts, int stride, modelMatrix_t *m)
 {
 	bool bSwitch = false;
-	// Attempt to detect Bayonetta Switch Normals
+	// Attempt to detect Bayonetta 10 10 10 rather than 8 8 8
 	if (!big && game == BAYONETTA) {
 		for (int i = 0; i < numVerts; i++)
 		{
@@ -986,8 +1024,23 @@ static void Model_Bayo_CreateNormals(BYTE *data, float *dsts, int numVerts, int 
 			}
 		}
 		if (bSwitch)
-			return Model_Bayo_CreateNormals<big, BAYONETTA2>(data, dsts, numVerts, stride, m);
+			return Model_Bayo_CreateNormals<false, BAYONETTA2>(data, dsts, numVerts, stride, m);
 	}
+	// Attempt to identify 11 11 10 normals
+	bool bPS3 = false;
+	if (big && game == BAYONETTA) {
+		for (int i = 0; i < numVerts; i++) {
+			int *src = (int *)(data + stride * i);
+			int val = *src;
+			LITTLE_BIG_SWAP(val);
+			if (val & 0xc0000000) {
+				bPS3 = true;
+				break;
+			}
+		}
+	}
+	if (bPS3)
+		return Model_Bayo_CreateNormals<true, ANARCHY_REIGNS>(data, dsts, numVerts, stride, m);
 	for (int i = 0; i < numVerts; i++)
 	{
 		char *src = (char *)(data + stride * i);

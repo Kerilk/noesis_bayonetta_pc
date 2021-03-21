@@ -209,6 +209,8 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\..\NoeSRShared.h" />
+    <ClInclude Include="..\..\pluginbasetypes.h" />
     <ClInclude Include="..\..\pluginclasses.h" />
     <ClInclude Include="..\..\pluginshare.h" />
     <ClInclude Include="AnarchyReigns.h" />
