@@ -499,12 +499,13 @@ static float Model_Bayo_Interpolate6EXP_Value(float value, BYTE *interpol, short
 	}
 	return outValue;
 }
+
 struct expState_s {
 	unsigned int flags;
 	float fArray[4];
 	int iArray[4];
-	BYTE fCount;
-	BYTE iCount;
+	char fCount;
+	char iCount;
 	short unknown;
 };
 
@@ -518,6 +519,7 @@ static void init_expState(struct expState_s &expState) {
 		expState.iArray[i] = 0;
 	}
 }
+
 template <bool big>
 static float getExpEntryValue(bayoEXPEntry<big> &entry, int fi, float * tmpValues, const short int frameCount, short int * animBoneTT) {
 	static int maxCoeffs = 16;
@@ -539,58 +541,55 @@ static float getExpEntryValue(bayoEXPEntry<big> &entry, int fi, float * tmpValue
 
 template <bool big>
 static float modifyExpEntryValue(struct expState_s &expState, float value, int fi) {
-	float res = value;
-	float tmp;
 	expState.iCount--;
 	int flags = expState.iArray[expState.iCount] & 0xFF00;
 	if (fi == 0)
 		DBGLOG("\t\t\t\t\tflags: %x\n", flags);
 	if (flags) {
 		if (flags & 0x100) {
-			res = fabsf(res);
+			value = fabsf(value);
 		}
 		else if (flags & 0x200) {
-			res = ceilf(res);
+			value = ceilf(value);
 		}
 		else if (flags & 0x400) {
-			res = floorf(res);
+			value = floorf(value);
 		}
 		else if (flags & 0x800) {
-			res = roundf(res);
+			value = roundf(value);
 		}
 	}
-	expState.fArray[expState.fCount] = res;
+	expState.fArray[expState.fCount] = value;
 	int fCount = expState.fCount;
 	int iCount = expState.iCount;
 
 	expState.fCount = expState.iCount;
 
-	res = expState.fArray[iCount];
+	value = expState.fArray[iCount];
 	if (fCount > iCount) {
 		do {
 			flags = expState.iArray[iCount];
-			tmp = expState.fArray[iCount + 1];
+			float tmp = expState.fArray[iCount + 1];
 			if (flags & 1) {
-				res = res + tmp;
+				value += tmp;
 			}
 			else if (flags & 2) {
-				res = res - tmp;
+				value -= tmp;
 			}
 			else if (flags & 4) {
-				res = res * tmp;
+				value *= tmp;
 			}
 			else if ((flags & 8) && tmp != 0.0f) {
-				res = res / tmp;
+				value /= tmp;
 			}
 			iCount++;
 		} while (fCount > iCount);
 	}
-	return res;
+	return value;
 }
 
 template <bool big>
 static float applyExpEntry(struct expState_s &expState, bayoEXPEntry<big> &entry, int fi, float value, float * tmpValues, const short int frameCount, short int * animBoneTT) {
-	float res = 0.0;
 	if (fi == 0)
 		DBGLOG("\t\t\tentry flags: %x\n", entry.flags);
 	if (entry.flags & 0x1FF00) {
@@ -598,16 +597,16 @@ static float applyExpEntry(struct expState_s &expState, bayoEXPEntry<big> &entry
 			DBGLOG("\t\t\t\tspecial:\n");
 		unsigned int flags = entry.flags;
 		unsigned int iValue = 0;
-		if (entry.flags & 0x40000 && flags & 0x8000)
+		if ((flags & 0x40000) && (flags & 0x8000))
 		{
-			iValue = entry.flags & 0xFF00;
-			flags = ~iValue & entry.flags;
+			iValue = flags & 0xFF00;
+			flags = flags & ~iValue;
 		}
 		expState.fArray[expState.fCount++] = value;
 		expState.iArray[expState.iCount++] = flags;
-		res = getExpEntryValue<big>(entry, fi, tmpValues, frameCount, animBoneTT);
+		value = getExpEntryValue<big>(entry, fi, tmpValues, frameCount, animBoneTT);
 		if (fi == 0)
-			DBGLOG("\t\t\t\t\tvalue: %f\n", res);
+			DBGLOG("\t\t\t\t\tvalue: %f\n", value);
 		if (entry.flags & 0x40000) {
 			expState.fArray[expState.fCount++] = 0.0;
 			expState.iArray[expState.iCount++] = iValue | 1;
@@ -616,32 +615,33 @@ static float applyExpEntry(struct expState_s &expState, bayoEXPEntry<big> &entry
 	else {
 		if (fi == 0)
 			DBGLOG("\t\t\t\tnormal:\n");
-		res = getExpEntryValue<big>(entry, fi, tmpValues, frameCount, animBoneTT);
+		float tmp = getExpEntryValue<big>(entry, fi, tmpValues, frameCount, animBoneTT);
 		if (fi == 0)
-			DBGLOG("\t\t\t\t\tvalue: %f\n", res);
+			DBGLOG("\t\t\t\t\tvalue: %f\n", value);
 		if (entry.flags & 1) {
-			res = res + value;
+			value += tmp;
 		}
 		else if (entry.flags & 2) {
-			res = res - value;
+			value -= tmp;
 		}
 		else if (entry.flags & 4) {
-			res = res * value;
+			value *= tmp;
 		}
-		else if ((entry.flags & 8) && value != 0.0f) {
-			res = res / value;
-		}
-		if (entry.flags & 0x20000) {
-			if (fi == 0)
-				DBGLOG("\t\t\t\tmodifying:\n");
-			res = modifyExpEntryValue<big>(expState, res, fi);
-			if (entry.flags & 0x80000) {
-				res = modifyExpEntryValue<big>(expState, res, fi);
-			}
+		else if ((entry.flags & 8) && tmp != 0.0f) {
+			value /= tmp;
 		}
 	}
-	return res;
+	if (entry.flags & 0x20000) {
+		if (fi == 0)
+			DBGLOG("\t\t\t\tmodifying:\n");
+		value = modifyExpEntryValue<big>(expState, value, fi);
+		if (entry.flags & 0x80000) {
+			value = modifyExpEntryValue<big>(expState, value, fi);
+		}
+	}
+	return value;
 }
+
 /* em0600 exp entries 15 and 20 seem to lead to buffer underrun
    in the state struct, flag is used instead of a value from fArray.
    Similarly the last value of fArray is used instead of a value from iArray...*/
