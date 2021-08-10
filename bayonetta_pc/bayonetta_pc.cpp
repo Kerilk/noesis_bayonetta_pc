@@ -47,7 +47,6 @@ struct SPGOptions {
 	bool bDisableLightmaps;
 	bool bHideShadowMeshes;
 	bool bDisplayLODs;
-	bool bEnableExternalTools;
 	bool bFuseModels;
 };
 SPGOptions *gpPGOptions = NULL;
@@ -55,9 +54,9 @@ SPGOptions persistentPGOptions;
 
 static void bayonetta_default_options(SPGOptions &opts) {
 #ifdef NOESIS_RELEASE
-	opts = { false, false, false, false, false, false, false, true };
+	opts = { false, false, false, false, false, false, true };
 #else
-	opts = { true, true, true, false, false, false, true, false };
+	opts = { true, true, true, false, false, false, false };
 #endif
 }
 
@@ -116,8 +115,6 @@ enum EPGOption
 	kPGO_NoShadows,
 	kPGO_DoLODs,
 	kPGO_NoLODs,
-	kPGO_DoExternal,
-	kPGO_NoExternal,
 	kPGO_DoFuseModels,
 	kPGO_NoFuseModels
 };
@@ -507,10 +504,6 @@ int bayonetta_display_lods(int handle, void *user_data) {
 	bayonetta_option_prompt(bDisplayLODs, "Enable LODs?", "Enable LODs");
 }
 
-int bayonetta_external_tools(int handle, void *user_data) {
-	bayonetta_option_prompt(bEnableExternalTools, "Enable External Tools?", "Enable External Tools");
-}
-
 int bayonetta_fuse_models(int handle, void *user_data) {
 	bayonetta_option_prompt(bFuseModels, "Fuse Level Models?", "Fuse Level Models");
 }
@@ -677,12 +670,6 @@ static bool set_option(const char *arg, unsigned char *store, int storeSize) {
 	case kPGO_NoLODs:
 		pOpts->bDisplayLODs = false;
 		break;
-	case kPGO_DoExternal:
-		pOpts->bEnableExternalTools = true;
-		break;
-	case kPGO_NoExternal:
-		pOpts->bEnableExternalTools = false;
-		break;
 	case kPGO_DoFuseModels:
 		pOpts->bFuseModels = true;
 		break;
@@ -717,8 +704,6 @@ bool NPAPI_InitLocal(void)
 	option_handler_add(fh, optParms, "-bayopgnoshadows", "disable shadow meshes.", false, set_option<kPGO_NoShadows>);
 	option_handler_add(fh, optParms, "-bayopglods", "enable LODs.", false, set_option<kPGO_DoLODs>);
 	option_handler_add(fh, optParms, "-bayopgnolods", "disable LODs.", false, set_option<kPGO_NoLODs>);
-	option_handler_add(fh, optParms, "-bayopgexternal", "enable external processing tools.", false, set_option<kPGO_DoExternal>);
-	option_handler_add(fh, optParms, "-bayopgnoexternal", "disable external processing tools.", false, set_option<kPGO_NoExternal>);
 	option_handler_add(fh, optParms, "-bayopgfuse", "enable level models fusion.", false, set_option<kPGO_DoFuseModels>);
 	option_handler_add(fh, optParms, "-bayopgnofuse", "disable level models fusion.", false, set_option<kPGO_NoFuseModels>);
 
@@ -740,8 +725,6 @@ bool NPAPI_InitLocal(void)
 	handle = g_nfn->NPAPI_RegisterTool("Hide Shadow Meshes", bayonetta_hide_shadow_meshes, NULL);
 	g_nfn->NPAPI_SetToolSubMenuName(handle, menu);
 	handle = g_nfn->NPAPI_RegisterTool("Enable LODs", bayonetta_display_lods, NULL);
-	g_nfn->NPAPI_SetToolSubMenuName(handle, menu);
-	handle = g_nfn->NPAPI_RegisterTool("Enable External Tools", bayonetta_external_tools, NULL);
 	g_nfn->NPAPI_SetToolSubMenuName(handle, menu);
 	handle = g_nfn->NPAPI_RegisterTool("Fuse Level Models", bayonetta_fuse_models, NULL);
 	g_nfn->NPAPI_SetToolSubMenuName(handle, menu);
