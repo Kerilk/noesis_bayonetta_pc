@@ -426,7 +426,7 @@ int Model_MadWorld_NumMeshes(madWorldMDBHeader<big> &hdr, BYTE *data) {
 
 template <bool big>
 BYTE* Model_MadWorld_MeshIndexBuffer(madWorldMDBHeader<big> &hdr, madWorldMDBMesh<big> &mesh, BYTE* pMesh, BYTE *data, size_t dataSize) {
-	uint32_t indexBufferOffset = 0;
+	size_t indexBufferOffset = 0;
 	if (mesh.indexBuffersSize) {
 		if (mesh.nextMeshOffset)
 			indexBufferOffset = (pMesh - data) + mesh.nextMeshOffset - mesh.indexBuffersSize;
@@ -927,7 +927,7 @@ static void Model_Bayo_LoadScenery<true, MADWORLD>(CArrayList<bayoDatFile_t> &ol
 			}
 			j++;
 		}
-		modelFile.dataSize = size;
+		modelFile.dataSize = (int)size;
 		DBGLOG("start: %d, size: %d\n", dscrOffset + modelDscr.offset, modelFile.dataSize);
 		modelMatrix_t m;
 		Model_Bayo_CreatePreTransformMatrix(modelDscr.transform, m);
