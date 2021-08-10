@@ -952,10 +952,12 @@ static void Model_Bayo_LoadWMB3Model(CArrayList<bayoDatFile_t> &dfiles, bayoDatF
 	}
 	int anims_num = animList.Num();
 	DBGLOG("Found %d anims\n", anims_num);
+#ifndef _NOE64
 	if (anims_num > 700) {
 		DBGLOG("Only displaying 700 first animations");
 		anims_num = 700;
 	}
+#endif
 
 	noesisAnim_t *anims = rapi->Noesis_AnimFromAnimsList(animList, anims_num);
 	if (anims) {
