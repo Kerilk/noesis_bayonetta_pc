@@ -61,24 +61,27 @@ static void bayonetta_default_options(SPGOptions &opts) {
 }
 
 #ifdef NOESIS_RELEASE
-LPWSTR reg_key = L"Software\\Noesis\\Plugins\\Bayonetta";
+const LPWSTR reg_key = L"Software\\Noesis\\Plugins\\Bayonetta";
 #else
-LPWSTR reg_key = L"Software\\Noesis\\Plugins\\Bayonetta PC";
+const LPWSTR reg_key = L"Software\\Noesis\\Plugins\\Bayonetta PC";
 #endif
+const DWORD config_ver = 101;
 
 static void bayonetta_load_options() {
 	HKEY key;
 	if (RegCreateKeyEx(HKEY_CURRENT_USER, reg_key, 0, NULL, REG_OPTION_NON_VOLATILE, KEY_READ, NULL, &key, NULL) == ERROR_SUCCESS) {
+		DWORD version;
+		DWORD szver = sizeof(version);
 		DWORD type;
 		DWORD sz = sizeof(SPGOptions);
-		if (RegQueryValueEx(key, L"config", NULL, &type, (LPBYTE)&persistentPGOptions, &sz) != ERROR_SUCCESS) {
-			DBGLOG("Could not read registry key\n");
+
+		if (RegQueryValueEx(key, L"version", NULL, &type, (LPBYTE)&version, &szver) != ERROR_SUCCESS || type != REG_DWORD || version != config_ver) {
+			DBGLOG("Wrong config version\n");
 			bayonetta_default_options(persistentPGOptions);
 		}
-		else {
-			if (type != REG_BINARY) {
-				bayonetta_default_options(persistentPGOptions);
-			}
+		else if (RegQueryValueEx(key, L"config", NULL, &type, (LPBYTE)&persistentPGOptions, &sz) != ERROR_SUCCESS || type != REG_BINARY) {
+			DBGLOG("Could not read registry key\n");
+			bayonetta_default_options(persistentPGOptions);
 		}
 		RegCloseKey(key);
 	}
@@ -90,9 +93,11 @@ static void bayonetta_load_options() {
 static void bayonetta_save_options() {
 	HKEY key;
 	if (RegCreateKeyEx(HKEY_CURRENT_USER, reg_key, 0, NULL, REG_OPTION_NON_VOLATILE, KEY_WRITE, NULL, &key, NULL) == ERROR_SUCCESS) {
-		DWORD sz = sizeof(SPGOptions);
-		if (RegSetValueEx(key, L"config", 0, REG_BINARY, (LPBYTE)&persistentPGOptions, sz) != ERROR_SUCCESS) {
+		if (RegSetValueEx(key, L"config", 0, REG_BINARY, (LPBYTE)&persistentPGOptions, sizeof(SPGOptions)) != ERROR_SUCCESS) {
 			DBGLOG("Could not write registry key\n");
+		}
+		if (RegSetValueEx(key, L"version", 0, REG_DWORD, (LPBYTE)&config_ver, sizeof(config_ver)) != ERROR_SUCCESS) {
+			DBGLOG("Could not write registry config version\n");
 		}
 		RegCloseKey(key);
 	}
