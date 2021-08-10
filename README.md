@@ -21,3 +21,4 @@ PlatinumGames plugin for Noesis
 - Don't forget to delete the old bayonetta_pc.dll, else it will be used to open the files rather than the new one.
 - Noesis will come with the same plugin but it's default options and options store are different
 - When plugin options are changed, the configuration is reset
+- Plugin options need to be enabled in Noesis: `Tools/Display Plugin Tools` must be turned on
