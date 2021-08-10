@@ -518,59 +518,10 @@ static void Model_Bayo_LoadTextures(CArrayList<noesisTex_t *> &textures, CArrayL
 template <>
 static void Model_Bayo_LoadTextures<true, ANARCHY_REIGNS>(CArrayList<noesisTex_t *> &textures, CArrayList<bayoDatFile_t *> &texFiles, noeRAPI_t *rapi);
 
-noesisTex_t	* Model_Bayo_ConvertGTX(char *fname, char *fnamegtx, noeRAPI_t *rapi)
+noesisTex_t * Model_Bayo_ConvertGTX(char *fname, char *fnamegtx, noeRAPI_t *rapi)
 {
-	if (!gpPGOptions->bEnableExternalTools) {
-		remove(fnamegtx);
-		uint8_t * pData = (uint8_t *)rapi->Noesis_PooledAlloc(4 * 4 * 4);
-		memset(pData, 0xFF, 4 * 4 * 4);
-		return rapi->Noesis_TextureAlloc(fname, 4, 4, pData, NOESISTEX_RGBA32);
-	}
-	char cmd[8192];
-	wchar_t wcmd[8192];
-	char fnamedds[MAX_NOESIS_PATH];
-	sprintf_s(fnamedds, MAX_NOESIS_PATH, "%s.dds", fname);
-	sprintf_s(cmd, 8192, "TexConv2.exe -i \"%s\" -o \"%s\"", fnamegtx, fnamedds);
-
-	STARTUPINFOW si;
-	PROCESS_INFORMATION pi;
-	ZeroMemory(&si, sizeof(si));
-	si.cb = sizeof(si);
-	ZeroMemory(&pi, sizeof(pi));
-	mbstowcs(wcmd, cmd, strlen(cmd) + 1);
-
-	if (CreateProcess(L"Texconv2.exe", wcmd, NULL, NULL, FALSE, CREATE_NO_WINDOW, NULL, NULL, &si, &pi))
-	{
-		WaitForSingleObject(pi.hProcess, INFINITE);
-		CloseHandle(pi.hProcess);
-		CloseHandle(pi.hThread);
-	}
-	//system(cmd);
-	noesisTex_t	*nt = rapi->Noesis_LoadExternalTex(fnamedds);
-	if (nt) {
-		nt->filename = rapi->Noesis_PooledString(fname);
-	}
-	else {
-		DBGLOG("Could not load texture %s using TexConv2.exe\n", fnamedds);
-		sprintf_s(cmd, 8192, "gtx_extract_no5.exe \"%s\"", fnamegtx);
-		ZeroMemory(&si, sizeof(si));
-		si.cb = sizeof(si);
-		ZeroMemory(&pi, sizeof(pi));
-		mbstowcs(wcmd, cmd, strlen(cmd) + 1);
-		if (CreateProcess(L"gtx_extract_no5.exe", wcmd, NULL, NULL, FALSE, CREATE_NO_WINDOW, NULL, NULL, &si, &pi)) {
-			WaitForSingleObject(pi.hProcess, INFINITE);
-			CloseHandle(pi.hProcess);
-			CloseHandle(pi.hThread);
-		}
-		nt = rapi->Noesis_LoadExternalTex(fnamedds);
-		if (nt) {
-			nt->filename = rapi->Noesis_PooledString(fname);
-		}
-		else {
-			DBGLOG("Could not load texture %s using gtx_extract_no5.exe\n", fnamedds);
-		}
-	}
-	remove(fnamedds);
+	noesisTex_t *nt = rapi->Noesis_LoadExternalTex(fnamegtx);
+	nt->filename = rapi->Noesis_PooledString(fname);
 	remove(fnamegtx);
 	return nt;
 }
