@@ -10,6 +10,7 @@ using half_float::half;
 #include <stack>
 #include <stdint.h>
 #include <winreg.h>
+#include <stdint.h>
 
 #ifdef NOESIS_RELEASE
 const char *g_pPluginName = "bayonetta";

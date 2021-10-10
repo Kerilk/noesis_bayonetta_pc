@@ -1,36 +1,36 @@
 #pragma once
 typedef struct nierWMBHdr_s
 {
-	BYTE				id[4];				// 0
-	unsigned int		version;			// 4
-	int					unknownA;			// 8
-	short				flags;				// C Seems related to vertex index size
-	short				referenceBone;		// E
-	float				boundingBox[6];		//10
-	unsigned int		ofsBones;			//28
-	int					numBones;			//2C
-	unsigned int		ofsBoneIndexTT;		//30
-	int					sizeBoneIndexTT;	//34
-	unsigned int		ofsVertexGroups;	//38
-	int					numVertexGroups;	//3C
-	unsigned int		ofsBatches;			//40
-	int					numBatches;			//44
-	unsigned int		ofsLods;			//48
-	int					numLods;			//4C
-	unsigned int		ofsUnknownD;		//50
-	int					numUnknownE;		//54
-	unsigned int		ofsBoneMap;			//58
-	int					sizeBoneMap;		//5C
-	unsigned int		ofsBoneSets;		//60
-	int					numBoneSets;		//64
-	unsigned int		ofsMaterials;		//68
-	int					numMaterials;		//6C
-	unsigned int		ofsMeshes;			//70
-	int					numMeshes;			//74
-	unsigned int		ofsMeshMaterial;	//78
-	int					numMeshMaterial;	//7C
-	unsigned int		ofsUnknownF;		//80
-	int					numUnknownG;		//84
+	uint8_t  id[4];				// 0
+	uint32_t version;			// 4
+	int32_t  unknownA;			// 8
+	uint16_t flags;				// C Seems related to vertex index size
+	int16_t  referenceBone;		// E
+	float    boundingBox[6];	//10
+	uint32_t ofsBones;			//28
+	int32_t  numBones;			//2C
+	uint32_t ofsBoneIndexTT;	//30
+	int32_t  sizeBoneIndexTT;	//34
+	uint32_t ofsVertexGroups;	//38
+	int32_t  numVertexGroups;	//3C
+	uint32_t ofsBatches;		//40
+	int32_t  numBatches;		//44
+	uint32_t ofsLods;			//48
+	int32_t  numLods;			//4C
+	uint32_t ofsUnknownD;		//50
+	int32_t  numUnknownE;		//54
+	uint32_t ofsBoneMap;		//58
+	int32_t  sizeBoneMap;		//5C
+	uint32_t ofsBoneSets;		//60
+	int32_t  numBoneSets;		//64
+	uint32_t ofsMaterials;		//68
+	int32_t  numMaterials;		//6C
+	uint32_t ofsMeshes;			//70
+	int32_t  numMeshes;			//74
+	uint32_t ofsMeshMaterial;	//78
+	int32_t  numMeshMaterial;	//7C
+	uint32_t ofsUnknownF;		//80
+	int32_t  numUnknownG;		//84
 } nierWMBHdr_t;
 template <bool big>
 struct nierWMBHdr : public nierWMBHdr_s {
@@ -74,17 +74,17 @@ struct nierWMBHdr : public nierWMBHdr_s {
 typedef struct nierMaterial_s
 {
 
-	short			version[4];
-	unsigned int	ofsName;
-	unsigned int	ofsShaderName;
-	unsigned int	ofsTechniqueName;
-	unsigned int	unknownA;
-	unsigned int	ofsTextures;
-	unsigned int	numTextures;
-	unsigned int	ofsParameterGroups;
-	unsigned int	numParametersGroup;
-	unsigned int	ofsVariables;
-	unsigned int	numVariables;
+	int16_t  version[4];
+	uint32_t ofsName;
+	uint32_t ofsShaderName;
+	uint32_t ofsTechniqueName;
+	uint32_t unknownA;
+	uint32_t ofsTextures;
+	uint32_t numTextures;
+	uint32_t ofsParameterGroups;
+	uint32_t numParametersGroup;
+	uint32_t ofsVariables;
+	uint32_t numVariables;
 } nierMaterial_t;
 template <bool big>
 struct nierMaterial : public nierMaterial_s {
@@ -108,8 +108,8 @@ struct nierMaterial : public nierMaterial_s {
 };
 typedef struct nierTexture_s
 {
-	unsigned int	ofsName;
-	int				id;
+	uint32_t ofsName;
+	int32_t  id;
 } nierTexture_t;
 template <bool big>
 struct nierTexture : public nierTexture_s {
@@ -122,8 +122,8 @@ struct nierTexture : public nierTexture_s {
 };
 typedef struct nierBone_s
 {
-	short			id;
-	short			parentIndex;
+	int16_t			id;
+	int16_t			parentIndex;
 	bayoVector_t	localPosition;
 	bayoVector_t	localRotation;
 	bayoVector_t	localScale;
@@ -149,18 +149,18 @@ struct nierBone : public nierBone_s {
 	}
 };
 typedef struct nierVertexGroup_s {
-	unsigned int	ofsVerts;
-	unsigned int	ofsVertsExData;
-	unsigned int	unknownA;
-	unsigned int	unknownB;
-	unsigned int	sizeVert;
-	unsigned int	sizeVertExData;
-	unsigned int	unknownD;
-	unsigned int	unknownE;
-	unsigned int	numVerts;
-	unsigned int	vertFlags;
-	unsigned int	ofsIndexBuffer;
-	unsigned int	numIndexes;
+	uint32_t	ofsVerts;
+	uint32_t	ofsVertsExData;
+	uint32_t	unknownA;
+	uint32_t	unknownB;
+	uint32_t	sizeVert;
+	uint32_t	sizeVertExData;
+	uint32_t	unknownD;
+	uint32_t	unknownE;
+	uint32_t	numVerts;
+	uint32_t	vertFlags;
+	uint32_t	ofsIndexBuffer;
+	uint32_t	numIndexes;
 } nierVertexGroup_t;
 template <bool big>
 struct nierVertexGroup : public nierVertexGroup_s {
@@ -182,12 +182,12 @@ struct nierVertexGroup : public nierVertexGroup_s {
 	}
 };
 typedef struct nierMesh_s {
-	unsigned int	ofsName;
-	float			boundingBox[6];
-	unsigned int	ofsMaterials;
-	unsigned int	numMaterials;
-	unsigned int	ofsBones;
-	unsigned int	numBones;
+	uint32_t	ofsName;
+	float		boundingBox[6];
+	uint32_t	ofsMaterials;
+	uint32_t	numMaterials;
+	uint32_t	ofsBones;
+	uint32_t	numBones;
 } nierMesh_t;
 template <bool big>
 struct nierMesh : public nierMesh_s {
@@ -206,11 +206,11 @@ struct nierMesh : public nierMesh_s {
 };
 typedef struct nierLod_s
 {
-	unsigned int	ofsName;
-	int				lodLevel;
-	unsigned int	batchStart;
-	unsigned int	ofsBatchInfos;
-	unsigned int	numBatchInfos;
+	uint32_t	ofsName;
+	int32_t		lodLevel;
+	uint32_t	batchStart;
+	uint32_t	ofsBatchInfos;
+	uint32_t	numBatchInfos;
 } nierLod_t;
 template <bool big>
 struct nierLod : public nierLod_s {
@@ -226,12 +226,12 @@ struct nierLod : public nierLod_s {
 };
 typedef struct nierBatchInfo_s
 {
-	unsigned int	vertexGroupIndex;
-	unsigned int	meshIndex;
-	unsigned int	materialIndex;
-	int				unknownA;
-	unsigned int	meshMaterialPairIndex;
-	int				unknownB;
+	uint32_t	vertexGroupIndex;
+	uint32_t	meshIndex;
+	uint32_t	materialIndex;
+	int32_t		unknownA;
+	uint32_t	meshMaterialPairIndex;
+	int32_t		unknownB;
 } nierBatchInfo_t;
 template <bool big>
 struct nierBatchInfo : nierBatchInfo_s {
@@ -247,13 +247,13 @@ struct nierBatchInfo : nierBatchInfo_s {
 	}
 };
 typedef struct nierBatch_s {
-	unsigned int	vertexGroupIndex;
-	int				boneSetIndex;
-	unsigned int	vertexStart;
-	unsigned int	indexStart;
-	unsigned int	numVerts;
-	unsigned int	numIndices;
-	unsigned int	numPrimitives;
+	uint32_t	vertexGroupIndex;
+	int32_t		boneSetIndex;
+	uint32_t	vertexStart;
+	uint32_t	indexStart;
+	uint32_t	numVerts;
+	uint32_t	numIndices;
+	uint32_t	numPrimitives;
 } nierBatch_t;
 template <bool big>
 struct nierBatch : public nierBatch_s {
@@ -270,8 +270,8 @@ struct nierBatch : public nierBatch_s {
 	}
 };
 typedef struct nierBoneSet_s {
-	unsigned int	ofsBoneSet;
-	unsigned int	numBoneIndices;
+	uint32_t	ofsBoneSet;
+	uint32_t	numBoneIndices;
 } nierBoneSet_t;
 template <bool big>
 struct nierBoneSet : public nierBoneSet_s {
@@ -292,9 +292,9 @@ template <>
 static void Model_Bayo_LoadTextures<false, NIER_AUTOMATA>(CArrayList<noesisTex_t *> &textures, CArrayList<bayoDatFile_t *> &texFiles, noeRAPI_t *rapi) {
 	const bool big = true;
 	int dataSize = texFiles[0]->dataSize;
-	BYTE * data = texFiles[0]->data;
+	uint8_t * data = texFiles[0]->data;
 	int dataSize2 = texFiles[1]->dataSize;
-	BYTE * data2 = texFiles[1]->data;
+	uint8_t * data2 = texFiles[1]->data;
 	char texName[MAX_NOESIS_PATH];
 	rapi->Noesis_GetExtensionlessName(texName, texFiles[0]->name);
 	if (dataSize < sizeof(bayoWTAHdr_t))
@@ -875,17 +875,17 @@ static void Model_Bayo_LoadWMB3Model(CArrayList<bayoDatFile_t> &dfiles, bayoDatF
 			nierMesh<big> mesh(meshes + batchInfo.meshIndex);
 			nierBoneSet<big> boneSet(boneSets + batch.boneSetIndex);
 
-			unsigned int vertexGroupIndex = batchInfo.vertexGroupIndex;
-			unsigned int materialIndex = batchInfo.materialIndex;
+			uint32_t vertexGroupIndex = batchInfo.vertexGroupIndex;
+			uint32_t materialIndex = batchInfo.materialIndex;
 
 			sprintf_s(batch_name, 256, "%s_%d_%s", (char *)(data + lod.ofsName), j, (char *)(data + mesh.ofsName));
 			DBGLOG("\t%s\n", batch_name);
-			int *boneIndices = NULL;
+			int32_t *boneIndices = NULL;
 			if (bones && batch.boneSetIndex >= 0) {
-				boneIndices = (int *)rapi->Noesis_UnpooledAlloc(boneSet.numBoneIndices * sizeof(int));
-				unsigned short *originalBoneIndices = (unsigned short *)(data + boneSet.ofsBoneSet);
-				for (unsigned int j = 0; j < boneSet.numBoneIndices; j++) {
-					unsigned short sourceIndex;
+				boneIndices = (int32_t *)rapi->Noesis_UnpooledAlloc(boneSet.numBoneIndices * sizeof(int32_t));
+				uint16_t *originalBoneIndices = (uint16_t *)(data + boneSet.ofsBoneSet);
+				for (uint32_t j = 0; j < boneSet.numBoneIndices; j++) {
+					uint16_t sourceIndex;
 					sourceIndex = originalBoneIndices[j];
 					if (big) {
 						LITTLE_BIG_SWAP(sourceIndex);
@@ -894,7 +894,7 @@ static void Model_Bayo_LoadWMB3Model(CArrayList<bayoDatFile_t> &dfiles, bayoDatF
 				}
 			}
 			else if (bones && boneMap) {
-				boneIndices = (int *)rapi->Noesis_UnpooledAlloc(hdr.sizeBoneMap * sizeof(int));
+				boneIndices = (int *)rapi->Noesis_UnpooledAlloc(hdr.sizeBoneMap * sizeof(int32_t));
 				for (int j = 0; j < hdr.sizeBoneMap; j++) {
 					boneIndices[j] = boneMap[j];
 				}
