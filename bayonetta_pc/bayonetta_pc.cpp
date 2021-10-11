@@ -49,15 +49,16 @@ struct SPGOptions {
 	bool bHideShadowMeshes;
 	bool bDisplayLODs;
 	bool bFuseModels;
+	bool bCollisionModels;
 };
 SPGOptions *gpPGOptions = NULL;
 SPGOptions persistentPGOptions;
 
 static void bayonetta_default_options(SPGOptions &opts) {
 #ifdef NOESIS_RELEASE
-	opts = { false, false, false, false, false, false, true };
+	opts = { false, false, false, false, false, false, true, false };
 #else
-	opts = { true, true, true, false, false, false, false };
+	opts = { true, true, true, false, false, false, false, false };
 #endif
 }
 
@@ -66,7 +67,7 @@ const LPWSTR reg_key = L"Software\\Noesis\\Plugins\\Bayonetta";
 #else
 const LPWSTR reg_key = L"Software\\Noesis\\Plugins\\Bayonetta PC";
 #endif
-const DWORD config_ver = 101;
+const DWORD config_ver = 102;
 
 static void bayonetta_load_options() {
 	HKEY key;
@@ -122,7 +123,9 @@ enum EPGOption
 	kPGO_DoLODs,
 	kPGO_NoLODs,
 	kPGO_DoFuseModels,
-	kPGO_NoFuseModels
+	kPGO_NoFuseModels,
+	kPGO_DoCollisionModels,
+	kPGO_NoCollisionModels
 };
 
 
@@ -514,6 +517,10 @@ int bayonetta_fuse_models(int handle, void *user_data) {
 	bayonetta_option_prompt(bFuseModels, "Fuse Level Models?", "Fuse Level Models");
 }
 
+int bayonetta_load_collision_models(int handle, void *user_data) {
+	bayonetta_option_prompt(bCollisionModels, "Load Collision Models?", "Load Collision Models");
+}
+
 struct SPGamesPair
 {
 	SPGamesPair(bool(*pCheck)(BYTE *fileBuffer, int bufferLen, noeRAPI_t *rapi), noesisModel_t *(*pLoad)(BYTE *fileBuffer, int bufferLen, int &numMdl, noeRAPI_t *rapi))
@@ -682,6 +689,12 @@ static bool set_option(const char *arg, unsigned char *store, int storeSize) {
 	case kPGO_NoFuseModels:
 		pOpts->bFuseModels = false;
 		break;
+	case kPGO_DoCollisionModels:
+		pOpts->bCollisionModels = true;
+		break;
+	case kPGO_NoCollisionModels:
+		pOpts->bCollisionModels = false;
+		break;
 	}
 	return true;
 }
@@ -712,6 +725,8 @@ bool NPAPI_InitLocal(void)
 	option_handler_add(fh, optParms, "-bayopgnolods", "disable LODs.", false, set_option<kPGO_NoLODs>);
 	option_handler_add(fh, optParms, "-bayopgfuse", "enable level models fusion.", false, set_option<kPGO_DoFuseModels>);
 	option_handler_add(fh, optParms, "-bayopgnofuse", "disable level models fusion.", false, set_option<kPGO_NoFuseModels>);
+	option_handler_add(fh, optParms, "-bayopgcol", "enable collision models.", false, set_option<kPGO_DoCollisionModels>);
+	option_handler_add(fh, optParms, "-bayopgnocol", "disable collision models.", false, set_option<kPGO_NoCollisionModels>);
 
 	bayonetta_default_options(persistentPGOptions);
 #ifdef NOESIS_RELEASE
@@ -733,6 +748,8 @@ bool NPAPI_InitLocal(void)
 	handle = g_nfn->NPAPI_RegisterTool("Enable LODs", bayonetta_display_lods, NULL);
 	g_nfn->NPAPI_SetToolSubMenuName(handle, menu);
 	handle = g_nfn->NPAPI_RegisterTool("Fuse Level Models", bayonetta_fuse_models, NULL);
+	g_nfn->NPAPI_SetToolSubMenuName(handle, menu);
+	handle = g_nfn->NPAPI_RegisterTool("Load Collision Models", bayonetta_load_collision_models, NULL);
 	g_nfn->NPAPI_SetToolSubMenuName(handle, menu);
 
 	//g_nfn->NPAPI_PopupDebugLog(0);

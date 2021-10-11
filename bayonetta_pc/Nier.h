@@ -282,6 +282,98 @@ struct nierBoneSet : public nierBoneSet_s {
 		}
 	}
 };
+typedef struct nierCOL2Hdr_s {
+	uint8_t  id[4];
+	uint32_t version;
+	uint32_t ofsNames;
+	uint32_t numNames;
+	uint32_t ofsMeshes;
+	uint32_t numMeshes;
+	uint32_t ofsBoneMap;
+	uint32_t sizeBoneMap;
+	uint32_t ofsBoneMap2;
+	uint32_t sizeBoneMap2;
+	uint32_t ofsMeshMap;
+	uint32_t sizeMeshMap;
+	uint32_t ofsColTreeNodes;
+	uint32_t numColTreeNodes;
+} nierCOL2Hdr_t;
+template <bool big>
+struct nierCOL2Hdr : public nierCOL2Hdr_s {
+	nierCOL2Hdr(nierCOL2Hdr_t * ptr) : nierCOL2Hdr_s(*ptr) {
+		if (big) {
+			LITTLE_BIG_SWAP(*((int *)id));
+			LITTLE_BIG_SWAP(version);
+			LITTLE_BIG_SWAP(ofsNames);
+			LITTLE_BIG_SWAP(numNames);
+			LITTLE_BIG_SWAP(ofsMeshes);
+			LITTLE_BIG_SWAP(numMeshes);
+			LITTLE_BIG_SWAP(ofsBoneMap);
+			LITTLE_BIG_SWAP(sizeBoneMap);
+			LITTLE_BIG_SWAP(ofsBoneMap2);
+			LITTLE_BIG_SWAP(sizeBoneMap2);
+			LITTLE_BIG_SWAP(ofsMeshMap);
+			LITTLE_BIG_SWAP(sizeMeshMap);
+			LITTLE_BIG_SWAP(ofsColTreeNodes);
+			LITTLE_BIG_SWAP(numColTreeNodes);
+		}
+	}
+};
+typedef struct nierCOL2MeshHdr_s {
+	uint32_t flags;
+	uint32_t nameIndex;
+	uint32_t batchType;
+	uint32_t ofsBatches;
+	uint32_t numBatches;
+} nierCOL2MeshHdr_t;
+template <bool big>
+struct nierCOL2MeshHdr : public nierCOL2MeshHdr_s {
+	nierCOL2MeshHdr(nierCOL2MeshHdr_t * ptr) : nierCOL2MeshHdr_s(*ptr) {
+		if (big) {
+			LITTLE_BIG_SWAP(flags);
+			LITTLE_BIG_SWAP(nameIndex);
+			LITTLE_BIG_SWAP(batchType);
+			LITTLE_BIG_SWAP(ofsBatches);
+			LITTLE_BIG_SWAP(numBatches);
+		}
+	}
+};
+typedef struct nierCOL2BatchHdr2_s {
+	int32_t  boneIndex;
+	uint32_t ofsVertices;
+	uint32_t numVertices;
+	uint32_t ofsIndices;
+	uint32_t numIndices;
+}nierCOL2BatchHdr2_t;
+template <bool big>
+struct nierCOL2BatchHdr2 : public nierCOL2BatchHdr2_s {
+	nierCOL2BatchHdr2(nierCOL2BatchHdr2_t * ptr) : nierCOL2BatchHdr2_s(*ptr) {
+		if (big) {
+			LITTLE_BIG_SWAP(boneIndex);
+			LITTLE_BIG_SWAP(ofsVertices);
+			LITTLE_BIG_SWAP(numVertices);
+			LITTLE_BIG_SWAP(ofsIndices);
+			LITTLE_BIG_SWAP(numIndices);
+		}
+	}
+};
+typedef struct nierCOL2BatchHdr3_s {
+	uint32_t ofsVertices;
+	uint32_t numVertices;
+	uint32_t ofsIndices;
+	uint32_t numIndices;
+}nierCOL2BatchHdr3_t;
+template <bool big>
+struct nierCOL2BatchHdr3 : public nierCOL2BatchHdr3_s {
+	nierCOL2BatchHdr3(nierCOL2BatchHdr3_t * ptr) : nierCOL2BatchHdr3_s(*ptr) {
+		if (big) {
+			LITTLE_BIG_SWAP(ofsVertices);
+			LITTLE_BIG_SWAP(numVertices);
+			LITTLE_BIG_SWAP(ofsIndices);
+			LITTLE_BIG_SWAP(numIndices);
+		}
+	}
+};
 
 template <>
 static void Model_Bayo_GetTextureBundle<NIER_AUTOMATA>(CArrayList<bayoDatFile_t *> &texFiles, CArrayList<bayoDatFile_t> &dfiles, bayoDatFile_t &df, noeRAPI_t *rapi) {
@@ -778,6 +870,139 @@ static void Model_Nier_SetBuffers(bayoDatFile_t &df, noeRAPI_t *rapi, nierWMBHdr
 }
 
 template <bool big, game_t game>
+static void Model_Bayo_LoadCOL2Model(CArrayList<bayoDatFile_t> &dfiles, bayoDatFile_t *df, noeRAPI_t *rapi, const char *prefix, modelBone_t *bones, short int * &animBoneTT, CArrayList<noesisMaterial_t *> &totMatList) {
+	DBGLOG("Loading %s\n", df->name);
+	BYTE *data = df->data;
+	int dataSize = df->dataSize;
+	if (dataSize < sizeof(nierCOL2Hdr_t))
+	{
+		return;
+	}
+	nierCOL2Hdr<big> hdr((nierCOL2Hdr_t *)data);
+	if (memcmp(hdr.id, "COL2", 4))
+	{ //invalid header
+		return;
+	}
+	noesisMaterial_t *nmat = rapi->Noesis_GetMaterialList(1, true);
+	nmat->name = "collision";
+	nmat->noDefaultBlend = false;
+	nmat->texIdx = -1;
+	nmat->normalTexIdx = - 1;
+	nmat->specularTexIdx = -1;
+	nmat->flags = NMATFLAG_TWOSIDED;
+	totMatList.Append(nmat);
+	uint32_t *ofsNames = (uint32_t *)(data + hdr.ofsNames);
+	int32_t *boneMap = NULL;
+	int32_t *boneMap2 = NULL;
+
+	rapi->rpgClearBufferBinds();
+	rapi->rpgSetMaterial(nmat->name);
+	if (bones && hdr.ofsBoneMap) {
+		boneMap = (int32_t*)(data + hdr.ofsBoneMap);
+		for (uint32_t i = 0; i < hdr.sizeBoneMap; i++) {
+			if (big)
+				LITTLE_BIG_SWAP(boneMap[i]);
+			boneMap[i] = Model_Bayo_DecodeMotionIndex<big, game>(animBoneTT, boneMap[i]);
+			if (big)
+				LITTLE_BIG_SWAP(boneMap[i]);
+		}
+	}
+	if (bones && hdr.ofsBoneMap2) {
+		boneMap2 = (int32_t*)(data + hdr.ofsBoneMap2);
+		for (uint32_t i = 0; i < hdr.sizeBoneMap2; i++) {
+			if (big)
+				LITTLE_BIG_SWAP(boneMap2[i]);
+			boneMap2[i] = Model_Bayo_DecodeMotionIndex<big, game>(animBoneTT, boneMap2[i]);
+			if (big)
+				LITTLE_BIG_SWAP(boneMap2[i]);
+		}
+	}
+	for (uint32_t i = 0; i < hdr.numMeshes; i++) {
+		DBGLOG("Mesh %d\n", i);
+		nierCOL2MeshHdr<big> meshHdr((nierCOL2MeshHdr_t *)(data + hdr.ofsMeshes + i * sizeof(nierCOL2MeshHdr_t)));
+		uint32_t ofsName = ofsNames[meshHdr.nameIndex];
+		if (big)
+			LITTLE_BIG_SWAP(ofsName);
+		char *meshName = (char *)(data + ofsName);
+
+		for (uint32_t j = 0; j < meshHdr.numBatches; j++) {
+			DBGLOG("\tBatch %d\n", j);
+			int boneIndex = -1;
+			uint32_t ofsVertices;
+			uint32_t numVertices;
+			uint32_t ofsIndices;
+			uint32_t numIndices;
+			BYTE boneWeight = 0xff;
+			char batch_name[256];
+
+			if (meshHdr.batchType == 2) {
+				nierCOL2BatchHdr2<big> batchHdr((nierCOL2BatchHdr2_t *)(data + meshHdr.ofsBatches + j * sizeof(nierCOL2BatchHdr2_t)));
+				boneIndex = batchHdr.boneIndex;
+				ofsVertices = batchHdr.ofsVertices;
+				numVertices = batchHdr.numVertices;
+				ofsIndices = batchHdr.ofsIndices;
+				numIndices = batchHdr.numIndices;
+			} else if (meshHdr.batchType == 3) {
+				nierCOL2BatchHdr3<big> batchHdr((nierCOL2BatchHdr3_t *)(data + meshHdr.ofsBatches + j * sizeof(nierCOL2BatchHdr3_t)));
+				ofsVertices = batchHdr.ofsVertices;
+				numVertices = batchHdr.numVertices;
+				ofsIndices = batchHdr.ofsIndices;
+				numIndices = batchHdr.numIndices;
+			}
+			else {//unknown vertex format
+				DBGLOG("Found unknown collision vertex format: %d\n", meshHdr.batchType);
+				continue;
+			}
+			int archBoneIndex = boneIndex;
+			if (big)
+				LITTLE_BIG_SWAP(archBoneIndex);
+
+			sprintf_s(batch_name, 256, "col_%d_%s_%d", i, meshName, j);
+			DBGLOG("\t%s\n", batch_name);
+			rapi->rpgSetName(rapi->Noesis_PooledString(batch_name));
+			if (meshHdr.batchType == 2) {
+				if (boneIndex != -1 && bones) {
+					int32_t realBoneIndex = boneIndex;
+					if (boneMap) {
+						realBoneIndex = boneMap[realBoneIndex];
+						if (big)
+							LITTLE_BIG_SWAP(realBoneIndex);
+						rapi->rpgSetBoneMapSafe(boneMap, hdr.sizeBoneMap);
+					}
+					rapi->rpgBindBoneIndexBufferSafe(&archBoneIndex, RPGEODATA_INT, 0, 1, sizeof(int32_t));
+					rapi->rpgBindBoneWeightBufferSafe(&boneWeight, RPGEODATA_BYTE, 0, 1, sizeof(BYTE));
+					Model_Bayo_PretransformPositions<big>(data + ofsVertices, numVertices, 4 * sizeof(float), &bones[realBoneIndex].mat);
+				}
+				rapi->rpgBindPositionBufferSafe(data + ofsVertices, RPGEODATA_FLOAT, 4 * sizeof(float), 4 * sizeof(float) * numVertices);
+				int result = rapi->rpgCommitTrianglesSafe(data + ofsIndices, RPGEODATA_USHORT, numIndices, RPGEO_TRIANGLE, true);
+				DBGLOG("committed triangles: %d:\n", result);
+				if (boneIndex != -1 && bones) {
+					rapi->rpgBindBoneIndexBuffer(NULL, RPGEODATA_INT, 0, 0);
+					rapi->rpgBindBoneWeightBuffer(NULL, RPGEODATA_BYTE, 0, 0);
+				}
+			}
+			else if (meshHdr.batchType == 3) {
+				if (boneMap2)
+					rapi->rpgSetBoneMapSafe(boneMap2, hdr.sizeBoneMap2);
+				rapi->rpgBindPositionBufferSafe(data + ofsVertices, RPGEODATA_FLOAT, 0x30, 0x30 * (numVertices - 1) + 0x10);
+				if (bones) {
+					rapi->rpgBindBoneWeightBufferSafe(data + ofsVertices + 0x10, RPGEODATA_FLOAT, 0x30, 4, 0x30 * (numVertices - 1) + 0x10);
+					rapi->rpgBindBoneIndexBufferSafe(data + ofsVertices + 0x20, RPGEODATA_INT, 0x30, 4, 0x30 * (numVertices - 1) + 0x10);
+				}
+				int result = rapi->rpgCommitTrianglesSafe(data + ofsIndices, RPGEODATA_USHORT, numIndices, RPGEO_TRIANGLE, true);
+				DBGLOG("committed triangles: %d\n", result);
+				if (bones) {
+					rapi->rpgBindBoneIndexBuffer(NULL, RPGEODATA_INT, 0, 0);
+					rapi->rpgBindBoneWeightBuffer(NULL, RPGEODATA_BYTE, 0, 0);
+				}
+			}
+			rapi->rpgSetBoneMap(NULL);
+		}
+	}
+	rapi->rpgClearBufferBinds();
+}
+
+template <bool big, game_t game>
 static void Model_Bayo_LoadWMB3Model(CArrayList<bayoDatFile_t> &dfiles, bayoDatFile_t &df, noeRAPI_t *rapi, CArrayList<noesisModel_t *> &models, CArrayList<noesisTex_t *> &givenTextures, modelMatrix_t * pretransform, int sharedtextureoffset, const char *prefix, CArrayList<noesisMaterial_t *> *globalMatList) {
 	DBGLOG("Loading %s\n", df.name);
 	BYTE *data = df.data;
@@ -795,6 +1020,7 @@ static void Model_Bayo_LoadWMB3Model(CArrayList<bayoDatFile_t> &dfiles, bayoDatF
 	CArrayList<bayoDatFile_t *> motfiles;
 	CArrayList<bayoDatFile_t *> texFiles;
 	CArrayList<bayoDatFile_t *> expfile;
+	CArrayList<bayoDatFile_t *> colfile;
 	CArrayList<noesisTex_t *> textures;
 	CArrayList<noesisMaterial_t *> matList;
 	CArrayList<noesisMaterial_t *> matListLightMap;
@@ -844,10 +1070,9 @@ static void Model_Bayo_LoadWMB3Model(CArrayList<bayoDatFile_t> &dfiles, bayoDatF
 	rapi->rpgSetOption(RPGOPT_BIGENDIAN, big);
 	rapi->rpgSetOption(RPGOPT_TRIWINDBACKWARD, true);
 
-
-
 	Model_Bayo_GetMotionFiles(dfiles, df, rapi, motfiles);
 	Model_Bayo_GetEXPFile(dfiles, df, rapi, expfile);
+	Model_Bayo_GetCOLFile(dfiles, df, rapi, colfile);
 	if (bones) {
 		Model_Bayo_LoadMotions<big, game>(animList, motfiles, expfile, bones, numBones, rapi, animBoneTT, data + hdr.ofsBones);
 		Model_Bayo_LoadExternalMotions<big, game>(animList, df, expfile, bones, numBones, rapi, animBoneTT, data + hdr.ofsBones);
@@ -943,6 +1168,10 @@ static void Model_Bayo_LoadWMB3Model(CArrayList<bayoDatFile_t> &dfiles, bayoDatF
 			}
 		}
 
+	}
+
+	if (gpPGOptions->bCollisionModels && colfile.Num() > 0) {
+		Model_Bayo_LoadCOL2Model<big, game>(dfiles, colfile[0], rapi, prefix, bones, animBoneTT, totMatList);
 	}
 
 	noesisMatData_t *md = rapi->Noesis_GetMatDataFromLists(totMatList, textures);

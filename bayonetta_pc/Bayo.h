@@ -511,6 +511,21 @@ static void Model_Bayo_GetEXPFile(CArrayList<bayoDatFile_t> &dfiles, bayoDatFile
 		}
 	}
 }
+// get col file
+static void Model_Bayo_GetCOLFile(CArrayList<bayoDatFile_t> &dfiles, bayoDatFile_t &df, noeRAPI_t *rapi, CArrayList<bayoDatFile_t *> &colfile)
+{
+	char colName[MAX_NOESIS_PATH];
+	rapi->Noesis_GetExtensionlessName(colName, df.name);
+	strcat_s(colName, MAX_NOESIS_PATH, ".col");
+	for (int i = 0; i < dfiles.Num(); i++)
+	{
+		bayoDatFile_t &dft = dfiles[i];
+		if (!_stricmp(dft.name, colName))
+		{
+			colfile.Append(&dft);
+		}
+	}
+}
 //load texture bundle
 template <bool big, game_t game>
 static void Model_Bayo_LoadTextures(CArrayList<noesisTex_t *> &textures, CArrayList<bayoDatFile_t *> &texFiles, noeRAPI_t *rapi);
