@@ -971,7 +971,7 @@ static void Model_Bayo_CreateNormal<true, BAYONETTA>(char *src, float *dst) {
 template <>
 static void Model_Bayo_CreateNormal<false, BAYONETTA>(char *src, float *dst) {
 	for (int j = 0; j < 3; j++) {
-		dst[j] = (float)src[3 - j] / (float)127;
+		dst[j] = (float)src[3 - j] * 0.007874016f; // 1.0f/127.0f;
 	}
 }
 
