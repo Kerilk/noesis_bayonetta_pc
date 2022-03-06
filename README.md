@@ -13,6 +13,7 @@ PlatinumGames plugin for Noesis
 - The Wonderful 101
 - Vanquish
 - Anarchy Reigns
+- BAbylon's Fall
 
 ## Install
 
