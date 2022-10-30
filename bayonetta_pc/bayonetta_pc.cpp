@@ -166,6 +166,7 @@ typedef enum game_e {
 #define WMB3_TAG 0x33424d57
 #define WMB4_TAG 0x34424d57
 #define XT1_TAG  0x00315458
+#define TEX_TAG  0x7865742e
 
 //see if something is a valid bayonetta .dat
 template <bool big, game_e game>
@@ -203,6 +204,7 @@ bool Model_Bayo_Check(BYTE *fileBuffer, int bufferLen, noeRAPI_t *rapi)
 	default:
 		gameName = "Unknown";
 	}
+	DBGLOG("==================================================\n");
 	DBGLOG("Checking %s %s\n", big? "big" : "little", gameName);
 	if (bufferLen < sizeof(bayoDat_t))
 	{
@@ -333,6 +335,9 @@ bool Model_Bayo_Check(BYTE *fileBuffer, int bufferLen, noeRAPI_t *rapi)
 					LITTLE_BIG_SWAP(offWta);
 				}
 				unsigned int offsetTextureInfo = ((unsigned int*)(fileBuffer + offWta))[7];
+				if (big) {
+					LITTLE_BIG_SWAP(offsetTextureInfo);
+				}
 				if (game == ASTRAL_CHAIN && !offsetTextureInfo) {
 					DBGLOG("Not an Astral Chain file (no texture infos)!\n");
 					return false;
@@ -342,7 +347,7 @@ bool Model_Bayo_Check(BYTE *fileBuffer, int bufferLen, noeRAPI_t *rapi)
 					DBGLOG("Not an Astral Chain file wrong tag (%x)!\n", tag);
 					return false;
 				} else if (game == NIER_AUTOMATA && tag == XT1_TAG) {
-					DBGLOG("Found Astral Chain File");
+					DBGLOG("Found Astral Chain File\n");
 					return false;
 				}
 			}
@@ -407,7 +412,7 @@ bool Model_Bayo_Check(BYTE *fileBuffer, int bufferLen, noeRAPI_t *rapi)
 			return false;
 		}
 		if (numSCR && !numHKX) {
-			DBGLOG("Found Bayonetta or Bayonetta2 level");
+			DBGLOG("Found Bayonetta or Bayonetta2 level\n");
 			return false;
 		}
 	}
@@ -466,6 +471,8 @@ bool Model_Bayo_Check(BYTE *fileBuffer, int bufferLen, noeRAPI_t *rapi)
 		DBGLOG("Found TW101 File (VANQUISH loader)!\n");
 		return false;
 	}
+	DBGLOG("--------------------------------------------------\n");
+	DBGLOG("Found %s %s\n", big ? "big" : "little", gameName);
 	DBGLOG("Found %d mdb files\n", numMDB);
 	DBGLOG("Found %d mot files\n", numMOT);
 	DBGLOG("Found %d wmb files\n", numWMB);

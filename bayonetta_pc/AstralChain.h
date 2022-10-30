@@ -1,18 +1,18 @@
 #pragma once
 typedef struct ACWTBInfo_s {
-	BYTE				id[4];
-	DWORD				u_a;
-	unsigned long long	textureSize;
-	unsigned int		headerSize;
-	unsigned int		numMipMap;
-	unsigned int		textureType;
-	unsigned int		format;
-	unsigned int		width;
-	unsigned int		height;
-	unsigned int		depth;
-	unsigned int		u_b;
-	unsigned int		blockHeightLog2;
-	unsigned int		u_c;
+	uint8_t			id[4];
+	uint32_t		u_a;
+	uint64_t		textureSize;
+	uint32_t		headerSize;
+	uint32_t		numMipMap;
+	uint32_t		textureType;
+	uint32_t		format;
+	uint32_t		width;
+	uint32_t		height;
+	uint32_t		depth;
+	uint32_t		u_b;
+	uint32_t		blockHeightLog2;
+	uint32_t		u_c;
 } ACWTBInfo_t;
 template <bool big>
 struct ACWTBInfo : ACWTBInfo_s {
@@ -95,125 +95,8 @@ static void Model_Bayo_LoadTextures<false, ASTRAL_CHAIN>(CArrayList<noesisTex_t 
 		int height = info.height;
 		int depth = info.depth;
 		size_t mipSize = (size_t)info.textureSize;
-		BYTE *untiledMip;
-		BYTE *pix;
-		int blockWidth;
-		int blockHeight;
-		int blockDepth = 1;
-		int blockSize = 1 << (info.blockHeightLog2 & 7);;
-		int maxBlockHeight;
-		bool astc = false;
-		bool decode_dxt = false;
-		int fourcc = 0;
-		noesisTexType_e type = NOESISTEX_UNKNOWN;
-		if (info.textureType != 1) continue;
-		if (info.format == 0x79 || info.format == 0x87) {
-			blockWidth = 4;
-			blockHeight = 4;
-			maxBlockHeight = 16;
-			astc = true;
-			DBGLOG("Found ASTC 4x4\n");
-		}
-		else if (info.format == 0x7d || info.format == 0x8b) {
-			blockWidth = 6;
-			blockHeight = 6;
-			maxBlockHeight = 16;
-			astc = true;
-			DBGLOG("Found ASTC 6x6\n");
-		}
-		else if (info.format == 0x80 || info.format == 0x8e) {
-			blockWidth = 8;
-			blockHeight = 8;
-			maxBlockHeight = 16;
-			astc = true;
-			DBGLOG("Found ASTC 8x8\n");
-		}
-		else if (info.format == 0x50) {
-			blockWidth = 4;
-			blockHeight = 4;
-			maxBlockHeight = 16;
-			fourcc = FOURCC_BC6H;
-			decode_dxt = true;
-			DBGLOG("Found BC6H\n");
-		}
-		else if (info.format == 0x45 || info.format == 0x49) {
-			blockWidth = 4;
-			blockHeight = 4;
-			maxBlockHeight = 16;
-			fourcc = FOURCC_BC4;
-			decode_dxt = true;
-			DBGLOG("Found BC4\n");
-		}
-		else if (info.format == 0x44 || info.format == 0x48) {
-			blockWidth = 4;
-			blockHeight = 4;
-			maxBlockHeight = 16;
-			type = NOESISTEX_DXT5;
-			DBGLOG("Found DXT5\n");
-		}
-		else if (info.format == 0x43 || info.format == 0x47) {
-			blockWidth = 4;
-			blockHeight = 4;
-			maxBlockHeight = 16;
-			type = NOESISTEX_DXT3;
-			DBGLOG("Found DXT3\n");
-		}
-		else if (info.format == 0x42 || info.format == 0x46) {
-			blockWidth = 4;
-			blockHeight = 4;
-			maxBlockHeight = 8;
-			type = NOESISTEX_DXT1;
-			DBGLOG("Found DXT1\n");
-		}
-		else if (info.format == 0x25) {
-			blockWidth = 1;
-			blockHeight = 1;
-			maxBlockHeight = 8;
-			type = NOESISTEX_RGBA32;
-			DBGLOG("Found RGBA32\n");
-		}
-		else {
-			continue;
-		}
-
-		int widthInBlocks = (width + (blockWidth - 1)) / blockWidth;
-		int heightInBlocks = (height + (blockHeight - 1)) / blockHeight;
-
-
-		noesisTex_t *nt;
-		if (astc) {
-			untiledMip = (BYTE *)rapi->Noesis_UnpooledAlloc(mipSize);
-			pix = (BYTE *)rapi->Noesis_PooledAlloc((width*height) * 4);
-			Noesis_UntileBlockLinearGOBs(untiledMip, (unsigned int)mipSize, data2 + tof, (unsigned int)mipSize, widthInBlocks, heightInBlocks, blockSize, maxBlockHeight, rapi);
-			DBGLOG("Untiled\n");
-			int blockDims[3] = { blockWidth, blockHeight, blockDepth };
-			int dims[3] = { width, height, depth };
-			NoesisMisc_ASTC_DecodeRaw32(pix, untiledMip, (unsigned int)mipSize, blockDims, dims);
-			DBGLOG("Decoded ASTC\n");
-			nt = rapi->Noesis_TextureAlloc(fname, width, height, pix, NOESISTEX_RGBA32);
-			rapi->Noesis_UnpooledFree(untiledMip);
-			nt->shouldFreeData = false; //because the untiledMip data is pool-allocated, it does not need to be freed
-		}
-		else if (decode_dxt) {
-			untiledMip = (BYTE *)rapi->Noesis_UnpooledAlloc(mipSize);
-			Noesis_UntileBlockLinearGOBs(untiledMip, (unsigned int)mipSize, data2 + tof, (unsigned int)mipSize, widthInBlocks, heightInBlocks, blockSize, maxBlockHeight, rapi);
-			pix = rapi->Noesis_ConvertDXT(width, height, untiledMip, fourcc);
-			DBGLOG("Decoded BC\n");
-			nt = rapi->Noesis_TextureAlloc(fname, width, height, pix, NOESISTEX_RGBA32);
-			rapi->Noesis_UnpooledFree(untiledMip);
-			nt->shouldFreeData = true;
-		}
-		else {
-			untiledMip = (BYTE *)rapi->Noesis_PooledAlloc(mipSize);
-			Noesis_UntileBlockLinearGOBs(untiledMip, (unsigned int)mipSize, data2 + tof, (unsigned int)mipSize, widthInBlocks, heightInBlocks, blockSize, maxBlockHeight, rapi);
-			DBGLOG("Untiled\n");
-			nt = rapi->Noesis_TextureAlloc(fname, width, height, untiledMip, type);
-			nt->shouldFreeData = false; //because the untiledMip data is pool-allocated, it does not need to be freed
-		}
-
-		//nt->flags |= texFlags;
-		nt->globalIdx = idx;
-		textures.Append(nt);
+		int blockSize = 1 << (info.blockHeightLog2 & 7);
+		Model_loadTextureSwitch(idx, data2 + tof, info.textureType, info.format, width, height, depth, blockSize, mipSize, fname, textures, rapi, Noesis_UntileBlockLinearGOBs, NoesisMisc_ASTC_DecodeRaw32);
 	}
 	//insert a flat normal map placeholder
 	char fname[MAX_NOESIS_PATH];

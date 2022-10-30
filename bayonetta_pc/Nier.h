@@ -375,14 +375,41 @@ struct nierCOL2BatchHdr3 : public nierCOL2BatchHdr3_s {
 	}
 };
 
+typedef struct nierWTBInfoSwitch_s {
+	uint8_t  id[4];
+	uint32_t format;
+	uint32_t textureType;
+	uint32_t width;
+	uint32_t height;
+	uint32_t depth;
+	uint32_t numMipMap;
+	uint32_t headerSize;
+	uint64_t textureSize;
+	uint8_t  padding[216];
+} nierWTBInfoSwitch_t;
+template <bool big>
+struct nierWTBInfoSwitch : public nierWTBInfoSwitch_s {
+	nierWTBInfoSwitch(nierWTBInfoSwitch_t * ptr) : nierWTBInfoSwitch_s(*ptr) {
+		if (big) {
+			LITTLE_BIG_SWAP(format);
+			LITTLE_BIG_SWAP(textureType);
+			LITTLE_BIG_SWAP(width);
+			LITTLE_BIG_SWAP(height);
+			LITTLE_BIG_SWAP(depth);
+			LITTLE_BIG_SWAP(numMipMap);
+			LITTLE_BIG_SWAP(headerSize);
+			LITTLE_BIG_SWAP(textureSize);
+		}
+	}
+};
+
 template <>
 static void Model_Bayo_GetTextureBundle<NIER_AUTOMATA>(CArrayList<bayoDatFile_t *> &texFiles, CArrayList<bayoDatFile_t> &dfiles, bayoDatFile_t &df, noeRAPI_t *rapi) {
 	Model_Bayo_GetTextureBundle<BAYONETTA2>(texFiles, dfiles, df, rapi);
 }
 
-template <>
-static void Model_Bayo_LoadTextures<false, NIER_AUTOMATA>(CArrayList<noesisTex_t *> &textures, CArrayList<bayoDatFile_t *> &texFiles, noeRAPI_t *rapi) {
-	const bool big = true;
+// There exist two Nier automata format PC and Switch
+static void Model_Nier_LoadTextures_PC(CArrayList<noesisTex_t *> &textures, CArrayList<bayoDatFile_t *> &texFiles, noeRAPI_t *rapi) {
 	int dataSize = texFiles[0]->dataSize;
 	uint8_t * data = texFiles[0]->data;
 	int dataSize2 = texFiles[1]->dataSize;
@@ -561,6 +588,246 @@ static void Model_Bayo_LoadTextures<false, NIER_AUTOMATA>(CArrayList<noesisTex_t
 	strcat_s(fname, MAX_NOESIS_PATH, nameStr);
 	noesisTex_t *nt = rapi->Noesis_AllocPlaceholderTex(fname, 32, 32, true);
 	textures.Append(nt);
+}
+
+typedef void(*Noesis_UntileBlockLinearGOBs_p)(void *untiledMip, unsigned int untiledMipSize, void *textureData, unsigned int mipSize, int widthInBlocks, int heightInBlocks, int blockSize, int maxBlockHeight, noeRAPI_t *rapi);
+typedef void(*NoesisMisc_ASTC_DecodeRaw32_p)(void *pix, void *untiledMip, unsigned int mipSize, int *blockDims, int *dims);
+
+static void Model_loadTextureSwitch(int idx, BYTE *data, int textureType, int format, int width, int height, int depth, int blockSize, size_t mipSize, char *fname, CArrayList<noesisTex_t *> &textures, noeRAPI_t *rapi,
+                                    Noesis_UntileBlockLinearGOBs_p Noesis_UntileBlockLinearGOBs, NoesisMisc_ASTC_DecodeRaw32_p NoesisMisc_ASTC_DecodeRaw32) {
+	BYTE *untiledMip;
+	BYTE *pix;
+	int blockWidth;
+	int blockHeight;
+	int blockDepth = 1;
+	int maxBlockHeight;
+	bool astc = false;
+	bool decode_dxt = false;
+	int fourcc = 0;
+	noesisTexType_e type = NOESISTEX_UNKNOWN;
+	if (textureType != 1) return;
+	if (format == 0x79 || format == 0x87) {
+		blockWidth = 4;
+		blockHeight = 4;
+		maxBlockHeight = 16;
+		astc = true;
+		DBGLOG("Found ASTC 4x4\n");
+	}
+	else if (format == 0x7d || format == 0x8b) {
+		blockWidth = 6;
+		blockHeight = 6;
+		maxBlockHeight = 16;
+		astc = true;
+		DBGLOG("Found ASTC 6x6\n");
+	}
+	else if (format == 0x80 || format == 0x8e) {
+		blockWidth = 8;
+		blockHeight = 8;
+		maxBlockHeight = 16;
+		astc = true;
+		DBGLOG("Found ASTC 8x8\n");
+	}
+	else if (format == 0x50) {
+		blockWidth = 4;
+		blockHeight = 4;
+		maxBlockHeight = 16;
+		fourcc = FOURCC_BC6H;
+		decode_dxt = true;
+		DBGLOG("Found BC6H\n");
+	}
+	else if (format == 0x45 || format == 0x49) {
+		blockWidth = 4;
+		blockHeight = 4;
+		maxBlockHeight = 16;
+		fourcc = FOURCC_BC4;
+		decode_dxt = true;
+		DBGLOG("Found BC4\n");
+	}
+	else if (format == 0x44 || format == 0x48) {
+		blockWidth = 4;
+		blockHeight = 4;
+		maxBlockHeight = 16;
+		type = NOESISTEX_DXT5;
+		DBGLOG("Found DXT5\n");
+	}
+	else if (format == 0x43 || format == 0x47) {
+		blockWidth = 4;
+		blockHeight = 4;
+		maxBlockHeight = 16;
+		type = NOESISTEX_DXT3;
+		DBGLOG("Found DXT3\n");
+	}
+	else if (format == 0x42 || format == 0x46) {
+		blockWidth = 4;
+		blockHeight = 4;
+		maxBlockHeight = 8;
+		type = NOESISTEX_DXT1;
+		DBGLOG("Found DXT1\n");
+	}
+	else if (format == 0x25) {
+		blockWidth = 1;
+		blockHeight = 1;
+		maxBlockHeight = 8;
+		type = NOESISTEX_RGBA32;
+		DBGLOG("Found RGBA32\n");
+	}
+	else {
+		return;
+	}
+
+	int widthInBlocks = (width + (blockWidth - 1)) / blockWidth;
+	int heightInBlocks = (height + (blockHeight - 1)) / blockHeight;
+
+
+	noesisTex_t *nt;
+	if (astc) {
+		untiledMip = (BYTE *)rapi->Noesis_UnpooledAlloc(mipSize);
+		pix = (BYTE *)rapi->Noesis_PooledAlloc((width*height) * 4);
+		Noesis_UntileBlockLinearGOBs(untiledMip, (unsigned int)mipSize, data, (unsigned int)mipSize, widthInBlocks, heightInBlocks, blockSize, maxBlockHeight, rapi);
+		DBGLOG("Untiled\n");
+		int blockDims[3] = { blockWidth, blockHeight, blockDepth };
+		int dims[3] = { width, height, depth };
+		NoesisMisc_ASTC_DecodeRaw32(pix, untiledMip, (unsigned int)mipSize, blockDims, dims);
+		DBGLOG("Decoded ASTC\n");
+		nt = rapi->Noesis_TextureAlloc(fname, width, height, pix, NOESISTEX_RGBA32);
+		rapi->Noesis_UnpooledFree(untiledMip);
+		nt->shouldFreeData = false; //because the untiledMip data is pool-allocated, it does not need to be freed
+	}
+	else if (decode_dxt) {
+		untiledMip = (BYTE *)rapi->Noesis_UnpooledAlloc(mipSize);
+		Noesis_UntileBlockLinearGOBs(untiledMip, (unsigned int)mipSize, data, (unsigned int)mipSize, widthInBlocks, heightInBlocks, blockSize, maxBlockHeight, rapi);
+		pix = rapi->Noesis_ConvertDXT(width, height, untiledMip, fourcc);
+		DBGLOG("Decoded BC\n");
+		nt = rapi->Noesis_TextureAlloc(fname, width, height, pix, NOESISTEX_RGBA32);
+		rapi->Noesis_UnpooledFree(untiledMip);
+		nt->shouldFreeData = true;
+	}
+	else {
+		untiledMip = (BYTE *)rapi->Noesis_PooledAlloc(mipSize);
+		Noesis_UntileBlockLinearGOBs(untiledMip, (unsigned int)mipSize, data, (unsigned int)mipSize, widthInBlocks, heightInBlocks, blockSize, maxBlockHeight, rapi);
+		DBGLOG("Untiled\n");
+		nt = rapi->Noesis_TextureAlloc(fname, width, height, untiledMip, type);
+		nt->shouldFreeData = false; //because the untiledMip data is pool-allocated, it does not need to be freed
+	}
+
+	//nt->flags |= texFlags;
+	nt->globalIdx = idx;
+	textures.Append(nt);
+}
+
+static void Model_Nier_LoadTextures_Switch(CArrayList<noesisTex_t *> &textures, CArrayList<bayoDatFile_t *> &texFiles, noeRAPI_t *rapi) {
+	const bool big = false;
+	int dataSize = texFiles[0]->dataSize;
+	BYTE * data = texFiles[0]->data;
+	int dataSize2 = texFiles[1]->dataSize;
+	BYTE * data2 = texFiles[1]->data;
+	char texName[MAX_NOESIS_PATH];
+	rapi->Noesis_GetExtensionlessName(texName, texFiles[0]->name);
+	if (dataSize < sizeof(bayoWTBHdr_t))
+	{
+		return;
+	}
+	bayoWTBHdr<big> hdr((bayoWTBHdr_t *)data);
+	if (memcmp(hdr.id, "WTB\0", 4))
+	{ //not a valid texture bundle
+		return;
+	}
+	if (hdr.numTex <= 0 || hdr.ofsTexOfs <= 0 || hdr.ofsTexOfs >= dataSize ||
+		hdr.ofsTexSizes <= 0 || hdr.ofsTexSizes >= dataSize)
+	{
+		return;
+	}
+	DBGLOG("found valid texture header file, containing %d textures, headers offset: %x\n", hdr.numTex, hdr.texInfoOffset);
+
+	int *tofs = (int *)(data + hdr.ofsTexOfs);
+	int *tsizes = (int *)(data + hdr.ofsTexSizes);
+	int *idxs = (int  *)(data + hdr.texIdxOffset);
+	nierWTBInfoSwitch_t *tinfs = (nierWTBInfoSwitch_t  *)(data + hdr.texInfoOffset);
+	Noesis_UntileBlockLinearGOBs_p Noesis_UntileBlockLinearGOBs = NULL;
+	Noesis_UntileBlockLinearGOBs = (Noesis_UntileBlockLinearGOBs_p)g_nfn->NPAPI_GetUserExtProc("Noesis_UntileBlockLinearGOBs");
+	DBGLOG("Noesis_UntileBlockLinearGOBs: %p\n", Noesis_UntileBlockLinearGOBs);
+	NoesisMisc_ASTC_DecodeRaw32_p NoesisMisc_ASTC_DecodeRaw32 = NULL;
+	NoesisMisc_ASTC_DecodeRaw32 = (NoesisMisc_ASTC_DecodeRaw32_p)g_nfn->NPAPI_GetUserExtProc("NoesisMisc_ASTC_DecodeRaw32");
+	DBGLOG("NoesisMisc_ASTC_DecodeRaw32: %p\n", NoesisMisc_ASTC_DecodeRaw32);
+
+	for (int i = 0; i < hdr.numTex; i++)
+	{
+		int tof = tofs[i];
+		int tsize = tsizes[i];
+		int idx = idxs[i];
+		nierWTBInfoSwitch<big> info(tinfs + i);
+
+		char fname[8192];
+		rapi->Noesis_GetDirForFilePath(fname, rapi->Noesis_GetOutputName());
+
+		char nameStr[MAX_NOESIS_PATH];
+		sprintf_s(nameStr, MAX_NOESIS_PATH, ".\\%s%s%03i", rapi->Noesis_GetOption("texpre"), texName, i);
+		strcat_s(fname, MAX_NOESIS_PATH, nameStr);
+		DBGLOG("%s: 0x%0x, type: %d, format: %x, width: %d, height: %d\n", fname, idx, info.textureType, info.format, info.width, info.height);
+
+		int width = info.width;
+		int height = info.height;
+		int depth = info.depth;
+		size_t mipSize = (size_t)info.textureSize;
+		//heuristic
+		int widthInBits = 0;
+		for (int tmp = width; tmp > 0; tmp /= 2) {
+			widthInBits++;
+		}
+		DBGLOG("Width in bits: %d\n", widthInBits);
+		int blockHeightLog2 = widthInBits - 6;
+		if (blockHeightLog2 < 0)
+			blockHeightLog2 = 0;
+		DBGLOG("Block height log2: %d\n", blockHeightLog2);
+		int blockSize = 1 << (blockHeightLog2 & 7);
+		Model_loadTextureSwitch(idx, data2 + tof, info.textureType, info.format, width, height, depth, blockSize, mipSize, fname, textures, rapi, Noesis_UntileBlockLinearGOBs, NoesisMisc_ASTC_DecodeRaw32);
+	}
+	//insert a flat normal map placeholder
+	char fname[MAX_NOESIS_PATH];
+	rapi->Noesis_GetDirForFilePath(fname, rapi->Noesis_GetOutputName());
+	char nameStr[MAX_NOESIS_PATH];
+	sprintf_s(nameStr, MAX_NOESIS_PATH, ".\\%sbayoflatnormal", rapi->Noesis_GetOption("texpre"));
+	strcat_s(fname, MAX_NOESIS_PATH, nameStr);
+	noesisTex_t *nt = rapi->Noesis_AllocPlaceholderTex(fname, 32, 32, true);
+	textures.Append(nt);
+}
+
+template <>
+static void Model_Bayo_LoadTextures<false, NIER_AUTOMATA>(CArrayList<noesisTex_t *> &textures, CArrayList<bayoDatFile_t *> &texFiles, noeRAPI_t *rapi) {
+	int dataSize = texFiles[0]->dataSize;
+	uint8_t * data = texFiles[0]->data;
+	int dataSize2 = texFiles[1]->dataSize;
+	uint8_t * data2 = texFiles[1]->data;
+	char texName[MAX_NOESIS_PATH];
+	rapi->Noesis_GetExtensionlessName(texName, texFiles[0]->name);
+	if (dataSize < sizeof(bayoWTAHdr_t))
+	{
+		return;
+	}
+	bayoWTBHdr<false> hdr((bayoWTBHdr_t *)data);
+	if (memcmp(hdr.id, "WTB\0", 4))
+	{ //not a valid texture bundle
+		return;
+	}
+	if (hdr.numTex <= 0 || hdr.ofsTexOfs <= 0 || hdr.ofsTexOfs >= dataSize ||
+		hdr.ofsTexSizes <= 0 || hdr.ofsTexSizes >= dataSize)
+	{
+		return;
+	}
+	int *tofs = (int *)(data + hdr.ofsTexOfs);
+	int *tsizes = (int *)(data + hdr.ofsTexSizes);
+	int *tflags = (int *)(data + hdr.ofsTexFlags);
+	int *tidx = (int *)(data + hdr.texIdxOffset);
+	char *tinfo = (char *)(data + hdr.texInfoOffset);
+	DBGLOG("Checking tinfo tag: %.4s\n", tinfo);
+	if (memcmp(tinfo, ".tex", 4)) {
+		DBGLOG("found Nier PC texture file\n");
+		Model_Nier_LoadTextures_PC(textures, texFiles, rapi);
+	}
+	else {
+		DBGLOG("found Nier Switch texture file\n");
+		Model_Nier_LoadTextures_Switch(textures, texFiles, rapi);
+	}
 }
 
 template <>
