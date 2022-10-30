@@ -107,19 +107,26 @@ static void Model_Bayo_LoadTextures<false, ASTRAL_CHAIN>(CArrayList<noesisTex_t 
 		int fourcc = 0;
 		noesisTexType_e type = NOESISTEX_UNKNOWN;
 		if (info.textureType != 1) continue;
-		if (info.format == 0x80 || info.format == 0x8e) {
-			blockWidth = 8;
-			blockHeight = 8;
-			maxBlockHeight = 16;
-			astc = true;
-			DBGLOG("Found ASTC 8x8\n");
-		}
-		else if (info.format == 0x79 || info.format == 0x87) {
+		if (info.format == 0x79 || info.format == 0x87) {
 			blockWidth = 4;
 			blockHeight = 4;
 			maxBlockHeight = 16;
 			astc = true;
 			DBGLOG("Found ASTC 4x4\n");
+		}
+		else if (info.format == 0x7d || info.format == 0x8b) {
+			blockWidth = 6;
+			blockHeight = 6;
+			maxBlockHeight = 16;
+			astc = true;
+			DBGLOG("Found ASTC 6x6\n");
+		}
+		else if (info.format == 0x80 || info.format == 0x8e) {
+			blockWidth = 8;
+			blockHeight = 8;
+			maxBlockHeight = 16;
+			astc = true;
+			DBGLOG("Found ASTC 8x8\n");
 		}
 		else if (info.format == 0x50) {
 			blockWidth = 4;
