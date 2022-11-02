@@ -73,7 +73,6 @@ struct nierWMBHdr : public nierWMBHdr_s {
 };
 typedef struct nierMaterial_s
 {
-
 	int16_t  version[4];
 	uint32_t ofsName;
 	uint32_t ofsShaderName;
@@ -103,6 +102,20 @@ struct nierMaterial : public nierMaterial_s {
 			LITTLE_BIG_SWAP(numParametersGroup);
 			LITTLE_BIG_SWAP(ofsVariables);
 			LITTLE_BIG_SWAP(numVariables);
+		}
+	}
+};
+typedef struct nierMaterialVariable_s
+{
+	uint32_t ofsName;
+	float    value;
+} nierMaterialVariable_t;
+template <bool big>
+struct nierMaterialVariable : public nierMaterialVariable_s {
+	nierMaterialVariable(nierMaterialVariable_t * ptr) : nierMaterialVariable_s(*ptr) {
+		if (big) {
+			LITTLE_BIG_SWAP(ofsName);
+			LITTLE_BIG_SWAP(value);
 		}
 	}
 };
@@ -970,6 +983,26 @@ static void Model_Nier_LoadMaterials(nierWMBHdr<big> &hdr,
 				DBGLOG("Found matching mask %d\n", j);
 				//nmat->ex->occlTexIdx = j;
 			}
+		}
+
+		bayoV4F_t scaleBias = { 1.0, 1.0, 0.0, 0.0 };
+		nierMaterialVariable_t * varPtr = (nierMaterialVariable_t *)(data + mat.ofsVariables);
+		for (uint32_t j = 0; j < mat.numVariables; j++) {
+			nierMaterialVariable<big> var(varPtr + j);
+			if (strcmp((char*)(data + var.ofsName), "g_Tile_X") == 0) {
+				scaleBias.x = var.value;
+			}
+			else if (strcmp((char*)(data + var.ofsName), "g_Tile_Y") == 0) {
+				scaleBias.y = var.value;
+			}
+		}
+		if (scaleBias.x != 1.0f || scaleBias.y != 1.0f || scaleBias.z != 0.0f || scaleBias.w != 0.0f) {
+			float *p_scaleBias = (float *)rapi->Noesis_PooledAlloc(4 * sizeof(float));
+			p_scaleBias[0] = scaleBias.x;
+			p_scaleBias[1] = scaleBias.y;
+			p_scaleBias[2] = scaleBias.z;
+			p_scaleBias[3] = scaleBias.w;
+			nmat->ex->pUvScaleBias = p_scaleBias;
 		}
 		matListLightMap.Append(NULL);
 		matList.Append(nmat);
