@@ -68,14 +68,6 @@ static void Model_Bayo_LoadTextures<false, ASTRAL_CHAIN>(CArrayList<noesisTex_t 
 	int *tsizes = (int *)(data + hdr.ofsTexSizes);
 	int *idxs = (int  *)(data + hdr.texIdxOffset);
 	ACWTBInfo_t *tinfs = (ACWTBInfo_t  *)(data + hdr.texInfoOffset);
-	typedef void(*Noesis_UntileBlockLinearGOBs_p)(void *untiledMip, unsigned int untiledMipSize, void *textureData, unsigned int mipSize, int widthInBlocks, int heightInBlocks, int blockSize, int maxBlockHeight, noeRAPI_t *rapi);
-	Noesis_UntileBlockLinearGOBs_p Noesis_UntileBlockLinearGOBs = NULL;
-	Noesis_UntileBlockLinearGOBs = (Noesis_UntileBlockLinearGOBs_p)g_nfn->NPAPI_GetUserExtProc("Noesis_UntileBlockLinearGOBs");
-	DBGLOG("Noesis_UntileBlockLinearGOBs: %p\n", Noesis_UntileBlockLinearGOBs);
-	typedef void(*NoesisMisc_ASTC_DecodeRaw32_p)(void *pix, void *untiledMip, unsigned int mipSize, int *blockDims, int *dims);
-	NoesisMisc_ASTC_DecodeRaw32_p NoesisMisc_ASTC_DecodeRaw32 = NULL;
-	NoesisMisc_ASTC_DecodeRaw32 = (NoesisMisc_ASTC_DecodeRaw32_p)g_nfn->NPAPI_GetUserExtProc("NoesisMisc_ASTC_DecodeRaw32");
-	DBGLOG("NoesisMisc_ASTC_DecodeRaw32: %p\n", NoesisMisc_ASTC_DecodeRaw32);
 
 	for (int i = 0; i < hdr.numTex; i++)
 	{
@@ -99,7 +91,7 @@ static void Model_Bayo_LoadTextures<false, ASTRAL_CHAIN>(CArrayList<noesisTex_t 
 		int maxBlockHeight = 1 << (info.blockHeightLog2 & 7);
 		bool special = info.flags & 0x4;
 		int  special_pad = info.specialPad;
-		Model_loadTextureSwitch(idx, data2 + tof, info.textureType, info.format, width, height, depth, maxBlockHeight, mipSize, special, special_pad, fname, textures, rapi, Noesis_UntileBlockLinearGOBs, NoesisMisc_ASTC_DecodeRaw32);
+		Model_loadTextureSwitch(idx, data2 + tof, info.textureType, info.format, width, height, depth, maxBlockHeight, mipSize, special, special_pad, fname, textures, rapi);
 	}
 	//insert a flat normal map placeholder
 	char fname[MAX_NOESIS_PATH];

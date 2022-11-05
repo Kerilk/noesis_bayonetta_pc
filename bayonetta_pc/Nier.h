@@ -603,9 +603,6 @@ static void Model_Nier_LoadTextures_PC(CArrayList<noesisTex_t *> &textures, CArr
 	textures.Append(nt);
 }
 
-typedef void(*Noesis_UntileBlockLinearGOBs_p)(void *untiledMip, unsigned int untiledMipSize, void *textureData, unsigned int mipSize, int widthInBlocks, int heightInBlocks, int blockHeight, int bytesPerBlock, noeRAPI_t *rapi);
-typedef void(*NoesisMisc_ASTC_DecodeRaw32_p)(void *pix, void *untiledMip, unsigned int mipSize, int *blockDims, int *dims);
-
 static inline int div_rnd_up(int x, int y) {
 	return (x + y - 1) / y;
 }
@@ -614,27 +611,25 @@ static inline int rnd_up(int x, int y) {
 	return ((x - 1) | (y - 1)) + 1;
 }
 
-static inline int getOffsetBlockLinear(int x, int y, int image_width, int bytes_per_pixel, int block_height, int special_pad) {
-	int image_width_in_gobs = div_rnd_up(rnd_up(image_width, special_pad) * bytes_per_pixel, 64);
+static inline int getOffsetBlockLinear(unsigned int x, unsigned int y, unsigned int w, const int bytesPerElem, int blockHeight, int specialPad) {
+	int image_width_in_gobs = div_rnd_up(rnd_up(w, specialPad) * bytesPerElem, 64);
 	int gob_offset =
-		(y / (8 * block_height)) * 512 * block_height * image_width_in_gobs +
-		(x * bytes_per_pixel / 64) * 512 * block_height +
-		(y % (8 * block_height) / 8) * 512;
-	x *= bytes_per_pixel;
+		(y / (8 * blockHeight)) * 512 * blockHeight * image_width_in_gobs +
+		(x * bytesPerElem / 64) * 512 * blockHeight +
+		(y % (8 * blockHeight) / 8) * 512;
+	x *= bytesPerElem;
 	return gob_offset + ((x % 64) / 32) * 256 + ((y % 8) / 2) * 64 + ((x % 32) / 16) * 32 + (y % 2) * 16 + (x % 16);
 }
-
-void Noesis_UntileBlockLinearGOBs2(void *untiledMip, unsigned int untiledMipSize, void *textureData, unsigned int mipSize, int widthInBlocks, int heightInBlocks, int blockHeight, int bytesPerBlock, int special_pad) {
-	for (int y = 0; y < heightInBlocks; y++)
-		for (int x = 0; x < widthInBlocks; x++) {
-			int pos_tiled = getOffsetBlockLinear(x, y, widthInBlocks, bytesPerBlock, blockHeight, special_pad);
-			int pos_untiled = (y * widthInBlocks + x) * bytesPerBlock;
-			memcpy((char *)untiledMip + pos_untiled, (char *)textureData + pos_tiled, bytesPerBlock);
+void Image_UntileBlockLinearGOBs2(unsigned char *pDest, const unsigned int destSize, const unsigned char *pSrc, const unsigned int srcSize, const unsigned int w, const unsigned int h, const unsigned int blockHeight, const int bytesPerElem, const int specialPad) {
+	for (unsigned int y = 0; y < h; y++)
+		for (unsigned int x = 0; x < w; x++) {
+			int pos_tiled = getOffsetBlockLinear(x, y, w, bytesPerElem, blockHeight, specialPad);
+			int pos_untiled = (y * w + x) * bytesPerElem;
+			memcpy(pDest + pos_untiled, pSrc + pos_tiled, bytesPerElem);
 		}
 }
 
-static void Model_loadTextureSwitch(int idx, BYTE *data, int textureType, int format, int width, int height, int depth, int maxBlockHeight, size_t mipSize, bool special, int special_pad, char *fname, CArrayList<noesisTex_t *> &textures, noeRAPI_t *rapi,
-                                    Noesis_UntileBlockLinearGOBs_p Noesis_UntileBlockLinearGOBs, NoesisMisc_ASTC_DecodeRaw32_p NoesisMisc_ASTC_DecodeRaw32) {
+static void Model_loadTextureSwitch(int idx, BYTE *data, int textureType, int format, unsigned int width, unsigned int height, unsigned int depth, unsigned int maxBlockHeight, size_t mipSize, bool special, int specialPad, char *fname, CArrayList<noesisTex_t *> &textures, noeRAPI_t *rapi) {
 	BYTE *untiledMip;
 	BYTE *pix;
 	int blockWidth;
@@ -722,20 +717,20 @@ static void Model_loadTextureSwitch(int idx, BYTE *data, int textureType, int fo
 	DBGLOG("heightInBlocks %d\n", heightInBlocks);
 	DBGLOG("special %d\n", special);
 	if (special)
-		DBGLOG("specialPad %d\n", special_pad);
+		DBGLOG("specialPad %d\n", specialPad);
 
 	noesisTex_t *nt;
 	if (astc) {
 		untiledMip = (BYTE *)rapi->Noesis_UnpooledAlloc(mipSize);
 		pix = (BYTE *)rapi->Noesis_PooledAlloc((width*height) * 4);
 		if (special)
-			Noesis_UntileBlockLinearGOBs2(untiledMip, (unsigned int)mipSize, data, (unsigned int)mipSize, widthInBlocks, heightInBlocks, maxBlockHeight, bytesPerBlock, special_pad);
+			Image_UntileBlockLinearGOBs2(untiledMip, (unsigned int)mipSize, data, (unsigned int)mipSize, widthInBlocks, heightInBlocks, maxBlockHeight, bytesPerBlock, specialPad);
 		else
-			Noesis_UntileBlockLinearGOBs(untiledMip, (unsigned int)mipSize, data, (unsigned int)mipSize, widthInBlocks, heightInBlocks, maxBlockHeight, bytesPerBlock, rapi);
+			rapi->Image_UntileBlockLinearGOBs(untiledMip, (unsigned int)mipSize, data, (unsigned int)mipSize, widthInBlocks, heightInBlocks, maxBlockHeight, bytesPerBlock);
 		DBGLOG("Untiled\n");
 		int blockDims[3] = { blockWidth, blockHeight, blockDepth };
-		int dims[3] = { width, height, depth };
-		NoesisMisc_ASTC_DecodeRaw32(pix, untiledMip, (unsigned int)mipSize, blockDims, dims);
+		int dims[3] = { (int)width, (int)height, (int)depth };
+		rapi->Image_DecodeASTC(pix, untiledMip, (unsigned int)mipSize, blockDims, dims);
 		DBGLOG("Decoded ASTC\n");
 		nt = rapi->Noesis_TextureAlloc(fname, width, height, pix, NOESISTEX_RGBA32);
 		rapi->Noesis_UnpooledFree(untiledMip);
@@ -743,7 +738,7 @@ static void Model_loadTextureSwitch(int idx, BYTE *data, int textureType, int fo
 	}
 	else if (decode_dxt) {
 		untiledMip = (BYTE *)rapi->Noesis_UnpooledAlloc(mipSize);
-		Noesis_UntileBlockLinearGOBs(untiledMip, (unsigned int)mipSize, data, (unsigned int)mipSize, widthInBlocks, heightInBlocks, maxBlockHeight, bytesPerBlock, rapi);
+		rapi->Image_UntileBlockLinearGOBs(untiledMip, (unsigned int)mipSize, data, (unsigned int)mipSize, widthInBlocks, heightInBlocks, maxBlockHeight, bytesPerBlock);
 		pix = rapi->Noesis_ConvertDXT(width, height, untiledMip, fourcc);
 		DBGLOG("Decoded BC\n");
 		nt = rapi->Noesis_TextureAlloc(fname, width, height, pix, NOESISTEX_RGBA32);
@@ -752,7 +747,7 @@ static void Model_loadTextureSwitch(int idx, BYTE *data, int textureType, int fo
 	}
 	else {
 		untiledMip = (BYTE *)rapi->Noesis_PooledAlloc(mipSize);
-		Noesis_UntileBlockLinearGOBs(untiledMip, (unsigned int)mipSize, data, (unsigned int)mipSize, widthInBlocks, heightInBlocks, maxBlockHeight, bytesPerBlock, rapi);
+		rapi->Image_UntileBlockLinearGOBs(untiledMip, (unsigned int)mipSize, data, (unsigned int)mipSize, widthInBlocks, heightInBlocks, maxBlockHeight, bytesPerBlock);
 		DBGLOG("Untiled\n");
 		nt = rapi->Noesis_TextureAlloc(fname, width, height, untiledMip, type);
 		nt->shouldFreeData = false; //because the untiledMip data is pool-allocated, it does not need to be freed
@@ -791,12 +786,6 @@ static void Model_Nier_LoadTextures_Switch(CArrayList<noesisTex_t *> &textures, 
 	int *tsizes = (int *)(data + hdr.ofsTexSizes);
 	int *idxs = (int  *)(data + hdr.texIdxOffset);
 	nierWTBInfoSwitch_t *tinfs = (nierWTBInfoSwitch_t  *)(data + hdr.texInfoOffset);
-	Noesis_UntileBlockLinearGOBs_p Noesis_UntileBlockLinearGOBs = NULL;
-	Noesis_UntileBlockLinearGOBs = (Noesis_UntileBlockLinearGOBs_p)g_nfn->NPAPI_GetUserExtProc("Noesis_UntileBlockLinearGOBs");
-	DBGLOG("Noesis_UntileBlockLinearGOBs: %p\n", Noesis_UntileBlockLinearGOBs);
-	NoesisMisc_ASTC_DecodeRaw32_p NoesisMisc_ASTC_DecodeRaw32 = NULL;
-	NoesisMisc_ASTC_DecodeRaw32 = (NoesisMisc_ASTC_DecodeRaw32_p)g_nfn->NPAPI_GetUserExtProc("NoesisMisc_ASTC_DecodeRaw32");
-	DBGLOG("NoesisMisc_ASTC_DecodeRaw32: %p\n", NoesisMisc_ASTC_DecodeRaw32);
 
 	for (int i = 0; i < hdr.numTex; i++)
 	{
@@ -829,7 +818,7 @@ static void Model_Nier_LoadTextures_Switch(CArrayList<noesisTex_t *> &textures, 
 		else if (blockHeightLog2 > 4)
 			blockHeightLog2 = 4;
 		int maxBlockHeight = 1 << blockHeightLog2;
-		Model_loadTextureSwitch(idx, data2 + tof, info.textureType, info.format, width, height, depth, maxBlockHeight, mipSize, false, 0, fname, textures, rapi, Noesis_UntileBlockLinearGOBs, NoesisMisc_ASTC_DecodeRaw32);
+		Model_loadTextureSwitch(idx, data2 + tof, info.textureType, info.format, width, height, depth, maxBlockHeight, mipSize, false, 0, fname, textures, rapi);
 	}
 	//insert a flat normal map placeholder
 	char fname[MAX_NOESIS_PATH];
