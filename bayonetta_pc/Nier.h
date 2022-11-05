@@ -791,8 +791,9 @@ static void Model_Nier_LoadTextures_Switch(CArrayList<noesisTex_t *> &textures, 
 		int blockHeightLog2 = widthInBits - 6;
 		if (blockHeightLog2 < 0)
 			blockHeightLog2 = 0;
-		DBGLOG("Block height log2: %d\n", blockHeightLog2);
-		int blockSize = 1 << (blockHeightLog2 & 7);
+		else if (blockHeightLog2 > 4)
+			blockHeightLog2 = 4;
+		int blockSize = 1 << blockHeightLog2;
 		Model_loadTextureSwitch(idx, data2 + tof, info.textureType, info.format, width, height, depth, blockSize, mipSize, fname, textures, rapi, Noesis_UntileBlockLinearGOBs, NoesisMisc_ASTC_DecodeRaw32);
 	}
 	//insert a flat normal map placeholder
