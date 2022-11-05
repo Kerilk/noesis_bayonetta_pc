@@ -10,8 +10,10 @@ typedef struct ACWTBInfo_s {
 	uint32_t		width;
 	uint32_t		height;
 	uint32_t		depth;
-	uint32_t		u_b;
-	uint32_t		blockHeightLog2;
+	uint32_t		specialPad;
+	uint8_t			blockHeightLog2;
+	uint8_t			flags;
+	uint8_t			u_b[2];
 	uint32_t		u_c;
 } ACWTBInfo_t;
 template <bool big>
@@ -27,8 +29,7 @@ struct ACWTBInfo : ACWTBInfo_s {
 			LITTLE_BIG_SWAP(width);
 			LITTLE_BIG_SWAP(height);
 			LITTLE_BIG_SWAP(depth);
-			LITTLE_BIG_SWAP(u_b);
-			LITTLE_BIG_SWAP(blockHeightLog2);
+			LITTLE_BIG_SWAP(specialPad);
 			LITTLE_BIG_SWAP(u_c);
 		}
 	}
@@ -96,7 +97,9 @@ static void Model_Bayo_LoadTextures<false, ASTRAL_CHAIN>(CArrayList<noesisTex_t 
 		int depth = info.depth;
 		size_t mipSize = (size_t)info.textureSize;
 		int blockSize = 1 << (info.blockHeightLog2 & 7);
-		Model_loadTextureSwitch(idx, data2 + tof, info.textureType, info.format, width, height, depth, blockSize, mipSize, fname, textures, rapi, Noesis_UntileBlockLinearGOBs, NoesisMisc_ASTC_DecodeRaw32);
+		bool special = info.flags & 0x4;
+		int  special_pad = info.specialPad;
+		Model_loadTextureSwitch(idx, data2 + tof, info.textureType, info.format, width, height, depth, blockSize, mipSize, special, special_pad, fname, textures, rapi, Noesis_UntileBlockLinearGOBs, NoesisMisc_ASTC_DecodeRaw32);
 	}
 	//insert a flat normal map placeholder
 	char fname[MAX_NOESIS_PATH];
