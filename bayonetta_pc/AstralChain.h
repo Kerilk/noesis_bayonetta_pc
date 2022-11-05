@@ -96,10 +96,10 @@ static void Model_Bayo_LoadTextures<false, ASTRAL_CHAIN>(CArrayList<noesisTex_t 
 		int height = info.height;
 		int depth = info.depth;
 		size_t mipSize = (size_t)info.textureSize;
-		int blockSize = 1 << (info.blockHeightLog2 & 7);
+		int maxBlockHeight = 1 << (info.blockHeightLog2 & 7);
 		bool special = info.flags & 0x4;
 		int  special_pad = info.specialPad;
-		Model_loadTextureSwitch(idx, data2 + tof, info.textureType, info.format, width, height, depth, blockSize, mipSize, special, special_pad, fname, textures, rapi, Noesis_UntileBlockLinearGOBs, NoesisMisc_ASTC_DecodeRaw32);
+		Model_loadTextureSwitch(idx, data2 + tof, info.textureType, info.format, width, height, depth, maxBlockHeight, mipSize, special, special_pad, fname, textures, rapi, Noesis_UntileBlockLinearGOBs, NoesisMisc_ASTC_DecodeRaw32);
 	}
 	//insert a flat normal map placeholder
 	char fname[MAX_NOESIS_PATH];
