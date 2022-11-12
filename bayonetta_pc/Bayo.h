@@ -29,7 +29,7 @@ typedef struct bayoDat_s
 
 template <bool big>
 struct bayoDat : public bayoDat_s {
-	bayoDat(bayoDat_t * ptr) : bayoDat_s(*ptr) {
+	bayoDat(const bayoDat_t * ptr) : bayoDat_s(*ptr) {
 		if (big) {
 			LITTLE_BIG_SWAP(numRes);
 			LITTLE_BIG_SWAP(ofsRes);

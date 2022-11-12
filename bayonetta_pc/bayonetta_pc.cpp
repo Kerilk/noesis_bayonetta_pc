@@ -530,6 +530,129 @@ int bayonetta_load_collision_models(int handle, void *user_data) {
 	bayonetta_option_prompt(bCollisionModels, "Load Collision Models?", "Load Collision Models");
 }
 
+bool datIsValid(const bayoDat_t *data, uint64_t datSize, bool &big) {
+	if (datSize < sizeof(bayoDat_t))
+		return false;
+	bayoDat<true> datBig(data);
+	if (memcmp(datBig.id, "DAT\0", 4))
+	{
+		return false;
+	}
+	if (!(datBig.numRes <= 0 ||
+		  datBig.ofsRes <= 0 || datBig.ofsRes >= datSize ||
+		  datBig.ofsType <= 0 || datBig.ofsType >= datSize ||
+		  datBig.ofsNames <= 0 || datBig.ofsNames >= (datSize - 4) ||
+		  datBig.ofsSizes <= 0 || datBig.ofsSizes >= datSize))
+	{
+		big = true;
+		return true;
+	}
+	bayoDat<false> datLittle(data);
+	if (!(datLittle.numRes <= 0 ||
+		datLittle.ofsRes <= 0 || datLittle.ofsRes >= datSize ||
+		datLittle.ofsType <= 0 || datLittle.ofsType >= datSize ||
+		datLittle.ofsNames <= 0 || datLittle.ofsNames >= (datSize - 4) ||
+		datLittle.ofsSizes <= 0 || datLittle.ofsSizes >= datSize))
+	{
+		big = false;
+		return true;
+	}
+	return false;
+}
+
+template<bool big>
+static void processWTX(uint32_t pathlen, wchar_t *path, uint32_t namelen, char *name, BYTE *data, int dataSize, FILE *textureIndex) {
+	if (dataSize < sizeof(bayoWTBHdr_t))
+		return;
+	bayoWTBHdr<big> wtb((bayoWTBHdr_t *)data);
+	if (wtb.numTex <= 0 || wtb.texIdxOffset == 0)
+		return;
+	pathlen += 1;
+	namelen += 1;
+	fwrite(&pathlen, sizeof(pathlen), 1, textureIndex);
+	fwrite(path, sizeof(wchar_t), pathlen, textureIndex);
+	fwrite(&namelen, sizeof(namelen), 1, textureIndex);
+	fwrite(name, sizeof(char), namelen, textureIndex);
+	fwrite(&wtb.numTex, sizeof(wtb.numTex), 1, textureIndex);
+	uint32_t *ptexIdx = (uint32_t *)(data + wtb.texIdxOffset);
+	if (big) {
+		for (int i = 0; i < wtb.numTex; i++) {
+			uint32_t texIdx = ptexIdx[i];
+			LITTLE_BIG_SWAP(texIdx);
+			fwrite(&texIdx, sizeof(texIdx), 1, textureIndex);
+		}
+	}
+	else {
+		fwrite(ptexIdx, sizeof(uint32_t), wtb.numTex, textureIndex);
+	}
+}
+
+static void recursivelyListFiles(wchar_t *path, FILE *textureIndex) {
+	CArrayList<SNoeDirEntry> entries;
+	g_nfn->NPAPI_GetDirectoryList(entries, path);
+	for (int i = 0; i < entries.Num(); i++) {
+		uint32_t pathlen = (uint32_t)wcslen(entries[i].mPath);
+		if (entries[i].mFlags & NOE_DIRENTRY_FLAG_ISDIR) {
+			if (pathlen > 2 && !wcsncmp(entries[i].mPath + (pathlen - 2), L"\\.", 2))
+				continue;
+			if (pathlen > 3 && !wcsncmp(entries[i].mPath + (pathlen - 3), L"\\..", 3))
+				continue;
+			recursivelyListFiles(entries[i].mPath, textureIndex);
+		}
+		else {
+			if (pathlen > 4 && (
+					!wcsncmp(entries[i].mPath + (pathlen - 4), L".dat", 4) ||
+					!wcsncmp(entries[i].mPath + (pathlen - 4), L".dtt", 4))) {
+				FILE *datFile = _wfopen(entries[i].mPath, L"rb");
+				BYTE* data = (BYTE *)g_nfn->NPAPI_EngineAlloc((size_t)entries[i].mFileSize);
+				fread(data, 1, (size_t)entries[i].mFileSize, datFile);
+				fclose(datFile);
+				bool big;
+				if (!datIsValid((bayoDat_t *)data, entries[i].mFileSize, big)) {
+					g_nfn->NPAPI_EngineFree(data);
+					continue;
+				}
+				CArrayList<bayoDatFile_t> datfiles;
+				if (big)
+					Model_Bayo_GetDATEntries<true>(datfiles, data, (int)entries[i].mFileSize);
+				else
+					Model_Bayo_GetDATEntries<false>(datfiles, data, (int)entries[i].mFileSize);
+				DBGLOG("%ls: %d\n", entries[i].mPath, big);
+				for (int j = 0; j < datfiles.Num(); j++) {
+					uint32_t namelen = (uint32_t)strlen(datfiles[j].name);
+					if (namelen > 4 && (
+							!strcmp(datfiles[j].name + (namelen - 4), ".wta") ||
+							!strcmp(datfiles[j].name + (namelen - 4), ".wtb"))) {
+						DBGLOG("\t%s\n", datfiles[j].name);
+						if (datfiles[j].dataSize < sizeof(bayoWTBHdr_t))
+							continue;
+						if (big) {
+							processWTX<true>(pathlen, entries[i].mPath, namelen, datfiles[j].name, datfiles[j].data, datfiles[j].dataSize, textureIndex);
+						}
+						else {
+							processWTX<false>(pathlen, entries[i].mPath, namelen, datfiles[j].name, datfiles[j].data, datfiles[j].dataSize, textureIndex);
+						}
+					}
+				}
+				g_nfn->NPAPI_EngineFree(data);
+			}
+		}
+	}
+}
+
+int bayonetta_create_texture_cache(int handle, void *user_data) {
+	wchar_t cachePath[MAX_NOESIS_PATH];
+	g_nfn->NPAPI_GetSelectedDirectory(cachePath);
+	
+	wchar_t textureIndexPath[MAX_NOESIS_PATH];
+	swprintf_s(textureIndexPath, MAX_NOESIS_PATH, L"%ls\\bayo_texture_index", cachePath);
+	DBGLOG("Creating index in %ls\n", textureIndexPath);
+	FILE *textureIndex = _wfopen(textureIndexPath, L"wb");
+	recursivelyListFiles(cachePath, textureIndex);
+	fclose(textureIndex);
+	return 0;
+}
+
 struct SPGamesPair
 {
 	SPGamesPair(bool(*pCheck)(BYTE *fileBuffer, int bufferLen, noeRAPI_t *rapi), noesisModel_t *(*pLoad)(BYTE *fileBuffer, int bufferLen, int &numMdl, noeRAPI_t *rapi))
@@ -759,6 +882,8 @@ bool NPAPI_InitLocal(void)
 	handle = g_nfn->NPAPI_RegisterTool("Fuse Level Models", bayonetta_fuse_models, NULL);
 	g_nfn->NPAPI_SetToolSubMenuName(handle, menu);
 	handle = g_nfn->NPAPI_RegisterTool("Load Collision Models", bayonetta_load_collision_models, NULL);
+	g_nfn->NPAPI_SetToolSubMenuName(handle, menu);
+	handle = g_nfn->NPAPI_RegisterTool("Create Texture Index", bayonetta_create_texture_cache, NULL);
 	g_nfn->NPAPI_SetToolSubMenuName(handle, menu);
 
 	//g_nfn->NPAPI_PopupDebugLog(0);
