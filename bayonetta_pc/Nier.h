@@ -1,4 +1,6 @@
 #pragma once
+#include <map>
+#include <tuple>
 typedef struct nierWMBHdr_s
 {
 	uint8_t  id[4];				// 0
@@ -629,80 +631,178 @@ void Image_UntileBlockLinearGOBs2(unsigned char *pDest, const unsigned int destS
 		}
 }
 
-static void Model_loadTextureSwitch(int idx, BYTE *data, int textureType, int format, unsigned int width, unsigned int height, unsigned int depth, unsigned int maxBlockHeight, size_t mipSize, bool special, int specialPad, char *fname, CArrayList<noesisTex_t *> &textures, noeRAPI_t *rapi) {
+typedef enum {
+	T_1D,
+	T_2D,
+	T_3D,
+	T_Cube,
+	T_1D_Array,
+	T_2D_Array,
+	T_2D_Mulitsample,
+	T_2D_Multisample_Array,
+	T_Cube_Array
+} xt1_texture_type_t;
+
+typedef enum {
+	R8_G8_B8_A8_UNORM = 0x25,
+	R8_G8_B8_A8_SRGB = 0x38,
+
+	BC1_UNORM = 0x42, //DXT1
+	BC2_UNORM, //DXT3
+	BC3_UNORM, //DXT5
+	BC4_UNORM,
+	BC1_SRGB,
+	BC2_SRGB,
+	BC3_SRGB,
+	BC4_SRGB,
+
+	BC5_UNORM = 0x4b,
+	BC5_SRGB,
+	BC7_UNORM,
+	BC7_SRGB,
+	BC6_FLOAT,
+	BC6_UFLOAT,
+
+	ASTC_4x4_UNORM = 0x79,
+	ASTC_5x4_UNORM,
+	ASTC_5x5_UNORM,
+	ASTC_6x5_UNORM,
+	ASTC_6x6_UNORM,
+	ASTC_8x5_UNORM,
+	ASTC_8x6_UNORM,
+	ASTC_8x8_UNORM,
+	ASTC_10x5_UNORM,
+	ASTC_10x6_UNORM,
+	ASTC_10x8_UNORM,
+	ASTC_10x10_UNORM, // Thanks DniweTamp
+	ASTC_12x10_UNORM,
+	ASTC_12x12_UNORM,
+	ASTC_4x4_SRGB,
+	ASTC_5x4_SRGB,
+	ASTC_5x5_SRGB,
+	ASTC_6x5_SRGB,
+	ASTC_6x6_SRGB,
+	ASTC_8x5_SRGB,
+	ASTC_8x6_SRGB,
+	ASTC_8x8_SRGB,
+	ASTC_10x5_SRGB,
+	ASTC_10x6_SRGB,
+	ASTC_10x8_SRGB,
+	ASTC_10x10_SRGB,  // Thanks DniweTamp
+	ASTC_12x10_SRGB,
+	ASTC_12x12_SRGB
+} xt1_texture_format_t;
+
+// bytesPerBlock, blockWidth, blockHeight, blockDepth
+const std::map<xt1_texture_format_t, std::tuple<char, char, char, char>> swizzle_block_dims = {
+	{R8_G8_B8_A8_UNORM, { 4,  1,  1, 1}},
+	{R8_G8_B8_A8_SRGB,  { 4,  1,  1, 1}},
+	{BC1_UNORM,         { 8,  4,  4, 1}},
+	{BC2_UNORM,         {16,  4,  4, 1}},
+	{BC3_UNORM,         {16,  4,  4, 1}},
+	{BC4_UNORM,         { 8,  4,  4, 1}},
+	{BC1_SRGB,          { 8,  4,  4, 1}},
+	{BC2_SRGB,          {16,  4,  4, 1}},
+	{BC3_SRGB,          {16,  4,  4, 1}},
+	{BC4_SRGB,          { 8,  4,  4, 1}},
+	{BC5_UNORM,         {16,  4,  4, 1}},
+	{BC5_SRGB,          {16,  4,  4, 1}},
+	{BC7_UNORM,         {16,  4,  4, 1}},
+	{BC7_SRGB,          {16,  4,  4, 1}},
+	{BC6_FLOAT,         {16,  4,  4, 1}},
+	{BC6_UFLOAT,        {16,  4,  4, 1}},
+	{ASTC_4x4_UNORM,    {16,  4,  4, 1}},
+	{ASTC_5x4_UNORM,    {16,  5,  4, 1}},
+	{ASTC_5x5_UNORM,    {16,  5,  5, 1}},
+	{ASTC_6x5_UNORM,    {16,  6,  5, 1}},
+	{ASTC_6x6_UNORM,    {16,  6,  6, 1}},
+	{ASTC_8x5_UNORM,    {16,  8,  5, 1}},
+	{ASTC_8x6_UNORM,    {16,  8,  6, 1}},
+	{ASTC_8x8_UNORM,    {16,  8,  8, 1}},
+	{ASTC_10x5_UNORM,   {16, 10,  5, 1}},
+	{ASTC_10x6_UNORM,   {16, 10,  6, 1}},
+	{ASTC_10x8_UNORM,   {16, 10,  8, 1}},
+	{ASTC_10x10_UNORM,  {16, 10, 10, 1}},
+	{ASTC_12x10_UNORM,  {16, 12, 10, 1}},
+	{ASTC_12x12_UNORM,  {16, 12, 12, 1}},
+	{ASTC_4x4_SRGB,     {16,  4,  4, 1}},
+	{ASTC_5x4_SRGB,     {16,  5,  4, 1}},
+	{ASTC_5x5_SRGB,     {16,  5,  5, 1}},
+	{ASTC_6x5_SRGB,     {16,  6,  5, 1}},
+	{ASTC_6x6_SRGB,     {16,  6,  6, 1}},
+	{ASTC_8x5_SRGB,     {16,  8,  5, 1}},
+	{ASTC_8x6_SRGB,     {16,  8,  6, 1}},
+	{ASTC_8x8_SRGB,     {16,  8,  8, 1}},
+	{ASTC_10x5_SRGB,    {16, 10,  5, 1}},
+	{ASTC_10x6_SRGB,    {16, 10,  6, 1}},
+	{ASTC_10x8_SRGB,    {16, 10,  8, 1}},
+	{ASTC_10x10_SRGB,   {16, 10, 10, 1}},
+	{ASTC_12x10_SRGB,   {16, 12, 10, 1}},
+	{ASTC_12x12_SRGB,   {16, 12, 12, 1}}
+};
+
+static void Model_loadTextureSwitch(int idx, BYTE *data, xt1_texture_type_t textureType, xt1_texture_format_t format, unsigned int width, unsigned int height, unsigned int depth, unsigned int maxBlockHeight, size_t mipSize, bool special, int specialPad, char *fname, CArrayList<noesisTex_t *> &textures, noeRAPI_t *rapi) {
 	BYTE *untiledMip;
 	BYTE *pix;
+	int bytesPerBlock;
 	int blockWidth;
 	int blockHeight;
-	int blockDepth = 1;
-	int bytesPerBlock;
+	int blockDepth;
 	bool astc = false;
 	bool decode_dxt = false;
 	int fourcc = 0;
 	noesisTexType_e type = NOESISTEX_UNKNOWN;
-	if (textureType != 1) return;
-	if (format == 0x79 || format == 0x87) {
-		blockWidth = 4;
-		blockHeight = 4;
-		bytesPerBlock = 16;
+	if (textureType != T_2D)
+		return;
+	auto it = swizzle_block_dims.find(format);
+	if (it == swizzle_block_dims.end())
+		return;
+	bytesPerBlock = std::get<0>(it->second);
+	blockWidth    = std::get<1>(it->second);
+	blockHeight   = std::get<2>(it->second);
+	blockDepth    = std::get<3>(it->second);
+	if (format >= ASTC_4x4_UNORM && format <= ASTC_12x12_SRGB) {
 		astc = true;
-		DBGLOG("Found ASTC 4x4\n");
+		DBGLOG("Found ASTC %dx%d\n", blockWidth, blockHeight);
 	}
-	else if (format == 0x7d || format == 0x8b) {
-		blockWidth = 6;
-		blockHeight = 6;
-		bytesPerBlock = 16;
-		astc = true;
-		DBGLOG("Found ASTC 6x6\n");
-	}
-	else if (format == 0x80 || format == 0x8e) {
-		blockWidth = 8;
-		blockHeight = 8;
-		bytesPerBlock = 16;
-		astc = true;
-		DBGLOG("Found ASTC 8x8\n");
-	}
-	else if (format == 0x50) {
-		blockWidth = 4;
-		blockHeight = 4;
-		bytesPerBlock = 16;
+	else if (format == BC6_UFLOAT) {
 		fourcc = FOURCC_BC6H;
 		decode_dxt = true;
 		DBGLOG("Found BC6H\n");
 	}
-	else if (format == 0x45 || format == 0x49) {
-		blockWidth = 4;
-		blockHeight = 4;
-		bytesPerBlock = 16;
+	else if (format == BC6_FLOAT) {
+		fourcc = FOURCC_BC6S;
+		decode_dxt = true;
+		DBGLOG("Found BC6S\n");
+	}
+	else if (format == BC4_UNORM || format == BC4_SRGB) {
 		fourcc = FOURCC_BC4;
 		decode_dxt = true;
 		DBGLOG("Found BC4\n");
 	}
-	else if (format == 0x44 || format == 0x48) {
-		blockWidth = 4;
-		blockHeight = 4;
-		bytesPerBlock = 16;
+	else if (format == BC5_UNORM || format == BC5_SRGB) {
+		fourcc = FOURCC_BC5;
+		decode_dxt = true;
+		DBGLOG("Found BC5\n");
+	}
+	else if (format == BC7_UNORM || format == BC7_SRGB) {
+		fourcc = FOURCC_BC7;
+		decode_dxt = true;
+		DBGLOG("Found BC7\n");
+	}
+	else if (format == BC3_UNORM || format == BC3_SRGB) {
 		type = NOESISTEX_DXT5;
-		DBGLOG("Found DXT5\n");
+		DBGLOG("Found BC3 (DXT5)\n");
 	}
-	else if (format == 0x43 || format == 0x47) {
-		blockWidth = 4;
-		blockHeight = 4;
-		bytesPerBlock = 16;
+	else if (format == BC2_UNORM || format == BC2_SRGB) {
 		type = NOESISTEX_DXT3;
-		DBGLOG("Found DXT3\n");
+		DBGLOG("Found BC2 (DXT3)\n");
 	}
-	else if (format == 0x42 || format == 0x46) {
-		blockWidth = 4;
-		blockHeight = 4;
-		bytesPerBlock = 8;
+	else if (format == BC1_UNORM || format == BC1_SRGB) {
 		type = NOESISTEX_DXT1;
-		DBGLOG("Found DXT1\n");
+		DBGLOG("Found BC1 (DXT1)\n");
 	}
-	else if (format == 0x25) {
-		blockWidth = 1;
-		blockHeight = 1;
-		bytesPerBlock = 8;
+	else if (format == R8_G8_B8_A8_UNORM || format == R8_G8_B8_A8_SRGB) {
 		type = NOESISTEX_RGBA32;
 		DBGLOG("Found RGBA32\n");
 	}
@@ -720,38 +820,38 @@ static void Model_loadTextureSwitch(int idx, BYTE *data, int textureType, int fo
 		DBGLOG("specialPad %d\n", specialPad);
 
 	noesisTex_t *nt;
-	if (astc) {
+	if (astc || decode_dxt)
 		untiledMip = (BYTE *)rapi->Noesis_UnpooledAlloc(mipSize);
+	else
+		untiledMip = (BYTE *)rapi->Noesis_PooledAlloc(mipSize);
+
+	if (special)
+		Image_UntileBlockLinearGOBs2(untiledMip, (unsigned int)mipSize, data, (unsigned int)mipSize, widthInBlocks, heightInBlocks, maxBlockHeight, bytesPerBlock, specialPad);
+	else
+		rapi->Image_UntileBlockLinearGOBs(untiledMip, (unsigned int)mipSize, data, (unsigned int)mipSize, widthInBlocks, heightInBlocks, maxBlockHeight, bytesPerBlock);
+	DBGLOG("Untiled\n");
+
+	if (astc) {
 		pix = (BYTE *)rapi->Noesis_PooledAlloc((width*height) * 4);
-		if (special)
-			Image_UntileBlockLinearGOBs2(untiledMip, (unsigned int)mipSize, data, (unsigned int)mipSize, widthInBlocks, heightInBlocks, maxBlockHeight, bytesPerBlock, specialPad);
-		else
-			rapi->Image_UntileBlockLinearGOBs(untiledMip, (unsigned int)mipSize, data, (unsigned int)mipSize, widthInBlocks, heightInBlocks, maxBlockHeight, bytesPerBlock);
-		DBGLOG("Untiled\n");
 		int blockDims[3] = { blockWidth, blockHeight, blockDepth };
 		int dims[3] = { (int)width, (int)height, (int)depth };
 		rapi->Image_DecodeASTC(pix, untiledMip, (unsigned int)mipSize, blockDims, dims);
 		DBGLOG("Decoded ASTC\n");
 		nt = rapi->Noesis_TextureAlloc(fname, width, height, pix, NOESISTEX_RGBA32);
-		rapi->Noesis_UnpooledFree(untiledMip);
-		nt->shouldFreeData = false; //because the untiledMip data is pool-allocated, it does not need to be freed
+		nt->shouldFreeData = false; //because the pix data is pool-allocated, it does not need to be freed
 	}
 	else if (decode_dxt) {
-		untiledMip = (BYTE *)rapi->Noesis_UnpooledAlloc(mipSize);
-		rapi->Image_UntileBlockLinearGOBs(untiledMip, (unsigned int)mipSize, data, (unsigned int)mipSize, widthInBlocks, heightInBlocks, maxBlockHeight, bytesPerBlock);
 		pix = rapi->Noesis_ConvertDXT(width, height, untiledMip, fourcc);
 		DBGLOG("Decoded BC\n");
 		nt = rapi->Noesis_TextureAlloc(fname, width, height, pix, NOESISTEX_RGBA32);
-		rapi->Noesis_UnpooledFree(untiledMip);
 		nt->shouldFreeData = true;
 	}
 	else {
-		untiledMip = (BYTE *)rapi->Noesis_PooledAlloc(mipSize);
-		rapi->Image_UntileBlockLinearGOBs(untiledMip, (unsigned int)mipSize, data, (unsigned int)mipSize, widthInBlocks, heightInBlocks, maxBlockHeight, bytesPerBlock);
-		DBGLOG("Untiled\n");
 		nt = rapi->Noesis_TextureAlloc(fname, width, height, untiledMip, type);
 		nt->shouldFreeData = false; //because the untiledMip data is pool-allocated, it does not need to be freed
 	}
+	if (astc || decode_dxt)
+		rapi->Noesis_UnpooledFree(untiledMip);
 
 	//nt->flags |= texFlags;
 	nt->globalIdx = idx;
@@ -800,7 +900,7 @@ static void Model_Nier_LoadTextures_Switch(CArrayList<noesisTex_t *> &textures, 
 		char nameStr[MAX_NOESIS_PATH];
 		sprintf_s(nameStr, MAX_NOESIS_PATH, ".\\%s%s%03i", rapi->Noesis_GetOption("texpre"), texName, i);
 		strcat_s(fname, MAX_NOESIS_PATH, nameStr);
-		DBGLOG("%s: 0x%0x, type: %d, format: %x, width: %d, height: %d\n", fname, idx, info.textureType, info.format, info.width, info.height);
+		DBGLOG("%s: 0x%0x, type: %d, format: %x, width: %d, height: %d, depth: %d\n", fname, idx, info.textureType, info.format, info.width, info.height, info.depth);
 
 		int width = info.width;
 		int height = info.height;
@@ -818,7 +918,7 @@ static void Model_Nier_LoadTextures_Switch(CArrayList<noesisTex_t *> &textures, 
 		else if (blockHeightLog2 > 4)
 			blockHeightLog2 = 4;
 		int maxBlockHeight = 1 << blockHeightLog2;
-		Model_loadTextureSwitch(idx, data2 + tof, info.textureType, info.format, width, height, depth, maxBlockHeight, mipSize, false, 0, fname, textures, rapi);
+		Model_loadTextureSwitch(idx, data2 + tof, (xt1_texture_type_t)info.textureType, (xt1_texture_format_t)info.format, width, height, depth, maxBlockHeight, mipSize, false, 0, fname, textures, rapi);
 	}
 	//insert a flat normal map placeholder
 	char fname[MAX_NOESIS_PATH];

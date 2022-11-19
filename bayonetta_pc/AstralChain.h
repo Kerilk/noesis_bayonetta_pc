@@ -82,7 +82,7 @@ static void Model_Bayo_LoadTextures<false, ASTRAL_CHAIN>(CArrayList<noesisTex_t 
 		char nameStr[MAX_NOESIS_PATH];
 		sprintf_s(nameStr, MAX_NOESIS_PATH, ".\\%s%s%03i", rapi->Noesis_GetOption("texpre"), texName, i);
 		strcat_s(fname, MAX_NOESIS_PATH, nameStr);
-		DBGLOG("%s: 0x%0x, type: %d, format: %x, width: %d, height: %d, blockSize: %d\n", fname, idx, info.textureType, info.format, info.width, info.height, 1 << (info.blockHeightLog2 & 7));
+		DBGLOG("%s: 0x%0x, type: %d, format: %x, width: %d, height: %d, depth: %d, maxBlockHeight: %d\n", fname, idx, info.textureType, info.format, info.width, info.height, info.depth, 1 << (info.blockHeightLog2 & 7));
 
 		int width = info.width;
 		int height = info.height;
@@ -91,7 +91,7 @@ static void Model_Bayo_LoadTextures<false, ASTRAL_CHAIN>(CArrayList<noesisTex_t 
 		int maxBlockHeight = 1 << (info.blockHeightLog2 & 7);
 		bool special = info.flags & 0x4;
 		int  special_pad = info.specialPad;
-		Model_loadTextureSwitch(idx, data2 + tof, info.textureType, info.format, width, height, depth, maxBlockHeight, mipSize, special, special_pad, fname, textures, rapi);
+		Model_loadTextureSwitch(idx, data2 + tof, (xt1_texture_type_t)info.textureType, (xt1_texture_format_t)info.format, width, height, depth, maxBlockHeight, mipSize, special, special_pad, fname, textures, rapi);
 	}
 	//insert a flat normal map placeholder
 	char fname[MAX_NOESIS_PATH];
