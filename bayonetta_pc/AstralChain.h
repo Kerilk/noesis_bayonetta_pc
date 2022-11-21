@@ -39,68 +39,51 @@ template <>
 static void Model_Bayo_GetTextureBundle<ASTRAL_CHAIN>(CArrayList<bayoDatFile_t *> &texFiles, CArrayList<bayoDatFile_t> &dfiles, bayoDatFile_t &df, noeRAPI_t *rapi) {
 	Model_Bayo_GetTextureBundle<BAYONETTA2>(texFiles, dfiles, df, rapi);
 }
+
 template <>
-static void Model_Bayo_LoadTextures<false, ASTRAL_CHAIN>(CArrayList<noesisTex_t *> &textures, CArrayList<bayoDatFile_t *> &texFiles, noeRAPI_t *rapi) {
+static inline noesisTex_t * Model_Game_LoadTexture_Switch<ASTRAL_CHAIN>(bayoDatFile_t *wta, bayoDatFile_t *wtp, bayoWTBHdr<false> &hdr, char * texName, int32_t texIndex, noeRAPI_t *rapi) {
 	const bool big = false;
-	int dataSize = texFiles[0]->dataSize;
-	BYTE * data = texFiles[0]->data;
-	int dataSize2 = texFiles[1]->dataSize;
-	BYTE * data2 = texFiles[1]->data;
-	char texName[MAX_NOESIS_PATH];
-	rapi->Noesis_GetExtensionlessName(texName, texFiles[0]->name);
-	if (dataSize < sizeof(bayoWTBHdr_t))
-	{
-		return;
-	}
-	bayoWTBHdr<big> hdr((bayoWTBHdr_t *)data);
-	if (memcmp(hdr.id, "WTB\0", 4))
-	{ //not a valid texture bundle
-		return;
-	}
-	if (hdr.numTex <= 0 || hdr.ofsTexOfs <= 0 || hdr.ofsTexOfs >= dataSize ||
-		hdr.ofsTexSizes <= 0 || hdr.ofsTexSizes >= dataSize)
-	{
-		return;
-	}
-	DBGLOG("found valid texture header file, containing %d textures, headers offset: %x\n", hdr.numTex, hdr.texInfoOffset);
+	int dataSize = wta->dataSize;
+	BYTE * data = wta->data;
+	int dataSize2 = wtp->dataSize;
+	BYTE * data2 = wtp->data;
 
 	int *tofs = (int *)(data + hdr.ofsTexOfs);
 	int *tsizes = (int *)(data + hdr.ofsTexSizes);
 	int *idxs = (int  *)(data + hdr.texIdxOffset);
 	ACWTBInfo_t *tinfs = (ACWTBInfo_t  *)(data + hdr.texInfoOffset);
 
-	for (int i = 0; i < hdr.numTex; i++)
-	{
-		int tof = tofs[i];
-		int tsize = tsizes[i];
-		int idx = idxs[i];
-		ACWTBInfo<big> info(tinfs + i);
+	int tof = tofs[texIndex];
+	int tsize = tsizes[texIndex];
+	int idx = idxs[texIndex];
+	ACWTBInfo<big> info(tinfs + texIndex);
 
-		char fname[8192];
-		rapi->Noesis_GetDirForFilePath(fname, rapi->Noesis_GetOutputName());
-
-		char nameStr[MAX_NOESIS_PATH];
-		sprintf_s(nameStr, MAX_NOESIS_PATH, ".\\%s%s%03i", rapi->Noesis_GetOption("texpre"), texName, i);
-		strcat_s(fname, MAX_NOESIS_PATH, nameStr);
-		DBGLOG("%s: 0x%0x, type: %d, format: %x, width: %d, height: %d, depth: %d, maxBlockHeight: %d\n", fname, idx, info.textureType, info.format, info.width, info.height, info.depth, 1 << (info.blockHeightLog2 & 7));
-
-		int width = info.width;
-		int height = info.height;
-		int depth = info.depth;
-		size_t mipSize = (size_t)info.textureSize;
-		int maxBlockHeight = 1 << (info.blockHeightLog2 & 7);
-		bool special = info.flags & 0x4;
-		int  special_pad = info.specialPad;
-		Model_loadTextureSwitch(idx, data2 + tof, (xt1_texture_type_t)info.textureType, (xt1_texture_format_t)info.format, width, height, depth, maxBlockHeight, mipSize, special, special_pad, fname, textures, rapi);
-	}
-	//insert a flat normal map placeholder
-	char fname[MAX_NOESIS_PATH];
+	char fname[8192];
 	rapi->Noesis_GetDirForFilePath(fname, rapi->Noesis_GetOutputName());
+
 	char nameStr[MAX_NOESIS_PATH];
-	sprintf_s(nameStr, MAX_NOESIS_PATH, ".\\%sbayoflatnormal", rapi->Noesis_GetOption("texpre"));
+	sprintf_s(nameStr, MAX_NOESIS_PATH, ".\\%s%s%03i", rapi->Noesis_GetOption("texpre"), texName, texIndex);
 	strcat_s(fname, MAX_NOESIS_PATH, nameStr);
-	noesisTex_t *nt = rapi->Noesis_AllocPlaceholderTex(fname, 32, 32, true);
-	textures.Append(nt);
+	DBGLOG("%s: 0x%0x, type: %d, format: %x, width: %d, height: %d, depth: %d, maxBlockHeight: %d\n", fname, idx, info.textureType, info.format, info.width, info.height, info.depth, 1 << (info.blockHeightLog2 & 7));
+
+	int width = info.width;
+	int height = info.height;
+	int depth = info.depth;
+	size_t mipSize = (size_t)info.textureSize;
+	int maxBlockHeight = 1 << (info.blockHeightLog2 & 7);
+	bool special = info.flags & 0x4;
+	int  special_pad = info.specialPad;
+	return Model_LoadTextureSwitch(idx, data2 + tof, (xt1_texture_type_t)info.textureType, (xt1_texture_format_t)info.format, width, height, depth, maxBlockHeight, mipSize, special, special_pad, fname, rapi);
+}
+
+template <>
+static void Model_Bayo_LoadTextures<false, ASTRAL_CHAIN>(CArrayList<noesisTex_t *> &textures, CArrayList<bayoDatFile_t *> &texFiles, noeRAPI_t *rapi) {
+	Model_LoadTextures_Switch<ASTRAL_CHAIN>(textures, texFiles, rapi);
+}
+
+template <>
+static void Model_Bayo_LoadTextures_Set<false, ASTRAL_CHAIN>(CArrayList<noesisTex_t *> &textures, CArrayList<bayoDatFile_t *> &texFiles, noeRAPI_t *rapi, std::set<int32_t> indices) {
+	Model_LoadTextures_Set_Switch<ASTRAL_CHAIN>(textures, texFiles, rapi, indices);
 }
 
 template <>

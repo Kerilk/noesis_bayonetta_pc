@@ -48,13 +48,13 @@ typedef struct bayoDatFile_s
 typedef struct bayoWTBHdr_s
 {
 	BYTE				id[4];
-	int					unknown;
-	int					numTex;
-	int					ofsTexOfs;
-	int					ofsTexSizes;
-	int					ofsTexFlags;
-	int					texIdxOffset;
-	int					texInfoOffset;
+	int32_t				unknown;
+	int32_t				numTex;
+	int32_t				ofsTexOfs;
+	int32_t				ofsTexSizes;
+	int32_t				ofsTexFlags;
+	int32_t				texIdxOffset;
+	int32_t				texInfoOffset;
 } bayoWTBHdr_t;
 template <bool big>
 struct bayoWTBHdr : public bayoWTBHdr_s {
@@ -2457,6 +2457,28 @@ static void Model_Bayo_LoadScenery<true, BAYONETTA>(CArrayList<bayoDatFile_t> &o
 	Model_Bayo_LoadSceneryBayo1<true>(olddfiles, df, rapi, models);
 }
 
+template <bool big>
+BYTE * Bayo_LoadCompanionDxx(wchar_t *inFile, CArrayList<bayoDatFile_t> &dfiles, noeRAPI_t *rapi) {
+	BYTE *dttFile = NULL;
+	if (inFile && inFile[0]) {
+		wchar_t fn[MAX_NOESIS_PATH];
+		rapi->Noesis_GetExtensionlessNameW(fn, inFile);
+		if (rapi->Noesis_CheckFileExtW(inFile, L".dat"))
+			wcscat_s(fn, MAX_NOESIS_PATH, L".dtt");
+		else if (rapi->Noesis_CheckFileExtW(inFile, L".dtt"))
+			wcscat_s(fn, MAX_NOESIS_PATH, L".dat");
+		else
+			return NULL;
+		int dttLen = 0;
+		dttFile = (BYTE *)rapi->Noesis_ReadFileW(fn, &dttLen);
+		if (dttFile && dttLen > 0)
+		{
+			Model_Bayo_GetDATEntries<big>(dfiles, dttFile, dttLen);
+		}
+	}
+	return dttFile;
+}
+
 //load it
 template <bool big, game_t game>
 noesisModel_t *Model_Bayo_Load(BYTE *fileBuffer, int bufferLen, int &numMdl, noeRAPI_t *rapi)
@@ -2473,33 +2495,8 @@ noesisModel_t *Model_Bayo_Load(BYTE *fileBuffer, int bufferLen, int &numMdl, noe
 	//create a list of resources
 	Model_Bayo_GetDATEntries<big>(dfiles, fileBuffer, bufferLen);
 	//for Vanquish, Transformer Devastation or Astral Chain, append any matching dtt files (they're just paired dat files)
-	char *inFile = rapi->Noesis_GetInputName();
-	BYTE *dttFile = NULL;
-	if (inFile && inFile[0] && game != NIER_AUTOMATA)
-	{
-		char fn[MAX_NOESIS_PATH];
-		rapi->Noesis_GetExtensionlessName(fn, inFile);
-		strcat_s(fn, MAX_NOESIS_PATH, ".dtt");
-		int dttLen = 0;
-		dttFile = (BYTE *)rapi->Noesis_ReadFile(fn, &dttLen);
-		if (dttFile && dttLen > 0)
-		{
-			Model_Bayo_GetDATEntries<big>(dfiles, dttFile, dttLen);
-		}
-	}
-	//for Nier, append any matching dat files (they're just paired dtt files) :)
-	if (inFile && inFile[0] && game == NIER_AUTOMATA)
-	{
-		char fn[MAX_NOESIS_PATH];
-		rapi->Noesis_GetExtensionlessName(fn, inFile);
-		strcat_s(fn, MAX_NOESIS_PATH, ".dat");
-		int dttLen = 0;
-		dttFile = (BYTE *)rapi->Noesis_ReadFile(fn, &dttLen);
-		if (dttFile && dttLen > 0)
-		{
-			Model_Bayo_GetDATEntries<big>(dfiles, dttFile, dttLen);
-		}
-	}
+	wchar_t *inFile = rapi->Noesis_GetInputNameW();
+	BYTE *dttFile = Bayo_LoadCompanionDxx<big>(rapi->Noesis_GetInputNameW(), dfiles, rapi);
 	CArrayList<noesisModel_t *> models;
 	DBGLOG("Have %d files\n", dfiles.Num());
 	for (int i = 0; i < dfiles.Num(); i++)

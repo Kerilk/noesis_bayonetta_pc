@@ -50,15 +50,16 @@ struct SPGOptions {
 	bool bDisplayLODs;
 	bool bFuseModels;
 	bool bCollisionModels;
+	bool bUseTextureIndex;
 };
 SPGOptions *gpPGOptions = NULL;
 SPGOptions persistentPGOptions;
 
 static void bayonetta_default_options(SPGOptions &opts) {
 #ifdef NOESIS_RELEASE
-	opts = { false, false, false, false, false, false, true, false };
+	opts = { false, false, false, false, false, false, true, false, false };
 #else
-	opts = { true, true, true, false, false, false, false, false };
+	opts = { true, true, true, false, false, false, false, false, false };
 #endif
 }
 
@@ -67,7 +68,7 @@ const LPWSTR reg_key = L"Software\\Noesis\\Plugins\\Bayonetta";
 #else
 const LPWSTR reg_key = L"Software\\Noesis\\Plugins\\Bayonetta PC";
 #endif
-const DWORD config_ver = 102;
+const DWORD config_ver = 103;
 
 static void bayonetta_load_options() {
 	HKEY key;
@@ -125,7 +126,9 @@ enum EPGOption
 	kPGO_DoFuseModels,
 	kPGO_NoFuseModels,
 	kPGO_DoCollisionModels,
-	kPGO_NoCollisionModels
+	kPGO_NoCollisionModels,
+	kPGO_DoUseTextureIndex,
+	kPGO_NoUseTextureIndex
 };
 
 
@@ -530,6 +533,10 @@ int bayonetta_load_collision_models(int handle, void *user_data) {
 	bayonetta_option_prompt(bCollisionModels, "Load Collision Models?", "Load Collision Models");
 }
 
+int bayonetta_use_texture_index(int handle, void *user_data) {
+	bayonetta_option_prompt(bUseTextureIndex, "Use Texture Index?", "Use Texture Index");
+}
+
 bool datIsValid(const bayoDat_t *data, uint64_t datSize, bool &big) {
 	if (datSize < sizeof(bayoDat_t))
 		return false;
@@ -574,10 +581,10 @@ static void processWTX(uint32_t pathlen, wchar_t *path, uint32_t namelen, char *
 	fwrite(&namelen, sizeof(namelen), 1, textureIndex);
 	fwrite(name, sizeof(char), namelen, textureIndex);
 	fwrite(&wtb.numTex, sizeof(wtb.numTex), 1, textureIndex);
-	uint32_t *ptexIdx = (uint32_t *)(data + wtb.texIdxOffset);
+	int32_t *ptexIdx = (int32_t *)(data + wtb.texIdxOffset);
 	if (big) {
 		for (int i = 0; i < wtb.numTex; i++) {
-			uint32_t texIdx = ptexIdx[i];
+			int32_t texIdx = ptexIdx[i];
 			LITTLE_BIG_SWAP(texIdx);
 			fwrite(&texIdx, sizeof(texIdx), 1, textureIndex);
 		}
@@ -827,6 +834,12 @@ static bool set_option(const char *arg, unsigned char *store, int storeSize) {
 	case kPGO_NoCollisionModels:
 		pOpts->bCollisionModels = false;
 		break;
+	case kPGO_DoUseTextureIndex:
+		pOpts->bUseTextureIndex = true;
+		break;
+	case kPGO_NoUseTextureIndex:
+		pOpts->bUseTextureIndex = false;
+		break;
 	}
 	return true;
 }
@@ -859,6 +872,8 @@ bool NPAPI_InitLocal(void)
 	option_handler_add(fh, optParms, "-bayopgnofuse", "disable level models fusion.", false, set_option<kPGO_NoFuseModels>);
 	option_handler_add(fh, optParms, "-bayopgcol", "enable collision models.", false, set_option<kPGO_DoCollisionModels>);
 	option_handler_add(fh, optParms, "-bayopgnocol", "disable collision models.", false, set_option<kPGO_NoCollisionModels>);
+	option_handler_add(fh, optParms, "-bayopgtexidx", "enable texture index.", false, set_option<kPGO_DoUseTextureIndex>);
+	option_handler_add(fh, optParms, "-bayopgnotexidx", "disable texture index.", false, set_option<kPGO_NoUseTextureIndex>);
 
 	bayonetta_default_options(persistentPGOptions);
 #ifdef NOESIS_RELEASE
@@ -882,6 +897,8 @@ bool NPAPI_InitLocal(void)
 	handle = g_nfn->NPAPI_RegisterTool("Fuse Level Models", bayonetta_fuse_models, NULL);
 	g_nfn->NPAPI_SetToolSubMenuName(handle, menu);
 	handle = g_nfn->NPAPI_RegisterTool("Load Collision Models", bayonetta_load_collision_models, NULL);
+	g_nfn->NPAPI_SetToolSubMenuName(handle, menu);
+	handle = g_nfn->NPAPI_RegisterTool("Use Texture Index", bayonetta_use_texture_index, NULL);
 	g_nfn->NPAPI_SetToolSubMenuName(handle, menu);
 	handle = g_nfn->NPAPI_RegisterTool("Create Texture Index", bayonetta_create_texture_cache, NULL);
 	g_nfn->NPAPI_SetToolSubMenuName(handle, menu);
