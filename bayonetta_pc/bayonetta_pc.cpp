@@ -293,11 +293,13 @@ bool Model_Bayo_Check(BYTE *fileBuffer, int bufferLen, noeRAPI_t *rapi)
 					DBGLOG("Found Nier Automata, Astral Chain File or Transformer Devastation File!\n");
 					return false;
 				}
-				if ((game != NIER_AUTOMATA && game != ASTRAL_CHAIN) && tag == WMB3_TAG && (version == 0x20160116 || version == 0x20200824 || version == 0x20200319)) {
+				if ((game != NIER_AUTOMATA && game != ASTRAL_CHAIN) && tag == WMB3_TAG &&
+					(version == 0x20160116 || version == 0x20200824 || version == 0x20200319 || version == 0x20210402)) {
 					DBGLOG("Found Nier Automata or Astral Chain File!\n");
 					return false;
 				}
-				if ((game == NIER_AUTOMATA || game == ASTRAL_CHAIN) && tag == WMB3_TAG && version != 0x20160116 && version != 0x20200824 && version != 0x20200319) {
+				if ((game == NIER_AUTOMATA || game == ASTRAL_CHAIN) && tag == WMB3_TAG &&
+					version != 0x20160116 && version != 0x20200824 && version != 0x20200319 && version != 0x20210402) {
 					DBGLOG("Found Transformer Devastation File!\n");
 					return false;
 				}
