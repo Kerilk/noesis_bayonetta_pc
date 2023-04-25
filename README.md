@@ -3,6 +3,7 @@ PlatinumGames plugin for Noesis
 - Bayonetta
 - Bayonetta 2
 - Bayonetta 3
+- Bayonetta Origins
 - Nier Automata
 - Metal Gear Rising Revengeance
 - MadWorld
