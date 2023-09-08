@@ -20,8 +20,7 @@ PlatinumGames plugin for Noesis
 ## Install
 
 - Download Noesis: http://richwhitehouse.com/index.php?content=inc_projects.php&showproject=91
-- Uncompress and install in the plugins folder (x64 plugin goes into the x64 folder)
-- Don't forget to delete the old bayonetta_pc.dll, else it will be used to open the files rather than the new one.
+- Uncompress the `bayonetta.7z` in the `plugins` folder of noesis (uncompress `bayonetta_x64.7z` in the `x64` folder located in the `plugins` folder of noesis)
 - Noesis will come with the same plugin but it's default options and options store are different
 - When plugin options are changed, the configuration is reset
 - Plugin options need to be enabled in Noesis: `Tools/Display Plugin Tools` must be turned on
