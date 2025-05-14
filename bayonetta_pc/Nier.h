@@ -841,7 +841,8 @@ static void Model_loadTextureSwitch(int idx, BYTE *data, xt1_texture_type_t text
 		nt->shouldFreeData = false; //because the pix data is pool-allocated, it does not need to be freed
 	}
 	else if (decode_dxt) {
-		pix = rapi->Noesis_ConvertDXT(width, height, untiledMip, fourcc);
+		//pix = rapi->Noesis_ConvertDXT(width, height, untiledMip, fourcc);
+		pix = rapi->Noesis_ConvertDXTEx(width, height, untiledMip, fourcc, width * height * 4, 0, 0);
 		DBGLOG("Decoded BC\n");
 		nt = rapi->Noesis_TextureAlloc(fname, width, height, pix, NOESISTEX_RGBA32);
 		nt->shouldFreeData = true;
