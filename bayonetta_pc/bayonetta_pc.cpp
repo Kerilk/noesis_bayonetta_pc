@@ -750,7 +750,7 @@ bool NPAPI_InitLocal(void)
 	g_nfn->NPAPI_SetToolSubMenuName(handle, menu);
 	handle = g_nfn->NPAPI_RegisterTool("Enable Multipass", bayonetta_multipass, NULL);
 	g_nfn->NPAPI_SetToolSubMenuName(handle, menu);
-	handle = g_nfn->NPAPI_RegisterTool("Enable Lightmaps", bayonetta_multipass, NULL);
+	handle = g_nfn->NPAPI_RegisterTool("Enable Lightmaps", bayonetta_lightmaps, NULL);
 	g_nfn->NPAPI_SetToolSubMenuName(handle, menu);
 	handle = g_nfn->NPAPI_RegisterTool("Hide Shadow Meshes", bayonetta_hide_shadow_meshes, NULL);
 	g_nfn->NPAPI_SetToolSubMenuName(handle, menu);
